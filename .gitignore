@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+*.sqlite3*
+*.mco
+*.log
+.build-distribution/
+Distribution/Installateur/*.exe
+Distribution/Sources/*.zip
+.obsidian/
+
+# Publication limitée aux livrables et aux outils de construction
+Distribution/*
+!Distribution/README.md
+!Distribution/SHA256SUMS.txt
+!Distribution/Construction/
+!Distribution/Installateur/
+!Distribution/Licences/
+!Distribution/Sources/

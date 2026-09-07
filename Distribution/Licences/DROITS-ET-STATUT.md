@@ -1,6 +1,6 @@
 # Licence et droits d’utilisation
 
-Le code original de Mon Cabinet d’Ostéo est distribué sous licence **MIT**, identifiant SPDX `MIT`. La notice utilise le pseudonyme du compte GitHub connecté, **Kiiwom**, ainsi que les contributeurs du projet. Le texte de référence se trouve dans `LICENSE.txt` et dans le fichier `LICENSE` à la racine du code source.
+Le code original de Mon Cabinet d’Ostéo est distribué sous licence **MIT**, identifiant SPDX `MIT`. Le copyright est attribué à **Kiiwom** et aux contributeurs du projet. Le texte de référence se trouve dans `LICENSE.txt` et dans le fichier `LICENSE` à la racine du code source.
 
 ## Ce que vous pouvez faire
 

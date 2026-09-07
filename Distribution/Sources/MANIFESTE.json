@@ -1,7 +1,143 @@
 [
   {
     "path": ".gitignore",
-    "sha256": "02c26a9f710a25ee56cd4de599a1a1ce92c7421c79c3de4fa5b6699faf639e82"
+    "sha256": "761e29885e8c1002a1c6b58963ef0a6e828951bae7d6e781954739d33f51c233"
+  },
+  {
+    "path": "Distribution/Construction/README-SOURCES.md",
+    "sha256": "865e825f6b0967a16f0d8f927f29d347b27eaf148b01537dcf0dea25bd8bd7cf"
+  },
+  {
+    "path": "Distribution/Construction/README.md",
+    "sha256": "b1be19f8fe432e44bd2a4e8e6107e33883a0ac9b1fa5a012f0126a0305ae254b"
+  },
+  {
+    "path": "Distribution/Construction/build.py",
+    "sha256": "8b47c21154f831e9dab1626f87cb130324f8f4f7e56357f9dffa3db7d3b159e2"
+  },
+  {
+    "path": "Distribution/Construction/installer.iss",
+    "sha256": "e1b20e4eabc5185793e886d1a370e54877eacbcc7470ce4aaebefec1c2876a21"
+  },
+  {
+    "path": "Distribution/Construction/requirements-build.txt",
+    "sha256": "feabcaf93b81b0893c6bed62f8a85a9cc176a681192ec658f07a309b99a2b384"
+  },
+  {
+    "path": "Distribution/Construction/verify_windows.py",
+    "sha256": "9928eea6e1ea66914d40d7000decc9acddc04a9cad0f0e69d497b084a36a81d6"
+  },
+  {
+    "path": "Distribution/Construction/windows_launcher.py",
+    "sha256": "d03a54548c8dcf662c66d08cd433aad7798f7fa5cff2327c355e0c9646d9e3a3"
+  },
+  {
+    "path": "Distribution/Installateur/AVANT-INSTALLATION.txt",
+    "sha256": "5b32f8a1d66856b8e83e540107406a2ef8172b2459575603c94106a794e49aa0"
+  },
+  {
+    "path": "Distribution/Installateur/GUIDE-INSTALLATION.md",
+    "sha256": "2b0d73d282b94d16fce2137f97ab7fe517e6638f81da130d48991abf669fe98b"
+  },
+  {
+    "path": "Distribution/Licences/DEPENDANCES.md",
+    "sha256": "d79cdbbfdf9e3063f63d6472e98f577eb88a3100bdd7ac27fb19f45b3dbdfc50"
+  },
+  {
+    "path": "Distribution/Licences/DROITS-ET-STATUT.md",
+    "sha256": "6822abccddbb4a3d67a7368b1a445f3b6542e8f311f7a1afd32513886d9aa591"
+  },
+  {
+    "path": "Distribution/Licences/LICENSE.txt",
+    "sha256": "04acb11c1c656332afd5cb35da8b399aa9162b80c906ced9d3f0f626debcd18f"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/InnoSetup/LICENSE.txt",
+    "sha256": "2e5346868c2a18434489824e11d65c3031620f792fefc415d05f19cd441abf5c"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/OpenSSL/LICENSE.txt",
+    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/OpenSSL/PROVENANCE.md",
+    "sha256": "56fa997117e730539e7921dfc28917d2cc2512c6212ac3a8be99e392ccea899a"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/Python/INCORPORATED-SOFTWARE.rst",
+    "sha256": "341832873fd316a37927e79385093fbbfd40a467428480835fe435a80cadf4e5"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/Python/LICENSE.txt",
+    "sha256": "886a0ead2d89030ee62dbff52b04e47ab91998341295bb9c56fb952b4e081c7a"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/cffi/cffi-2.1.1.dist-info/licenses/LICENSE",
+    "sha256": "5ba24ddc57067f9249add644c3afc41a5d6dc37e23433ef759d95df370b0af63"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/charset-normalizer/charset_normalizer-3.5.1.dist-info/licenses/LICENSE",
+    "sha256": "18577485d3704f1a479ded8e573c0976cfed315fd2fd17983fa988da4c2f70d1"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/cryptography/cryptography-50.0.1.dist-info/licenses/LICENSE",
+    "sha256": "3e0c7c091a948b82533ba98fd7cbb40432d6f1a9acbf85f5922d2f99a93ae6bb"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/cryptography/cryptography-50.0.1.dist-info/licenses/LICENSE.APACHE",
+    "sha256": "aac73b3148f6d1d7111dbca32099f68d26c644c6813ae1e4f05f6579aa2663fe"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/cryptography/cryptography-50.0.1.dist-info/licenses/LICENSE.BSD",
+    "sha256": "602c4c7482de6479dd2e9793cda275e5e63d773dacd1eca689232ab7008fb4fb"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/pillow/pillow-12.3.0.dist-info/licenses/LICENSE",
+    "sha256": "4f7866a74802c6326f81faff59a56546b6aec2b10b91973e0e9308de95e79857"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/pycparser/pycparser-3.0.dist-info/licenses/LICENSE",
+    "sha256": "0c846399369ea76ddd7b5c44fe6d16497415fcf015f5cbb508c24bf98b81c5b1"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/pyinstaller/pyinstaller-6.22.2.dist-info/licenses/COPYING.txt",
+    "sha256": "dcf75fdb959db1e3b41c0f8505069d2ece781b5ec6b3d0a4d30975cfc6580245"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/reportlab/reportlab-4.4.9.dist-info/licenses/LICENSE",
+    "sha256": "ef831761646313921375fc2cb888e8eeaf7da213d0b92852c10c42f3a0b4d138"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/reportlab/reportlab/fonts/DarkGarden-copying-gpl.txt",
+    "sha256": "1b2a567f289f66a143c56353e7b3d4fa5862514a5e3c5cfdf8b02ee5e5aaa953"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/reportlab/reportlab/fonts/DarkGarden-copying.txt",
+    "sha256": "3cd1020510efa7f6b3166a5a2740f92bd664a695ea179e0bda442e74cd0ef3a4"
+  },
+  {
+    "path": "Distribution/Licences/Tiers/reportlab/reportlab/fonts/bitstream-vera-license.txt",
+    "sha256": "3361d054759a2fc686a2c058be82deaf9c2e6fe549be9004d7935a6c1736315d"
+  },
+  {
+    "path": "Distribution/README.md",
+    "sha256": "10cbdcaf0acd4df6981e0aab0685e5d80467e2ae0469b6c53615a39bf955e738"
+  },
+  {
+    "path": "LICENSE",
+    "sha256": "04acb11c1c656332afd5cb35da8b399aa9162b80c906ced9d3f0f626debcd18f"
+  },
+  {
+    "path": "Ouvrir la demonstration.cmd",
+    "sha256": "8c170b2c9460ff38877013969757c2e0e0989c968f87c8e940e707f7ca8e5823"
+  },
+  {
+    "path": "Ouvrir mon cabinet.cmd",
+    "sha256": "1ae6e0fff86845383f49b95e8f6b83a7602526cc922e7892a3561f95445840d3"
+  },
+  {
+    "path": "README.md",
+    "sha256": "865e825f6b0967a16f0d8f927f29d347b27eaf148b01537dcf0dea25bd8bd7cf"
   },
   {
     "path": "app/cabinet.ico",
@@ -44,164 +180,8 @@
     "sha256": "1a59c035fdcabce7ed1ae871be118aa90490ca097d7fb05c6a582e58bff63204"
   },
   {
-    "path": "Distribution/Construction/build.py",
-    "sha256": "5ac9791424de170b54bf7bad1fc69ad0aa535784da183008cacaec582806614e"
-  },
-  {
-    "path": "Distribution/Construction/installer.iss",
-    "sha256": "e1b20e4eabc5185793e886d1a370e54877eacbcc7470ce4aaebefec1c2876a21"
-  },
-  {
-    "path": "Distribution/Construction/README.md",
-    "sha256": "b1be19f8fe432e44bd2a4e8e6107e33883a0ac9b1fa5a012f0126a0305ae254b"
-  },
-  {
-    "path": "Distribution/Construction/requirements-build.txt",
-    "sha256": "feabcaf93b81b0893c6bed62f8a85a9cc176a681192ec658f07a309b99a2b384"
-  },
-  {
-    "path": "Distribution/Construction/verify_windows.py",
-    "sha256": "9928eea6e1ea66914d40d7000decc9acddc04a9cad0f0e69d497b084a36a81d6"
-  },
-  {
-    "path": "Distribution/Construction/windows_launcher.py",
-    "sha256": "d03a54548c8dcf662c66d08cd433aad7798f7fa5cff2327c355e0c9646d9e3a3"
-  },
-  {
-    "path": "Distribution/Facebook/PUBLICATIONS.md",
-    "sha256": "a2f137f7cd983768f1da278307e6f4bf17c69a33be0a00829201f919570d2688"
-  },
-  {
-    "path": "Distribution/GitHub/LIENS.md",
-    "sha256": "175d2cbfacc40165a360975fbc5d570159e92368c9d1e0ca2ab9147e5caba932"
-  },
-  {
-    "path": "Distribution/GitHub/MISE-EN-LIGNE.md",
-    "sha256": "3487263748c9af4fa151d61d664cbac95f2b1a39d03a2e1f466549a4fff4c09b"
-  },
-  {
-    "path": "Distribution/GitHub/NOTES-DE-VERSION.md",
-    "sha256": "2d55a7d8a0112b2c341ede064878044daa2d19b2daf4faf29cab3f00e42b7af7"
-  },
-  {
-    "path": "Distribution/Installateur/AVANT-INSTALLATION.txt",
-    "sha256": "5b32f8a1d66856b8e83e540107406a2ef8172b2459575603c94106a794e49aa0"
-  },
-  {
-    "path": "Distribution/Installateur/GUIDE-INSTALLATION.md",
-    "sha256": "2b0d73d282b94d16fce2137f97ab7fe517e6638f81da130d48991abf669fe98b"
-  },
-  {
-    "path": "Distribution/Licences/DEPENDANCES.md",
-    "sha256": "d79cdbbfdf9e3063f63d6472e98f577eb88a3100bdd7ac27fb19f45b3dbdfc50"
-  },
-  {
-    "path": "Distribution/Licences/DROITS-ET-STATUT.md",
-    "sha256": "16bb83eeaac0f8dab8f0040a957518ad114ece73d6159e8d9bde98fe88257004"
-  },
-  {
-    "path": "Distribution/Licences/LICENSE.txt",
-    "sha256": "04acb11c1c656332afd5cb35da8b399aa9162b80c906ced9d3f0f626debcd18f"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/cffi/cffi-2.1.1.dist-info/licenses/LICENSE",
-    "sha256": "5ba24ddc57067f9249add644c3afc41a5d6dc37e23433ef759d95df370b0af63"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/charset-normalizer/charset_normalizer-3.5.1.dist-info/licenses/LICENSE",
-    "sha256": "18577485d3704f1a479ded8e573c0976cfed315fd2fd17983fa988da4c2f70d1"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/cryptography/cryptography-50.0.1.dist-info/licenses/LICENSE",
-    "sha256": "3e0c7c091a948b82533ba98fd7cbb40432d6f1a9acbf85f5922d2f99a93ae6bb"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/cryptography/cryptography-50.0.1.dist-info/licenses/LICENSE.APACHE",
-    "sha256": "aac73b3148f6d1d7111dbca32099f68d26c644c6813ae1e4f05f6579aa2663fe"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/cryptography/cryptography-50.0.1.dist-info/licenses/LICENSE.BSD",
-    "sha256": "602c4c7482de6479dd2e9793cda275e5e63d773dacd1eca689232ab7008fb4fb"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/InnoSetup/LICENSE.txt",
-    "sha256": "2e5346868c2a18434489824e11d65c3031620f792fefc415d05f19cd441abf5c"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/OpenSSL/LICENSE.txt",
-    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/OpenSSL/PROVENANCE.md",
-    "sha256": "56fa997117e730539e7921dfc28917d2cc2512c6212ac3a8be99e392ccea899a"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/pillow/pillow-12.3.0.dist-info/licenses/LICENSE",
-    "sha256": "4f7866a74802c6326f81faff59a56546b6aec2b10b91973e0e9308de95e79857"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/pycparser/pycparser-3.0.dist-info/licenses/LICENSE",
-    "sha256": "0c846399369ea76ddd7b5c44fe6d16497415fcf015f5cbb508c24bf98b81c5b1"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/pyinstaller/pyinstaller-6.22.2.dist-info/licenses/COPYING.txt",
-    "sha256": "dcf75fdb959db1e3b41c0f8505069d2ece781b5ec6b3d0a4d30975cfc6580245"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/Python/INCORPORATED-SOFTWARE.rst",
-    "sha256": "341832873fd316a37927e79385093fbbfd40a467428480835fe435a80cadf4e5"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/Python/LICENSE.txt",
-    "sha256": "886a0ead2d89030ee62dbff52b04e47ab91998341295bb9c56fb952b4e081c7a"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/reportlab/reportlab/fonts/bitstream-vera-license.txt",
-    "sha256": "3361d054759a2fc686a2c058be82deaf9c2e6fe549be9004d7935a6c1736315d"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/reportlab/reportlab/fonts/DarkGarden-copying-gpl.txt",
-    "sha256": "1b2a567f289f66a143c56353e7b3d4fa5862514a5e3c5cfdf8b02ee5e5aaa953"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/reportlab/reportlab/fonts/DarkGarden-copying.txt",
-    "sha256": "3cd1020510efa7f6b3166a5a2740f92bd664a695ea179e0bda442e74cd0ef3a4"
-  },
-  {
-    "path": "Distribution/Licences/Tiers/reportlab/reportlab-4.4.9.dist-info/licenses/LICENSE",
-    "sha256": "ef831761646313921375fc2cb888e8eeaf7da213d0b92852c10c42f3a0b4d138"
-  },
-  {
-    "path": "Distribution/README.md",
-    "sha256": "eb397baf01bf37e396af5898d588689f99d6bf5778b8600e0918a5e64a681835"
-  },
-  {
-    "path": "Distribution/VERIFICATIONS.md",
-    "sha256": "4b36ddb75dac6eca035a04f85945038b13afb833f7ae02e58d833b66c7d245f6"
-  },
-  {
-    "path": "ETAT_IMPLEMENTATION.md",
-    "sha256": "213e70a0702fdaa6007554cbd90652ac008114720c87c365d9c58ac99f3abce3"
-  },
-  {
     "path": "lancer.py",
     "sha256": "78d40be77621872e5909e827c7f5a061051c7529e7eeebf8af92a5dd9102fb89"
-  },
-  {
-    "path": "LICENSE",
-    "sha256": "04acb11c1c656332afd5cb35da8b399aa9162b80c906ced9d3f0f626debcd18f"
-  },
-  {
-    "path": "Ouvrir la demonstration.cmd",
-    "sha256": "8c170b2c9460ff38877013969757c2e0e0989c968f87c8e940e707f7ca8e5823"
-  },
-  {
-    "path": "Ouvrir mon cabinet.cmd",
-    "sha256": "1ae6e0fff86845383f49b95e8f6b83a7602526cc922e7892a3561f95445840d3"
-  },
-  {
-    "path": "README.md",
-    "sha256": "2f698024674438d914dabe179d0e35fbd0c8503f477ec48af758cc7e82246b8f"
   },
   {
     "path": "requirements.txt",

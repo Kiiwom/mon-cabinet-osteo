@@ -75,27 +75,27 @@ def notices(compiler):
 def archive_sources():
     # Explicit allowlist: never include captures, local data, inventories or private settings.
     selected = [ROOT / f for f in ["LICENSE", "README.md", "requirements.txt", ".gitignore", "lancer.py",
-                                 "Ouvrir mon cabinet.cmd", "Ouvrir la demonstration.cmd", "ETAT_IMPLEMENTATION.md"]]
+                                 "Ouvrir mon cabinet.cmd", "Ouvrir la demonstration.cmd"]]
     for folder, suffixes in [(ROOT / "app", {".py", ".html", ".css", ".js", ".svg", ".ico"}),
                              (ROOT / "tests", {".py"}),
                              (DIST / "Construction", {".py", ".md", ".txt", ".iss"}),
-                             (DIST / "Licences", None),
-                             (DIST / "GitHub", {".md"}),
-                             (DIST / "Facebook", {".md"})]:
+                             (DIST / "Licences", None)]:
         selected.extend(p for p in folder.rglob("*") if p.is_file() and "__pycache__" not in p.parts
                         and (suffixes is None or p.suffix in suffixes))
     selected += [DIST / "README.md", DIST / "Installateur/GUIDE-INSTALLATION.md",
                  DIST / "Installateur/AVANT-INSTALLATION.txt"]
-    if (DIST / "VERIFICATIONS.md").exists():
-        selected.append(DIST / "VERIFICATIONS.md")
     selected = sorted(set(selected))
     source_dir = DIST / "Sources"
     source_dir.mkdir(parents=True, exist_ok=True)
     archive = source_dir / f"MonCabinetOsteo-{VERSION}-sources.zip"
+    def public_content(path):
+        if path == ROOT / "README.md":
+            return (DIST / "Construction/README-SOURCES.md").read_bytes()
+        return path.read_bytes()
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
         for path in selected:
-            output.write(path, path.relative_to(ROOT).as_posix())
-    manifest = [{"path": p.relative_to(ROOT).as_posix(), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+            output.writestr(path.relative_to(ROOT).as_posix(), public_content(path))
+    manifest = [{"path": p.relative_to(ROOT).as_posix(), "sha256": hashlib.sha256(public_content(p)).hexdigest()}
                 for p in selected]
     (source_dir / "MANIFESTE.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     installer = DIST / "Installateur" / f"MonCabinetOsteo-{VERSION}-essai-Setup-x64.exe"
