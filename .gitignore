@@ -1,19 +1,47 @@
+# Seuls les dossiers et fichiers du projet public sont suivis à la racine.
+/*
+!/.gitignore
+!/README.md
+!/CHANGELOG.md
+!/LICENSE
+!/requirements.txt
+!/lancer.py
+!/Ouvrir mon cabinet.cmd
+!/Ouvrir la demonstration.cmd
+!/app/
+!/tests/
+!/Distribution/
+
+# Données et fichiers générés : ne jamais les publier.
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
-*.sqlite3*
+.env
+.env.*
+*.sqlite*
+*.db
+*.db-*
 *.mco
 *.log
+*.pid
+*.csv
+*.xlsx
+*.pdf
+*.eml
+captures/
+imports/
+backups/
 .build-distribution/
-Distribution/Installateur/*.exe
-Distribution/Sources/*.zip
-.obsidian/
+.publication-source/
+*.exe
+*.zip
 
-# Publication limitée aux livrables et aux outils de construction
-Distribution/*
-!Distribution/README.md
-!Distribution/SHA256SUMS.txt
-!Distribution/Construction/
-!Distribution/Installateur/
-!Distribution/Licences/
-!Distribution/Sources/
+# Conserver la sélection des livrables publics.
+/Distribution/*
+!/Distribution/README.md
+!/Distribution/SHA256SUMS.txt
+!/Distribution/Construction/
+!/Distribution/Installateur/
+!/Distribution/Licences/
+!/Distribution/Sources/
+.obsidian/

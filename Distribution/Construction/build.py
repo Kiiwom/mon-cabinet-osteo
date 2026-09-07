@@ -75,7 +75,7 @@ def notices(compiler):
 def archive_sources():
     # Explicit allowlist: never include captures, local data, inventories or private settings.
     selected = [ROOT / f for f in ["LICENSE", "README.md", "requirements.txt", ".gitignore", "lancer.py",
-                                 "Ouvrir mon cabinet.cmd", "Ouvrir la demonstration.cmd"]]
+                                 "Ouvrir mon cabinet.cmd", "Ouvrir la demonstration.cmd", "CHANGELOG.md"]]
     for folder, suffixes in [(ROOT / "app", {".py", ".html", ".css", ".js", ".svg", ".ico"}),
                              (ROOT / "tests", {".py"}),
                              (DIST / "Construction", {".py", ".md", ".txt", ".iss"}),

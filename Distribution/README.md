@@ -14,3 +14,7 @@ Commencez par **Démonstration — dossiers fictifs** dans le menu Démarrer. Le
 L’archive source contient le code de l’essai 0.2.0, les tests, les scripts de construction et la documentation d’utilisation. Le manifeste des fichiers est disponible dans [Sources/MANIFESTE.json](Sources/MANIFESTE.json).
 
 Le code original est distribué sous licence MIT. Les composants tiers conservent leurs propres licences. Le logiciel est fourni en l’état et ne revendique aucune certification.
+
+## Sources actuelles
+
+Les sources 0.4.0 sont consultables dans [app/](../app/) et [tests/](../tests/). Le [guide du projet](../README.md) décrit leur lancement et les fonctions ajoutées. L’installateur et l’archive proposés ci-dessus restent en version 0.2.0.
