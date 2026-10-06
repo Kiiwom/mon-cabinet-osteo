@@ -1,0 +1,265 @@
+/* Couleurs et formes reprises des maquettes validées le 6 octobre 2026. */
+@import "@fontsource-variable/figtree";
+
+:root {
+  --fond: #faf7f1;
+  --fond-barre: #f3ede3;
+  --fond-carte: #ffffff;
+  --fond-discret: #ebe3d6;
+  --bordure: #e8e0d3;
+  --bordure-champ: #e2d8c9;
+  --encre: #33291f;
+  --encre-2: #4a3d30;
+  --encre-discrete: #6b5b4b;
+  --lien: #6e5212;
+  --lien-survol: #3d2e10;
+  --accent: #e2b84a;
+  --accent-doux: #f6eacb;
+  --accent-fonce: #8f6c1e;
+  --succes: #3e7a57;
+  --succes-fond: #e3f0e8;
+  --succes-texte: #1f4a33;
+  --alerte-fond: #fce8d2;
+  --alerte-texte: #8a4710;
+  --rayon: 12px;
+  --rayon-carte: 16px;
+  --ombre-legere: 0 1px 2px rgba(51, 41, 31, 0.08);
+  font-family: "Figtree Variable", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--encre);
+  background: var(--fond);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fond);
+}
+
+a {
+  color: var(--lien);
+}
+
+a:hover {
+  color: var(--lien-survol);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent-fonce);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* Coque : barre latérale et contenu */
+.coque {
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.barre {
+  flex: 1 1 220px;
+  max-width: 100%;
+  background: var(--fond-barre);
+  border-right: 1px solid var(--bordure);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.marque {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.marque-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rayon);
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.marque-nom {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.marque-nom strong {
+  font-size: 16px;
+}
+
+.marque-nom span {
+  font-size: 13px;
+  color: var(--encre-discrete);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu-lien {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 10px;
+  color: var(--encre-2);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.menu-lien:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--encre);
+}
+
+.menu-lien[aria-current="page"] {
+  background: var(--fond-carte);
+  color: var(--encre);
+  font-weight: 600;
+  box-shadow: var(--ombre-legere);
+}
+
+.pastille-alerte {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  flex: none;
+}
+
+.separateur {
+  height: 1px;
+  background: var(--bordure-champ);
+}
+
+.etat-sauvegarde {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--fond-discret);
+  font-size: 13px;
+  color: var(--encre-2);
+}
+
+.point {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--succes);
+  flex: none;
+}
+
+.contenu {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+.page {
+  padding: 28px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1280px;
+}
+
+.page-titre {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.page-sous-titre {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--encre-discrete);
+}
+
+.carte {
+  background: var(--fond-carte);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-carte);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.etapes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.etape {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.etape-etat {
+  flex: none;
+  min-width: 76px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 10px;
+  margin-top: 1px;
+}
+
+.etape-etat[data-etat="fait"] {
+  background: var(--succes-fond);
+  color: var(--succes-texte);
+}
+
+.etape-etat[data-etat="en-cours"] {
+  background: var(--accent-doux);
+  color: var(--encre);
+}
+
+.etape-etat[data-etat="a-venir"] {
+  background: var(--fond-barre);
+  color: var(--encre-2);
+}
+
+.discret {
+  font-size: 13px;
+  color: var(--encre-discrete);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 20px 16px 40px;
+  }
+}

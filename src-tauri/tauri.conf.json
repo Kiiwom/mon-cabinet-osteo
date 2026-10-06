@@ -1,0 +1,55 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Osteosphere",
+  "version": "0.5.0",
+  "identifier": "fr.pierre-besnier.osteosphere",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Osteosphere",
+        "width": 1366,
+        "height": 860,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "Pierre Besnier",
+    "copyright": "Osteosphere, logiciel libre sous licence GPL-3.0",
+    "license": "GPL-3.0-or-later",
+    "licenseFile": "../LICENSE",
+    "category": "Business",
+    "shortDescription": "Gestion de cabinet pour ostéopathes",
+    "longDescription": "Logiciel libre et gratuit de gestion de cabinet pour ostéopathes : patients, séances, trames, facturation, recettes et statistiques, sur l'ordinateur du praticien.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["French"]
+      },
+      "wix": {
+        "language": "fr-FR"
+      }
+    }
+  }
+}

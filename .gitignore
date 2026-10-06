@@ -1,47 +1,26 @@
-# Seuls les dossiers et fichiers du projet public sont suivis à la racine.
-/*
-!/.gitignore
-!/README.md
-!/CHANGELOG.md
-!/LICENSE
-!/requirements.txt
-!/lancer.py
-!/Ouvrir mon cabinet.cmd
-!/Ouvrir la demonstration.cmd
-!/app/
-!/tests/
-!/Distribution/
+# Dépendances et fichiers générés
+node_modules/
+dist/
+target/
+src-tauri/gen/
+*.log
 
-# Données et fichiers générés : ne jamais les publier.
-__pycache__/
-*.py[cod]
-.venv/
-.env
-.env.*
+# Données de cabinet : ne jamais les publier, même fictives hors des tests.
+*.osteosphere
+*.osteosphere-*
 *.sqlite*
 *.db
 *.db-*
-*.mco
-*.log
-*.pid
+trousseau.json
 *.csv
 *.xlsx
 *.pdf
 *.eml
-captures/
-imports/
-backups/
-.build-distribution/
-.publication-source/
-*.exe
-*.zip
+.env
+.env.*
 
-# Conserver la sélection des livrables publics.
-/Distribution/*
-!/Distribution/README.md
-!/Distribution/SHA256SUMS.txt
-!/Distribution/Construction/
-!/Distribution/Installateur/
-!/Distribution/Licences/
-!/Distribution/Sources/
-.obsidian/
+# Éditeurs et systèmes
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

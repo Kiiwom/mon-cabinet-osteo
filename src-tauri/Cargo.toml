@@ -1,0 +1,24 @@
+[package]
+name = "osteosphere"
+description = "Osteosphere, logiciel libre de gestion de cabinet pour ostéopathes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "osteosphere_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.1", features = [] }
+
+[dependencies]
+log = "0.4"
+osteosphere-core = { path = "../crates/osteosphere-core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.12.1", features = [] }
+tauri-plugin-log = "2"
