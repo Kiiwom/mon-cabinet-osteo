@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
+import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
 
 export interface IdentiteCabinet {
   prenom: string;
@@ -91,6 +92,8 @@ export interface FichePatient {
   /** Allergie, contre-indication, précaution : en tête du dossier et de chaque séance. */
   notes_importantes: string;
   remarques: string;
+  /** Remarques sur les antécédents, saisies dans l'onglet Antécédents. */
+  remarques_antecedents: string;
   consentement_le: string | null;
 }
 
@@ -149,8 +152,35 @@ export const FICHE_VIDE: FichePatient = {
   statut: "",
   notes_importantes: "",
   remarques: "",
+  remarques_antecedents: "",
   consentement_le: null,
 };
+
+/** Couleurs d'antécédent proposées ; vide = couleur de la catégorie. */
+export type CouleurAntecedent = "" | "gris" | "blanc" | "jaune" | "rouge" | "bleu" | "vert";
+
+export interface CategorieAntecedents {
+  cle: string;
+  libelle: string;
+  rubriques: string[];
+}
+
+/** Dates partielles : « 2009 », « 2009-03 » ou « 2009-03-14 ». */
+export interface SaisieAntecedent {
+  categorie: string;
+  rubrique: string;
+  precision: string;
+  debut: string | null;
+  fin: string | null;
+  en_cours: boolean;
+  couleur: CouleurAntecedent;
+  important: boolean;
+}
+
+export interface Antecedent extends SaisieAntecedent {
+  id: string;
+  patient_id: string;
+}
 
 export function resumeDe(patient: Patient): ResumePatient {
   const { id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut, notes_importantes, decede, archive } =
@@ -181,6 +211,10 @@ export interface Coeur {
   modifierPatient(id: string, fiche: FichePatient): Promise<Patient>;
   archiverPatient(id: string, archive: boolean): Promise<Patient>;
   statutsPatients(): Promise<string[]>;
+  formulaireAntecedents(): Promise<CategorieAntecedents[]>;
+  listerAntecedents(patientId: string): Promise<Antecedent[]>;
+  enregistrerAntecedent(patientId: string, id: string | null, saisie: SaisieAntecedent): Promise<Antecedent>;
+  supprimerAntecedent(id: string): Promise<void>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -231,6 +265,10 @@ export const coeurTauri: Coeur = {
   modifierPatient: (id, fiche) => appeler("modifier_patient", { id, fiche }),
   archiverPatient: (id, archive) => appeler("archiver_patient", { id, archive }),
   statutsPatients: () => appeler("statuts_patients"),
+  formulaireAntecedents: () => appeler("formulaire_antecedents"),
+  listerAntecedents: (patientId) => appeler("lister_antecedents", { patientId }),
+  enregistrerAntecedent: (patientId, id, saisie) => appeler("enregistrer_antecedent", { patientId, id, saisie }),
+  supprimerAntecedent: (id) => appeler("supprimer_antecedent", { id }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -263,6 +301,26 @@ const PATIENTS_FICTIFS: Partial<FichePatient>[] = [
   { sexe: "M", nom: "Petit", prenom: "Louis", naissance: "2014-09-20", code_postal: "47500", ville: "Fumel", portable: "06 00 00 00 07", statut: "Suivi" },
 ];
 
+/** Antécédents fictifs de Camille Martin, ceux de la maquette du dossier. */
+const ANTECEDENTS_FICTIFS: Partial<SaisieAntecedent>[] = [
+  { categorie: "medicaux", rubrique: "Traitement longue durée", precision: "lévothyroxine", debut: "2015", en_cours: true },
+  { categorie: "medicaux", rubrique: "Allergies", precision: "AINS", couleur: "rouge", important: true },
+  { categorie: "chirurgicaux", rubrique: "Orthopédique", precision: "prothèse hanche D", debut: "2024", important: true },
+  { categorie: "chirurgicaux", rubrique: "Gynéco / Uro", precision: "césarienne", debut: "2017" },
+  { categorie: "traumatiques", rubrique: "Fracture", precision: "poignet G", debut: "2009" },
+];
+
+const SAISIE_ANTECEDENT_VIDE: SaisieAntecedent = {
+  categorie: "",
+  rubrique: "",
+  precision: "",
+  debut: null,
+  fin: null,
+  en_cours: false,
+  couleur: "",
+  important: false,
+};
+
 /**
  * Cœur simulé, en mémoire : l'interface fonctionne dans un navigateur et dans les tests,
  * sans base ni chiffrement. Rien n'y est enregistré.
@@ -279,6 +337,9 @@ export function creerCoeurDeDemonstration(
   let compteur = 0;
   let patients: Patient[] = exemples
     ? PATIENTS_FICTIFS.map((fiche, rang) => ({ ...FICHE_VIDE, ...fiche, id: `patient-${rang + 1}`, archive: false, cree_le: 0, modifie_le: 0 }))
+    : [];
+  let antecedents: Antecedent[] = exemples
+    ? ANTECEDENTS_FICTIFS.map((a, rang) => ({ ...SAISIE_ANTECEDENT_VIDE, ...a, id: `antecedent-${rang + 1}`, patient_id: "patient-1" }))
     : [];
   const trouverPatient = (id: string) => {
     const patient = patients.find((p) => p.id === id);
@@ -381,6 +442,31 @@ export function creerCoeurDeDemonstration(
     },
     async statutsPatients() {
       return ["Nouveau", "Suivi", "Ancien patient"];
+    },
+    async formulaireAntecedents() {
+      return formulaireAntecedentsParDefaut;
+    },
+    async listerAntecedents(patientId) {
+      const cle = (a: Antecedent) => `${a.debut === null ? 0 : 1}${a.debut ?? ""}`;
+      return antecedents.filter((a) => a.patient_id === patientId).sort((a, b) => cle(a).localeCompare(cle(b)));
+    },
+    async enregistrerAntecedent(patientId, id, saisie) {
+      trouverPatient(patientId);
+      if (!saisie.categorie || !saisie.rubrique.trim()) throw new Error("Choisissez la catégorie et la rubrique de l’antécédent");
+      if (saisie.fin && !saisie.debut) throw new Error("Indiquez le début avant la fin");
+      if (saisie.debut && saisie.fin && !saisie.en_cours && saisie.fin < saisie.debut) throw new Error("La fin précède le début");
+      const antecedent: Antecedent = {
+        ...saisie,
+        precision: saisie.precision.trim(),
+        fin: saisie.en_cours ? null : saisie.fin,
+        id: id ?? `antecedent-${(compteur += 1)}-${Date.now()}`,
+        patient_id: patientId,
+      };
+      antecedents = [...antecedents.filter((a) => a.id !== antecedent.id), antecedent];
+      return antecedent;
+    },
+    async supprimerAntecedent(id) {
+      antecedents = antecedents.filter((a) => a.id !== id);
     },
   };
 }

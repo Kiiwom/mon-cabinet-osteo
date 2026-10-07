@@ -8,9 +8,11 @@
 //! - [`numerotation`] : numéros de facture continus et chronologiques.
 //! - [`trames`] : textes réutilisables appelés par un code court pendant la saisie.
 //! - [`patients`] : dossiers patients, identité, profil, remarques, archives.
+//! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
+pub mod antecedents;
 pub mod base;
 pub mod cabinet;
 pub mod chiffrement;

@@ -100,3 +100,57 @@ export function neLe(sexe: Sexe, naissance: string): string {
 export function accorder(sexe: Sexe, masculin: string, feminin: string): string {
   return sexe === "F" ? feminin : masculin;
 }
+
+/**
+ * Date partielle d'un antécédent, telle qu'on la tape : « 2009 », « 03/2009 », « 14/03/2009 ».
+ * Rend « 2009 », « 2009-03 » ou « 2009-03-14 » ; `null` si vide ; `undefined` si impossible.
+ */
+export function lireDatePartielle(texte: string, aujourdhui = new Date()): string | null | undefined {
+  const t = texte.trim();
+  if (!t) return null;
+  if (/^\d{4}$/.test(t)) return Number(t) >= 1900 ? t : undefined;
+  const moisAnnee = /^(\d{1,2})[/.\- ](\d{4})$/.exec(t);
+  const anneeMois = /^(\d{4})-(\d{1,2})$/.exec(t);
+  if (moisAnnee || anneeMois) {
+    const [mois, annee] = moisAnnee ? [Number(moisAnnee[1]), Number(moisAnnee[2])] : [Number(anneeMois![2]), Number(anneeMois![1])];
+    return mois >= 1 && mois <= 12 && annee >= 1900 ? `${annee}-${String(mois).padStart(2, "0")}` : undefined;
+  }
+  const complete = lireDateFr(t, aujourdhui);
+  if (complete === null) return null;
+  return complete && complete >= "1900" ? complete : undefined;
+}
+
+/** « 2009 », « 03/2009 » ou « 14/03/2009 » */
+export function ecrireDatePartielle(partielle: string | null): string {
+  if (!partielle) return "";
+  if (partielle.length === 4) return partielle;
+  if (partielle.length === 7) return `${partielle.slice(5, 7)}/${partielle.slice(0, 4)}`;
+  return ecrireDateFr(partielle);
+}
+
+/** « 2009 », « mars 2009 », « 14 mars 2009 » */
+export function datePartielleEnLettres(partielle: string): string {
+  if (partielle.length === 4) return partielle;
+  if (partielle.length === 7) return `${MOIS[Number(partielle.slice(5, 7)) - 1]} ${partielle.slice(0, 4)}`;
+  return dateEnLettres(partielle);
+}
+
+/** Position sur une frise, en années décimales ; une année seule est placée en son milieu. */
+export function enAnnees(partielle: string): number {
+  const annee = Number(partielle.slice(0, 4));
+  if (partielle.length === 4) return annee + 0.5;
+  const mois = Number(partielle.slice(5, 7));
+  if (partielle.length === 7) return annee + (mois - 0.5) / 12;
+  const jour = Number(partielle.slice(8, 10));
+  const debut = Date.UTC(annee, 0, 1);
+  const date = Date.UTC(annee, mois - 1, jour);
+  return annee + (date - debut) / (Date.UTC(annee + 1, 0, 1) - debut);
+}
+
+export function anneesDepuisDate(date: Date): number {
+  const annee = date.getFullYear();
+  const debut = new Date(annee, 0, 1).getTime();
+  return annee + (date.getTime() - debut) / (new Date(annee + 1, 0, 1).getTime() - debut);
+}
+
+export { MOIS_COURTS };

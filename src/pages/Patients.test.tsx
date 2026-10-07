@@ -69,7 +69,8 @@ describe("patients", () => {
     await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
     await ouvrir("#/patients/patient-1/identite");
     await screen.findByRole("heading", { name: "Camille Martin" });
-    expect(screen.getByText("⚠", { exact: false }).closest(".puce")).toHaveTextContent("Allergie aux AINS");
+    const alertes = document.querySelectorAll(".entete-dossier .puce-alerte");
+    expect([...alertes].map((p) => p.textContent?.trim())).toEqual(["⚠ Allergie aux AINS", "⚠ Allergies · AINS", "⚠ Orthopédique · prothèse hanche D"]);
 
     const enregistrer = screen.getByRole("button", { name: "Enregistrer les modifications" });
     expect(enregistrer).toBeDisabled();

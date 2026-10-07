@@ -1,3 +1,4 @@
+mod antecedents;
 mod demarrage;
 mod documents;
 mod patients;
@@ -72,6 +73,10 @@ pub fn run() {
             patients::modifier_patient,
             patients::archiver_patient,
             patients::statuts_patients,
+            antecedents::formulaire_antecedents,
+            antecedents::lister_antecedents,
+            antecedents::enregistrer_antecedent,
+            antecedents::supprimer_antecedent,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

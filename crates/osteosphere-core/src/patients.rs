@@ -49,6 +49,8 @@ pub struct FichePatient {
     /// Allergie, contre-indication, précaution : affichées en tête du dossier et de chaque séance.
     pub notes_importantes: String,
     pub remarques: String,
+    /// Remarques sur les antécédents, saisies dans l'onglet Antécédents.
+    pub remarques_antecedents: String,
     /// Date de recueil du consentement au traitement des données, `AAAA-MM-JJ`.
     pub consentement_le: Option<String>,
 }
@@ -163,6 +165,7 @@ impl FichePatient {
             statut: propre(&self.statut),
             notes_importantes: propre_long(&self.notes_importantes),
             remarques: propre_long(&self.remarques),
+            remarques_antecedents: propre_long(&self.remarques_antecedents),
             consentement_le: date_facultative(&self.consentement_le, "la date du consentement est invalide")?,
         };
         if fiche.nom.is_empty() || fiche.prenom.is_empty() {
@@ -197,9 +200,37 @@ impl FichePatient {
     }
 }
 
-const COLONNES: &str = "sexe, nom, nom_naissance, prenom, naissance, adresse, complement_adresse, code_postal, ville, pays,
-  portable, fixe, email, profession, retraite, situation_familiale, enfants, lateralite, activites, medecin_traitant,
-  autres_therapeutes, mobilite_reduite, decede, statut, notes_importantes, remarques, consentement_le";
+/// Colonnes de la fiche, dans l'ordre des valeurs passées par `ecrire`.
+const COLONNES: [&str; 28] = [
+    "sexe",
+    "nom",
+    "nom_naissance",
+    "prenom",
+    "naissance",
+    "adresse",
+    "complement_adresse",
+    "code_postal",
+    "ville",
+    "pays",
+    "portable",
+    "fixe",
+    "email",
+    "profession",
+    "retraite",
+    "situation_familiale",
+    "enfants",
+    "lateralite",
+    "activites",
+    "medecin_traitant",
+    "autres_therapeutes",
+    "mobilite_reduite",
+    "decede",
+    "statut",
+    "notes_importantes",
+    "remarques",
+    "remarques_antecedents",
+    "consentement_le",
+];
 
 fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Patient> {
     Ok(Patient {
@@ -231,6 +262,7 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Patient> {
             statut: ligne.get("statut")?,
             notes_importantes: ligne.get("notes_importantes")?,
             remarques: ligne.get("remarques")?,
+            remarques_antecedents: ligne.get("remarques_antecedents")?,
             consentement_le: ligne.get("consentement_le")?,
         },
         archive: ligne.get::<_, Option<i64>>("archive_le")?.is_some(),
@@ -248,56 +280,51 @@ pub fn lire(base: &Base, id: &str) -> Result<Patient, ErreurPatient> {
 
 fn ecrire(base: &Base, id: &str, fiche: &FichePatient, cree_le: i64) -> Result<(), ErreurPatient> {
     let f = fiche;
+    let valeurs: [&dyn rusqlite::ToSql; 28] = [
+        &f.sexe,
+        &f.nom,
+        &f.nom_naissance,
+        &f.prenom,
+        &f.naissance,
+        &f.adresse,
+        &f.complement_adresse,
+        &f.code_postal,
+        &f.ville,
+        &f.pays,
+        &f.portable,
+        &f.fixe,
+        &f.email,
+        &f.profession,
+        &f.retraite,
+        &f.situation_familiale,
+        &f.enfants,
+        &f.lateralite,
+        &f.activites,
+        &f.medecin_traitant,
+        &f.autres_therapeutes,
+        &f.mobilite_reduite,
+        &f.decede,
+        &f.statut,
+        &f.notes_importantes,
+        &f.remarques,
+        &f.remarques_antecedents,
+        &f.consentement_le,
+    ];
+    let maintenant = maintenant();
+    let mut parametres: Vec<&dyn rusqlite::ToSql> = vec![&id];
+    parametres.extend(valeurs);
+    parametres.extend([&cree_le as &dyn rusqlite::ToSql, &maintenant]);
+    let places: Vec<String> = (1..=parametres.len()).map(|n| format!("?{n}")).collect();
+    let mises_a_jour: Vec<String> = COLONNES.iter().map(|c| format!("{c} = excluded.{c}")).collect();
     base.connexion().execute(
         &format!(
-            "INSERT INTO patients (id, {COLONNES}, cree_le, modifie_le)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21,
-                     ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)
-             ON CONFLICT (id) DO UPDATE SET
-               sexe = excluded.sexe, nom = excluded.nom, nom_naissance = excluded.nom_naissance,
-               prenom = excluded.prenom, naissance = excluded.naissance, adresse = excluded.adresse,
-               complement_adresse = excluded.complement_adresse, code_postal = excluded.code_postal,
-               ville = excluded.ville, pays = excluded.pays, portable = excluded.portable, fixe = excluded.fixe,
-               email = excluded.email, profession = excluded.profession, retraite = excluded.retraite,
-               situation_familiale = excluded.situation_familiale, enfants = excluded.enfants,
-               lateralite = excluded.lateralite, activites = excluded.activites,
-               medecin_traitant = excluded.medecin_traitant, autres_therapeutes = excluded.autres_therapeutes,
-               mobilite_reduite = excluded.mobilite_reduite, decede = excluded.decede, statut = excluded.statut,
-               notes_importantes = excluded.notes_importantes, remarques = excluded.remarques,
-               consentement_le = excluded.consentement_le, modifie_le = excluded.modifie_le"
+            "INSERT INTO patients (id, {}, cree_le, modifie_le) VALUES ({})
+             ON CONFLICT (id) DO UPDATE SET {}, modifie_le = excluded.modifie_le",
+            COLONNES.join(", "),
+            places.join(", "),
+            mises_a_jour.join(", "),
         ),
-        rusqlite::params![
-            id,
-            f.sexe,
-            f.nom,
-            f.nom_naissance,
-            f.prenom,
-            f.naissance,
-            f.adresse,
-            f.complement_adresse,
-            f.code_postal,
-            f.ville,
-            f.pays,
-            f.portable,
-            f.fixe,
-            f.email,
-            f.profession,
-            f.retraite,
-            f.situation_familiale,
-            f.enfants,
-            f.lateralite,
-            f.activites,
-            f.medecin_traitant,
-            f.autres_therapeutes,
-            f.mobilite_reduite,
-            f.decede,
-            f.statut,
-            f.notes_importantes,
-            f.remarques,
-            f.consentement_le,
-            cree_le,
-            maintenant(),
-        ],
+        parametres.as_slice(),
     )?;
     Ok(())
 }

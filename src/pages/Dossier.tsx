@@ -1,6 +1,9 @@
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 
-import type { Coeur, Patient } from "../lib/coeur";
+import { intitule } from "../antecedents/apparence";
+import { FriseDeVie } from "../antecedents/FriseDeVie";
+import { CarteAntecedents, OngletAntecedents } from "../antecedents/OngletAntecedents";
+import type { Antecedent, CategorieAntecedents, Coeur, Patient } from "../lib/coeur";
 import { accorder, ageEnClair, neLe } from "../lib/dates";
 import { adresse } from "../lib/navigation";
 import { Avatar } from "../patients/Avatar";
@@ -40,7 +43,7 @@ export function descriptionPatient(p: Patient): string {
 }
 
 /** Puces sous le nom : notes importantes d'abord, puis statut et situations particulières. */
-export function PucesPatient({ patient }: { patient: Patient }) {
+export function PucesPatient({ patient, antecedents = [] }: { patient: Patient; antecedents?: Antecedent[] }) {
   const premiereLigne = patient.notes_importantes.split("\n")[0];
   return (
     <div className="rangee">
@@ -49,6 +52,13 @@ export function PucesPatient({ patient }: { patient: Patient }) {
           <span aria-hidden="true">⚠</span> {premiereLigne}
         </span>
       )}
+      {antecedents
+        .filter((a) => a.important)
+        .map((a) => (
+          <span key={a.id} className="puce puce-alerte">
+            <span aria-hidden="true">⚠</span> {intitule(a)}
+          </span>
+        ))}
       {patient.statut && <span className="puce">{patient.statut}</span>}
       {patient.archive && <span className="puce puce-discrete">Archivé</span>}
       {patient.decede && <span className="puce puce-discrete">{accorder(patient.sexe, "Décédé", "Décédée")}</span>}
@@ -99,38 +109,46 @@ function Ligne({ libelle, children }: { libelle: string; children: ReactNode }) 
   );
 }
 
-function Synthese({ patient }: { patient: Patient }) {
+function Synthese({ patient, antecedents, formulaire }: { patient: Patient; antecedents: Antecedent[]; formulaire: CategorieAntecedents[] }) {
   const adressePostale = [patient.adresse, patient.complement_adresse, [patient.code_postal, patient.ville].filter(Boolean).join(" "), patient.pays]
     .filter(Boolean)
     .join("\n");
   return (
-    <div className="colonnes-dossier">
-      <section className="carte" aria-labelledby="titre-remarques">
-        <div className="entete-carte">
-          <h2 id="titre-remarques">Remarques générales</h2>
-          <a className="bouton bouton-petit" href={adresse("patients", patient.id, "identite")}>
-            Modifier
-          </a>
+    <div className="pile">
+      <section className="carte">
+        <FriseDeVie naissance={patient.naissance} antecedents={antecedents} formulaire={formulaire} />
+      </section>
+      <div className="colonnes-synthese">
+        <section className="carte" aria-labelledby="titre-remarques">
+          <div className="entete-carte">
+            <h2 id="titre-remarques">Remarques générales</h2>
+            <a className="bouton bouton-petit" href={adresse("patients", patient.id, "identite")}>
+              Modifier
+            </a>
+          </div>
+          {patient.remarques ? <p className="texte-multiligne">{patient.remarques}</p> : <p className="discret">Aucune remarque.</p>}
+        </section>
+        <div className="pile">
+          <CarteAntecedents patient={patient} antecedents={antecedents} formulaire={formulaire} />
+          <section className="carte" aria-labelledby="titre-coordonnees">
+            <h2 id="titre-coordonnees">Coordonnées</h2>
+            <dl className="liste-infos">
+              {patient.portable && <Ligne libelle="Portable">{patient.portable}</Ligne>}
+              {patient.fixe && <Ligne libelle="Fixe">{patient.fixe}</Ligne>}
+              {patient.email && <Ligne libelle="Email">{patient.email}</Ligne>}
+              {adressePostale && (
+                <Ligne libelle="Adresse">
+                  <span className="texte-multiligne">{adressePostale}</span>
+                </Ligne>
+              )}
+              {patient.medecin_traitant && <Ligne libelle="Médecin traitant">{patient.medecin_traitant}</Ligne>}
+              {patient.autres_therapeutes && <Ligne libelle="Autres thérapeutes">{patient.autres_therapeutes}</Ligne>}
+              {patient.activites && <Ligne libelle="Activités">{patient.activites}</Ligne>}
+            </dl>
+            {!patient.portable && !patient.fixe && !patient.email && !adressePostale && <p className="discret">Aucune coordonnée.</p>}
+          </section>
         </div>
-        {patient.remarques ? <p className="texte-multiligne">{patient.remarques}</p> : <p className="discret">Aucune remarque.</p>}
-      </section>
-      <section className="carte" aria-labelledby="titre-coordonnees">
-        <h2 id="titre-coordonnees">Coordonnées</h2>
-        <dl className="liste-infos">
-          {patient.portable && <Ligne libelle="Portable">{patient.portable}</Ligne>}
-          {patient.fixe && <Ligne libelle="Fixe">{patient.fixe}</Ligne>}
-          {patient.email && <Ligne libelle="Email">{patient.email}</Ligne>}
-          {adressePostale && (
-            <Ligne libelle="Adresse">
-              <span className="texte-multiligne">{adressePostale}</span>
-            </Ligne>
-          )}
-          {patient.medecin_traitant && <Ligne libelle="Médecin traitant">{patient.medecin_traitant}</Ligne>}
-          {patient.autres_therapeutes && <Ligne libelle="Autres thérapeutes">{patient.autres_therapeutes}</Ligne>}
-          {patient.activites && <Ligne libelle="Activités">{patient.activites}</Ligne>}
-        </dl>
-        {!patient.portable && !patient.fixe && !patient.email && !adressePostale && <p className="discret">Aucune coordonnée.</p>}
-      </section>
+      </div>
     </div>
   );
 }
@@ -196,13 +214,24 @@ function OngletIdentite({ patient, coeur, misAJour }: { patient: Patient; coeur:
 
 export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string; onglet: Onglet }) {
   const [patient, setPatient] = useState<Patient | null>(null);
+  const [antecedents, setAntecedents] = useState<Antecedent[]>([]);
+  const [formulaire, setFormulaire] = useState<CategorieAntecedents[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
 
   useEffect(() => {
     setPatient(null);
     setErreur(null);
-    coeur.lirePatient(id).then(setPatient, (e: Error) => setErreur(e.message));
+    Promise.all([coeur.lirePatient(id), coeur.listerAntecedents(id), coeur.formulaireAntecedents()]).then(
+      ([p, a, f]) => {
+        setAntecedents(a);
+        setFormulaire(f);
+        setPatient(p);
+      },
+      (e: Error) => setErreur(e.message),
+    );
   }, [coeur, id]);
+
+  const rafraichirAntecedents = async () => setAntecedents(await coeur.listerAntecedents(id));
 
   if (erreur) {
     return (
@@ -233,7 +262,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
               {patient.prenom} {patient.nom}
             </h1>
             <span className="discret">{descriptionPatient(patient)}</span>
-            <PucesPatient patient={patient} />
+            <PucesPatient patient={patient} antecedents={antecedents} />
           </div>
           <div className="rangee entete-dossier-actions">
             <button type="button" className="bouton bouton-principal" disabled title="Les séances arrivent à l’étape 3.4 de la phase 3">
@@ -258,12 +287,19 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
       {onglet === "identite" ? (
         <OngletIdentite key={patient.id} patient={patient} coeur={coeur} misAJour={setPatient} />
       ) : onglet === "synthese" ? (
-        <Synthese patient={patient} />
+        <Synthese patient={patient} antecedents={antecedents} formulaire={formulaire} />
+      ) : onglet === "antecedents" ? (
+        <OngletAntecedents
+          patient={patient}
+          antecedents={antecedents}
+          formulaire={formulaire}
+          coeur={coeur}
+          rafraichir={rafraichirAntecedents}
+          misAJour={setPatient}
+        />
       ) : (
         <section className="carte">
-          <p className="discret">
-            {onglet === "seances" ? "Les séances arrivent à l’étape 3.4 de la phase 3." : "Les antécédents arrivent à l’étape 3.2 de la phase 3."}
-          </p>
+          <p className="discret">Les séances arrivent à l’étape 3.4 de la phase 3.</p>
         </section>
       )}
     </main>
