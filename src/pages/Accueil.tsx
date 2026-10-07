@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { lireInfosApplication, type InfosApplication } from "../lib/application";
 import type { IdentiteCabinet } from "../lib/coeur";
+import { adresse } from "../lib/navigation";
 
 type Etat = "fait" | "en-cours" | "a-venir";
 
@@ -12,7 +13,7 @@ export function deOuD(mot: string): string {
 
 const LIBELLES: Record<Etat, string> = { fait: "Fait", "en-cours": "En cours", "a-venir": "À venir" };
 
-/** Accueil provisoire : l'avancement de la phase 2, tant que les vrais écrans ne sont pas branchés. */
+/** Accueil provisoire : l'avancement du prototype, en attendant l'accueil configurable de la phase 5. */
 export function Accueil({ cabinet }: { cabinet: IdentiteCabinet }) {
   const [infos, setInfos] = useState<InfosApplication | null>(null);
 
@@ -21,31 +22,34 @@ export function Accueil({ cabinet }: { cabinet: IdentiteCabinet }) {
   }, []);
 
   const reel = infos?.dans_tauri ?? false;
-  const etapes: { titre: string; detail: string; etat: Etat }[] = [
+  const etapes: { titre: string; detail: string; etat: Etat; lien?: string }[] = [
     {
-      titre: "Fenêtre de l’application",
-      detail: reel ? "Osteosphere tourne dans sa propre fenêtre." : "Interface ouverte dans un navigateur, sans le cœur.",
-      etat: reel ? "fait" : "en-cours",
-    },
-    {
-      titre: "Premier démarrage, base chiffrée et clé de secours",
-      detail: reel
-        ? "Cabinet créé et chiffré sur cet ordinateur ; ouverture directe ou par mot de passe, clé de secours remise."
-        : "Parcours simulé dans le navigateur : rien n’est enregistré.",
-      etat: reel ? "fait" : "en-cours",
-    },
-    {
-      titre: "Trame interactive",
-      detail: "Menu @, pastilles de choix, blancs à compléter, Valider : à essayer dans Trames.",
+      titre: "Dossiers patients",
+      detail: "Recherche sans accents ni fautes, doublons, fiche complète, archives.",
       etat: "fait",
+      lien: adresse("patients"),
+    },
+    { titre: "Antécédents et frise de vie", detail: "Par catégorie et rubrique, datés ou non, sur une frise de la naissance à aujourd’hui.", etat: "fait" },
+    {
+      titre: "Modèles de consultation",
+      detail: "Adulte, Femme enceinte, Nourrisson repris de MonCabinetLibéral ; constructeur et versions.",
+      etat: "fait",
+      lien: adresse("parametres", "modeles"),
     },
     {
-      titre: "Facture PDF",
+      titre: "Séances",
+      detail: "Saisie selon le modèle avec les trames, enregistrement au fil de la frappe, reprise de la séance précédente, corbeille.",
+      etat: "fait",
+      lien: adresse("seances"),
+    },
+    {
+      titre: "Socle de la phase 2",
       detail: reel
-        ? "Mise en page de la maquette, mentions obligatoires : facture d’essai dans Facturation."
-        : "Mise en page par le cœur : à essayer dans la fenêtre de l’application.",
+        ? "Fenêtre, base chiffrée et clé de secours, trames, facture PDF d’essai."
+        : "Interface ouverte dans un navigateur, sans le cœur : rien n’est enregistré.",
       etat: reel ? "fait" : "en-cours",
     },
+    { titre: "Facturation et recettes", detail: "Factures, avoirs, moyens de paiement, journal : phase 4.", etat: "a-venir" },
   ];
 
   return (
@@ -54,19 +58,25 @@ export function Accueil({ cabinet }: { cabinet: IdentiteCabinet }) {
         <h1 className="page-titre">Bienvenue, {cabinet.prenom}</h1>
         <p className="page-sous-titre">
           Cabinet {deOuD(cabinet.prenom)}
-          {cabinet.prenom} {cabinet.nom} · prototype de la phase 2, avec des données fictives uniquement
+          {cabinet.prenom} {cabinet.nom} · prototype de la phase 3, avec des données fictives uniquement
         </p>
       </div>
       <section className="carte" aria-labelledby="titre-avancement">
         <h2 id="titre-avancement">Avancement du prototype</h2>
         <ol className="etapes">
-          {etapes.map(({ titre, detail, etat }) => (
+          {etapes.map(({ titre, detail, etat, lien }) => (
             <li key={titre} className="etape">
               <span className="etape-etat" data-etat={etat}>
                 {LIBELLES[etat]}
               </span>
               <span>
-                <strong>{titre}</strong>
+                {lien ? (
+                  <a href={lien} className="lien-etape">
+                    <strong>{titre}</strong>
+                  </a>
+                ) : (
+                  <strong>{titre}</strong>
+                )}
                 <br />
                 <span className="discret">{detail}</span>
               </span>

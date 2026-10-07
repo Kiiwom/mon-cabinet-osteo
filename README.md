@@ -2,7 +2,7 @@
 
 Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur l'ordinateur du praticien : patients, séances, trames de prise de notes, facturation, recettes et statistiques. Les fonctions dont tous les ostéopathes n'ont pas besoin (agenda, dépenses, schéma corporel, Biokinergie…) sont des modules à activer.
 
-> **Prototype, phase 2 sur 6.** Ne pas l'utiliser avec de vraies données de patients. « Osteosphere » est un nom provisoire, à confirmer avant la V1.
+> **Prototype, phase 3 sur 6.** Ne pas l'utiliser avec de vraies données de patients. « Osteosphere » est un nom provisoire, à confirmer avant la V1.
 
 ## Contenu du dépôt
 
@@ -10,7 +10,7 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 | --- | --- |
 | `src/` | Interface en React et TypeScript, d'après les maquettes validées |
 | `src-tauri/` | Application de bureau Tauri 2 (Windows et Linux, macOS ensuite) |
-| `crates/osteosphere-core/` | Cœur en Rust, sans interface : ouverture du cabinet, base chiffrée, clé de secours, mot de passe facultatif, numérotation des factures |
+| `crates/osteosphere-core/` | Cœur en Rust, sans interface : ouverture du cabinet, base chiffrée, clé de secours, mot de passe facultatif, patients, antécédents, modèles de consultation, séances, trames, numérotation des factures |
 | `crates/osteosphere-documents/` | Documents PDF (factures) mis en page par Typst, polices Figtree embarquées |
 | `crates/osteosphere-session/` | Protection de la clé par la session : DPAPI sous Windows, trousseau de la session sous Linux |
 
@@ -27,7 +27,7 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 Chaque version poussée sur le dépôt produit ses paquets dans [l'intégration continue](https://github.com/Kiiwom/mon-cabinet-osteo/actions) : « osteosphere-windows » et « osteosphere-linux », en bas de la page d'une exécution réussie.
 
 - **Windows 10 et 11** : lancer l'installateur `.exe`. Il ne demande pas de droits administrateur.
-- **Ubuntu 24.04 et suivantes** : `sudo apt install ./Osteosphere_0.5.0_amd64.deb`, puis lancer Osteosphere depuis les applications. L'ouverture directe utilise le trousseau de la session (« Mots de passe et clés »), présent d'office sous GNOME et KDE.
+- **Ubuntu 24.04 et suivantes** : `sudo apt install ./Osteosphere_0.6.0_amd64.deb`, puis lancer Osteosphere depuis les applications. L'ouverture directe utilise le trousseau de la session (« Mots de passe et clés »), présent d'office sous GNOME et KDE.
 
 ## Développer
 
@@ -49,8 +49,8 @@ La première compilation est longue : SQLCipher et OpenSSL sont compilés avec l
 ## Feuille de route
 
 1. Conception : maquettes des quatorze écrans, **terminée le 6 octobre 2026**.
-2. Prototype : fenêtre Tauri, base chiffrée, trame interactive, facture PDF, **terminé le 7 octobre 2026, en attente de validation des choix techniques**.
-3. Socle clinique : patients, antécédents, frise de vie, séances, modèles et trames.
+2. Prototype : fenêtre Tauri, base chiffrée, trame interactive, facture PDF, version Linux, **validé le 7 octobre 2026**.
+3. Socle clinique : patients, antécédents, frise de vie, séances, modèles et trames, **terminé le 7 octobre 2026, en attente de validation**.
 4. Facturation et recettes : factures, avoirs, moyens de paiement, journal et export.
 5. Statistiques, sauvegardes et import depuis MonCabinetLibéral.
 6. Essai réel au cabinet sur une copie des données, puis V1.

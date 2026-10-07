@@ -30,7 +30,7 @@ describe("antécédents", () => {
     expect(screen.getByText("Sans date").parentElement).toHaveTextContent("Allergies · AINS");
     const carte = screen.getByRole("region", { name: "Antécédents" });
     expect(within(carte).getByText("Fracture · poignet G, 2009")).toBeInTheDocument();
-    expect(carte).toHaveTextContent("Familiaux et Psychologiques : rien de renseigné");
+    expect(carte).toHaveTextContent("Familiaux et psychologiques : rien de renseigné");
 
     fireEvent.click(screen.getByRole("button", { name: "12 mois" }));
     expect(within(frise).queryByText("2009 · Fracture · poignet G")).not.toBeInTheDocument();

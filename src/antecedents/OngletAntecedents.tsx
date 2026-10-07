@@ -333,7 +333,11 @@ export function CarteAntecedents({ patient, antecedents, formulaire }: { patient
         ))}
       {vides.length > 0 && (
         <p className="discret">
-          {vides.map((c) => c.libelle).join(", ").replace(/, ([^,]*)$/, " et $1")} : rien de renseigné
+          {vides
+            .map((c, rang) => (rang === 0 ? c.libelle : c.libelle.toLocaleLowerCase("fr")))
+            .join(", ")
+            .replace(/, ([^,]*)$/, " et $1")}{" "}
+          : rien de renseigné
         </p>
       )}
     </section>
