@@ -18,6 +18,11 @@ function nombre(n: number): string {
   return n.toLocaleString("fr-FR");
 }
 
+/** « 1 archivé », « 0 avoir », « 2 avoirs ». */
+function compte(n: number, singulier: string, pluriel = `${singulier}s`): string {
+  return `${nombre(n)} ${n > 1 ? pluriel : singulier}`;
+}
+
 function nomDeFichier(chemin: string): string {
   return chemin.split(/[\\/]/).pop() ?? chemin;
 }
@@ -109,21 +114,21 @@ function Verification({
         <fieldset className="groupe">
           <legend>Contenu reconnu · cochez ce que vous importez</legend>
           <div className="choix-cartes">
-            <CaseContenu coche={choix.patients} basculer={() => basculer("patients")} titre={`${nombre(analyse.patients)} patients`}>
-              {nombre(analyse.patients_actifs)} actifs, {nombre(analyse.patients_archives)} archivés.
+            <CaseContenu coche={choix.patients} basculer={() => basculer("patients")} titre={compte(analyse.patients, "patient")}>
+              {compte(analyse.patients_actifs, "actif")}, {compte(analyse.patients_archives, "archivé")}.
             </CaseContenu>
-            <CaseContenu coche={choix.antecedents} basculer={() => basculer("antecedents")} titre={`${nombre(analyse.antecedents)} antécédents`}>
+            <CaseContenu coche={choix.antecedents} basculer={() => basculer("antecedents")} titre={compte(analyse.antecedents, "antécédent")}>
               Rangés par catégorie, avec leurs dates.
             </CaseContenu>
-            <CaseContenu coche={choix.seances} basculer={() => basculer("seances")} titre={`${nombre(analyse.seances)} séances`}>
+            <CaseContenu coche={choix.seances} basculer={() => basculer("seances")} titre={compte(analyse.seances, "séance")}>
               Tous les champs saisis, dans le modèle « Reprise MonCabinetLibéral ».
             </CaseContenu>
             <CaseContenu
               coche={choix.factures}
               basculer={() => basculer("factures")}
-              titre={`${nombre(analyse.factures)} factures, ${nombre(analyse.avoirs)} avoirs`}
+              titre={`${compte(analyse.factures, "facture")}, ${compte(analyse.avoirs, "avoir")}`}
             >
-              Avec leurs {nombre(analyse.reglements)} règlements et leur numéro d’origine.
+              Avec {analyse.reglements > 1 ? "leurs" : "leur"} {compte(analyse.reglements, "règlement")} et leur numéro d’origine.
             </CaseContenu>
           </div>
           {(!choix.patients && (choix.antecedents || choix.seances)) && (

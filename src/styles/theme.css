@@ -3754,3 +3754,16 @@ kbd {
   flex-wrap: wrap;
   gap: 10px 24px;
 }
+
+/* En-têtes de ligne : comme une cellule, en gras. */
+.tableau tbody th {
+  background: none;
+  border-top: 1px solid var(--bordure);
+  text-align: left;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.carte > .puce {
+  align-self: flex-start;
+}

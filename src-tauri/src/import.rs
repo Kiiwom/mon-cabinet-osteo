@@ -56,7 +56,12 @@ pub async fn importer_mcl(etat: State<'_, Arc<EtatCabinet>>, chemin: String, cho
         let maintenant = maintenant();
         let (date, h, m) = horloge::paris(maintenant);
         let dossier = etat.dossier_documents().join("Imports");
-        let fichier = dossier.join(format!("Import MonCabinetLibéral {date} {h:02}h{m:02}.txt"));
+        // Deux imports dans la même minute gardent chacun leur rapport.
+        let nom = format!("Import MonCabinetLibéral {date} {h:02}h{m:02}");
+        let fichier = (1..)
+            .map(|rang| dossier.join(if rang == 1 { format!("{nom}.txt") } else { format!("{nom} ({rang}).txt") }))
+            .find(|f| !f.exists())
+            .expect("un nom libre finit toujours par se trouver");
         let nom_archive = Path::new(&chemin).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or(chemin.clone());
         let fichier_rapport = std::fs::create_dir_all(&dossier)
             .and_then(|()| std::fs::write(&fichier, rapport.en_texte(&nom_archive, &sauvegarde, maintenant)))
