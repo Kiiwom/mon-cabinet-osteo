@@ -7,6 +7,7 @@ import { coeurParDefaut, type Coeur, type IdentiteCabinet } from "./lib/coeur";
 import { useEcranCourant, type Ecran } from "./lib/navigation";
 import { Accueil } from "./pages/Accueil";
 import { EcranAVenir } from "./pages/EcranAVenir";
+import { PageFacturation } from "./pages/Facturation";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
 const PageTrames = lazy(() => import("./pages/Trames").then((module) => ({ default: module.PageTrames })));
@@ -102,6 +103,8 @@ function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Co
       <div className="contenu">
         {ecran === "accueil" ? (
           <Accueil cabinet={cabinet} />
+        ) : ecran === "facturation" ? (
+          <PageFacturation coeur={coeur} />
         ) : ecran === "trames" ? (
           <Suspense fallback={<p className="page discret">Chargement des trames…</p>}>
             <PageTrames coeur={coeur} />

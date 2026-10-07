@@ -69,6 +69,15 @@ export interface Coeur {
   supprimerTrame(id: string): Promise<void>;
   noterUtilisationTrame(id: string): Promise<void>;
   caractereTrames(): Promise<CaractereTrames>;
+  /** Facture d'essai en PDF, à la date locale `AAAA-MM-JJ`. */
+  factureEssaiPdf(date: string): Promise<Uint8Array>;
+  ouvrirFactureEssai(date: string): Promise<void>;
+}
+
+/** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
+export function dateDuJour(maintenant = new Date()): string {
+  const deux = (n: number) => String(n).padStart(2, "0");
+  return `${maintenant.getFullYear()}-${deux(maintenant.getMonth() + 1)}-${deux(maintenant.getDate())}`;
 }
 
 export const IDENTITE_VIDE: IdentiteCabinet = {
@@ -105,6 +114,8 @@ export const coeurTauri: Coeur = {
   supprimerTrame: (id) => appeler("supprimer_trame", { id }),
   noterUtilisationTrame: (id) => appeler("noter_utilisation_trame", { id }),
   caractereTrames: () => appeler("caractere_trames"),
+  factureEssaiPdf: async (date) => new Uint8Array(await appeler<ArrayBuffer>("facture_essai_pdf", { date })),
+  ouvrirFactureEssai: (date) => appeler("ouvrir_facture_essai", { date }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -181,6 +192,12 @@ export function creerCoeurDeDemonstration(depart: EtatDemarrage["etat"] = "premi
     },
     async caractereTrames() {
       return caractere;
+    },
+    async factureEssaiPdf() {
+      throw new Error("La facture PDF est mise en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour l’essayer.");
+    },
+    async ouvrirFactureEssai() {
+      throw new Error("La facture PDF est mise en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour l’essayer.");
     },
   };
 }

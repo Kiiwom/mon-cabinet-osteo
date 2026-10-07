@@ -1,5 +1,5 @@
 [workspace]
-members = ["src-tauri", "crates/osteosphere-core", "crates/osteosphere-session"]
+members = ["src-tauri", "crates/osteosphere-core", "crates/osteosphere-documents", "crates/osteosphere-session"]
 resolver = "3"
 
 [workspace.package]

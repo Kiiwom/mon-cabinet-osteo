@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p osteosphere-core -p osteosphere-session
+      - run: cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session
 
   windows:
     name: Installateur Windows
@@ -45,7 +45,7 @@ jobs:
       # OpenSSL, compilé avec SQLCipher, a besoin de NASM sous Windows.
       - uses: ilammy/setup-nasm@v1
       - run: npm ci
-      - run: cargo test -p osteosphere-core -p osteosphere-session
+      - run: cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session
       - run: npm run tauri build
       - uses: actions/upload-artifact@v4
         with:

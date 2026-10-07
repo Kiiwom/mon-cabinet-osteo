@@ -18,9 +18,11 @@ tauri-build = { version = "2.7.1", features = [] }
 [dependencies]
 log = "0.4"
 osteosphere-core = { path = "../crates/osteosphere-core" }
+osteosphere-documents = { path = "../crates/osteosphere-documents" }
 osteosphere-session = { path = "../crates/osteosphere-session" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2.12.1", features = [] }
 tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
 zeroize = "1"

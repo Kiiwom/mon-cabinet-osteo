@@ -11,6 +11,7 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 | `src/` | Interface en React et TypeScript, d'après les maquettes validées |
 | `src-tauri/` | Application de bureau Tauri 2 (Windows d'abord, macOS et Linux ensuite) |
 | `crates/osteosphere-core/` | Cœur en Rust, sans interface : ouverture du cabinet, base chiffrée, clé de secours, mot de passe facultatif, numérotation des factures |
+| `crates/osteosphere-documents/` | Documents PDF (factures) mis en page par Typst, polices Figtree embarquées |
 | `crates/osteosphere-session/` | Protection de la clé par la session Windows (DPAPI) |
 
 ## Principes
@@ -30,7 +31,7 @@ npm install
 npm run tauri dev               # l'application dans sa fenêtre
 npm run dev                     # l'interface seule, dans un navigateur
 npm test                        # tests de l'interface
-cargo test -p osteosphere-core -p osteosphere-session  # tests du cœur
+cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session  # tests du cœur
 npm run tauri build             # installateur pour le système courant
 ```
 
@@ -41,7 +42,7 @@ Sous Windows, l'installateur ne demande pas de droits administrateur. La premiè
 ## Feuille de route
 
 1. Conception : maquettes des quatorze écrans, **terminée le 6 octobre 2026**.
-2. Prototype : fenêtre Tauri, base chiffrée, trame interactive, facture PDF, **en cours**.
+2. Prototype : fenêtre Tauri, base chiffrée, trame interactive, facture PDF, **terminé le 7 octobre 2026, en attente de validation des choix techniques**.
 3. Socle clinique : patients, antécédents, frise de vie, séances, modèles et trames.
 4. Facturation et recettes : factures, avoirs, moyens de paiement, journal et export.
 5. Statistiques, sauvegardes et import depuis MonCabinetLibéral.
@@ -53,6 +54,6 @@ L'ancienne application Python (version 0.4.0, nommée « Mon Cabinet d'Ostéo »
 
 ## Licence
 
-Osteosphere est distribué sous licence [GPL-3.0](LICENSE), version 3 ou ultérieure : toute version modifiée et redistribuée doit rester libre. La police Figtree est distribuée sous licence SIL Open Font License 1.1.
+Osteosphere est distribué sous licence [GPL-3.0](LICENSE), version 3 ou ultérieure : toute version modifiée et redistribuée doit rester libre. La police Figtree est distribuée sous licence SIL Open Font License 1.1 ([texte](crates/osteosphere-documents/polices/OFL.txt)).
 
 Osteosphere n'est affilié à aucun autre logiciel. Les noms d'autres logiciels n'apparaissent que pour décrire la compatibilité, par exemple l'import de leurs exports.

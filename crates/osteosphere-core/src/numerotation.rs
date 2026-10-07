@@ -60,6 +60,24 @@ impl Date {
     pub fn annee(&self) -> i32 {
         self.annee
     }
+
+    pub fn mois(&self) -> u32 {
+        self.mois
+    }
+
+    pub fn jour(&self) -> u32 {
+        self.jour
+    }
+
+    /// « 6 octobre 2026 », « 1er mars 2026 ».
+    pub fn en_toutes_lettres(&self) -> String {
+        const MOIS: [&str; 12] = [
+            "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre",
+            "décembre",
+        ];
+        let jour = if self.jour == 1 { "1er".to_owned() } else { self.jour.to_string() };
+        format!("{jour} {} {}", MOIS[(self.mois - 1) as usize], self.annee)
+    }
 }
 
 impl fmt::Display for Date {
@@ -195,6 +213,13 @@ mod tests {
         let format = FormatNumero { modele: "{AAAA}-{MM}".into(), chiffres: 1 };
         let erreur = prochain_numero(&format, date("2026-10-06"), &EtatAnnee::default(), 1).unwrap_err();
         assert_eq!(erreur, ErreurNumerotation::ModeleSansCompteur);
+    }
+
+    #[test]
+    fn ecrit_les_dates_en_toutes_lettres() {
+        assert_eq!(date("2026-10-06").en_toutes_lettres(), "6 octobre 2026");
+        assert_eq!(date("2026-03-01").en_toutes_lettres(), "1er mars 2026");
+        assert_eq!(date("2026-08-15").en_toutes_lettres(), "15 août 2026");
     }
 
     #[test]

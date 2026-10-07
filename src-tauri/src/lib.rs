@@ -1,4 +1,5 @@
 mod demarrage;
+mod documents;
 mod trames;
 
 use std::path::PathBuf;
@@ -64,6 +65,8 @@ pub fn run() {
             trames::supprimer_trame,
             trames::noter_utilisation_trame,
             trames::caractere_trames,
+            documents::facture_essai_pdf,
+            documents::ouvrir_facture_essai,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

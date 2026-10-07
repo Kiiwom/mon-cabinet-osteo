@@ -48,3 +48,12 @@ describe("écran Trames", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("déjà pris");
   });
 });
+
+describe("facture d'essai dans le navigateur", () => {
+  it("explique qu'il faut la fenêtre de l'application", async () => {
+    const { PageFacturation } = await import("./Facturation");
+    render(<PageFacturation coeur={creerCoeurDeDemonstration("ouvert")} />);
+    fireEvent.click(screen.getByRole("button", { name: "Créer la facture d’essai" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("ouvrez Osteosphere dans sa fenêtre");
+  });
+});

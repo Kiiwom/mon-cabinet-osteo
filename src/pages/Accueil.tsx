@@ -34,8 +34,18 @@ export function Accueil({ cabinet }: { cabinet: IdentiteCabinet }) {
         : "Parcours simulé dans le navigateur : rien n’est enregistré.",
       etat: reel ? "fait" : "en-cours",
     },
-    { titre: "Trame interactive", detail: "Menu @, pastilles de choix, blancs à compléter, validation.", etat: "a-venir" },
-    { titre: "Facture PDF", detail: "Mise en page de la maquette, mentions obligatoires.", etat: "a-venir" },
+    {
+      titre: "Trame interactive",
+      detail: "Menu @, pastilles de choix, blancs à compléter, Valider : à essayer dans Trames.",
+      etat: "fait",
+    },
+    {
+      titre: "Facture PDF",
+      detail: reel
+        ? "Mise en page de la maquette, mentions obligatoires : facture d’essai dans Facturation."
+        : "Mise en page par le cœur : à essayer dans la fenêtre de l’application.",
+      etat: reel ? "fait" : "en-cours",
+    },
   ];
 
   return (
