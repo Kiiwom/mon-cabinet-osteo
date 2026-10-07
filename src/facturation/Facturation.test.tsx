@@ -16,7 +16,7 @@ async function aller(adresse: string) {
 async function demarrer(): Promise<Coeur> {
   const coeur = creerCoeurDeDemonstration("ouvert");
   render(<App coeur={coeur} />);
-  await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+  await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   return coeur;
 }
 

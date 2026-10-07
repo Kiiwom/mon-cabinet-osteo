@@ -239,7 +239,7 @@ function CabinetOuvert({
       <BarreLaterale courant={ecran} seancesAFacturer={aFacturer} donneesReelles={coeur.reel} sauvegarde={sauvegarde} />
       <div className="contenu">
         {ecran === "accueil" ? (
-          <Accueil cabinet={cabinet} />
+          <Accueil coeur={coeur} cabinet={cabinet} />
         ) : ecran === "patients" ? (
           <EcranPatients coeur={coeur} segments={segments} />
         ) : ecran === "seances" ? (

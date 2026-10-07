@@ -41,7 +41,7 @@ describe("premier démarrage", () => {
     await screen.findByRole("heading", { name: "Reprendre vos données ?" });
     fireEvent.click(screen.getByRole("button", { name: "Créer mon cabinet" }));
 
-    expect(await screen.findByRole("heading", { name: "Bienvenue, Alexandre" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Bonjour Alexandre/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Accueil" })).toHaveAttribute("aria-current", "page");
   });
 
@@ -94,7 +94,7 @@ describe("sauvegardes", () => {
     continuer();
     await screen.findByRole("heading", { name: "Reprendre vos données ?" });
     fireEvent.click(screen.getByRole("button", { name: "Créer mon cabinet" }));
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     expect(choix[0].sauvegardes).toMatchObject({ frequence: "intervalle", intervalle_minutes: 30 });
   });
 });
@@ -148,7 +148,7 @@ describe("ouverture d'un cabinet existant", () => {
 
     saisir("Mot de passe", "motdepasse");
     fireEvent.click(screen.getByRole("button", { name: "Déverrouiller" }));
-    expect(await screen.findByRole("heading", { name: "Bienvenue, Alexandre" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Bonjour Alexandre/ })).toBeInTheDocument();
   });
 
   it("ouvre avec la clé de secours quand le mot de passe est oublié", async () => {
@@ -163,7 +163,7 @@ describe("ouverture d'un cabinet existant", () => {
 
     saisir(/^Clé de secours/, "7kqm r4tx 9wbe h2nc px6v 3dfa");
     fireEvent.click(screen.getByRole("button", { name: "Ouvrir le cabinet" }));
-    expect(await screen.findByRole("heading", { name: "Bienvenue, Alexandre" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Bonjour Alexandre/ })).toBeInTheDocument();
   });
 
   it("explique le cas d'un autre ordinateur", async () => {
@@ -176,7 +176,7 @@ describe("ouverture d'un cabinet existant", () => {
 describe("navigation", () => {
   it("suit l'adresse pour changer d'écran", async () => {
     render(<App coeur={creerCoeurDeDemonstration("ouvert")} />);
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     await act(async () => {
       window.location.hash = "#/trames";
       window.dispatchEvent(new HashChangeEvent("hashchange"));

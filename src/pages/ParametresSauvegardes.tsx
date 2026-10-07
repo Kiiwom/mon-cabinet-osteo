@@ -388,6 +388,7 @@ const ACTIONS: Record<string, string> = {
   "reglement.supprime": "Règlement supprimé",
   "cabinet.identite": "Identité du cabinet modifiée",
   "import.mcl": "Import depuis MonCabinetLibéral",
+  "accueil.modifie": "Accueil personnalisé",
 };
 
 /** Lien vers ce que concerne la ligne du journal, quand c'est possible. */

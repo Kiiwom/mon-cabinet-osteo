@@ -13,7 +13,7 @@ async function aller(adresse: string) {
 
 async function demarrer(coeur: Coeur = creerCoeurDeDemonstration("ouvert")): Promise<Coeur> {
   render(<App coeur={coeur} />);
-  await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+  await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   return coeur;
 }
 
@@ -64,7 +64,7 @@ describe("sauvegardes", () => {
     expect(await within(restauration).findByText("Sauvegarde intacte, déchiffrée avec votre clé de secours.")).toBeInTheDocument();
     expect(within(restauration).getByText("Patients").nextElementSibling).toHaveTextContent("8");
     fireEvent.click(within(restauration).getByRole("button", { name: "Remplacer mes données par cette sauvegarde" }));
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   });
 
   it("restaure une sauvegarde dès le premier démarrage", async () => {
@@ -77,7 +77,7 @@ describe("sauvegardes", () => {
     fireEvent.change(within(restauration).getByLabelText("Clé de secours"), { target: { value: CLE } });
     fireEvent.click(within(restauration).getByRole("button", { name: "Vérifier la sauvegarde" }));
     fireEvent.click(await within(restauration).findByRole("button", { name: "Installer ce cabinet" }));
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   });
 
   it("active le mot de passe, verrouille avec Ctrl+L puis déverrouille", async () => {
@@ -99,7 +99,7 @@ describe("sauvegardes", () => {
     await screen.findByRole("heading", { name: "Cabinet protégé" });
     fireEvent.change(screen.getByLabelText("Mot de passe", { selector: "input" }), { target: { value: "mot de passe fictif" } });
     fireEvent.click(screen.getByRole("button", { name: "Déverrouiller" }));
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   });
 
   it("affiche le journal et l'export complet", async () => {

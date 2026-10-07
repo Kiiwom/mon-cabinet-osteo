@@ -1,7 +1,8 @@
-//! Commandes des paramètres du cabinet : identité et mentions imprimées sur les factures.
+//! Commandes des paramètres du cabinet : identité et mentions imprimées sur les factures, accueil.
 
 use std::sync::Arc;
 
+use osteosphere_core::accueil::{self, Accueil};
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
 use tauri::State;
 
@@ -24,4 +25,14 @@ pub fn enregistrer_identite_cabinet(etat: State<'_, Arc<EtatCabinet>>, identite:
             .map_err(message)?;
         Ok(identite)
     })
+}
+
+#[tauri::command]
+pub fn accueil(etat: State<'_, Arc<EtatCabinet>>) -> Result<Accueil, String> {
+    etat.avec_base(|base| accueil::lire(base).map_err(message))
+}
+
+#[tauri::command]
+pub fn enregistrer_accueil(etat: State<'_, Arc<EtatCabinet>>, accueil: Accueil) -> Result<Accueil, String> {
+    etat.avec_base(|base| accueil::enregistrer(base, &accueil).map_err(message))
 }

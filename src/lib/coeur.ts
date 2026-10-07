@@ -101,6 +101,22 @@ export interface LigneJournal {
   entite: string;
 }
 
+export type BlocAccueil = "seances_du_jour" | "a_facturer" | "statistiques" | "pense_betes" | "en_attente" | "anniversaires" | "sauvegarde";
+
+export interface PenseBete {
+  /** Vide pour un nouveau pense-bête : le cœur lui en donne un. */
+  id: string;
+  texte: string;
+  /** `AAAA-MM-JJ`. */
+  le: string;
+}
+
+export interface PreferencesAccueil {
+  masques: BlocAccueil[];
+  /** Le plus récent en premier. */
+  pense_betes: PenseBete[];
+}
+
 /** Un patient de l'aperçu d'import : les plus suivis d'abord. */
 export interface ApercuPatientImport {
   nom: string;
@@ -544,6 +560,8 @@ export interface Coeur {
   /** Sauvegarde le cabinet, puis importe ce qui est choisi ; tout ou rien. */
   importerMcl(chemin: string, choix: ChoixImport): Promise<ResultatImport>;
   ouvrirRapportImport(chemin: string): Promise<void>;
+  accueil(): Promise<PreferencesAccueil>;
+  enregistrerAccueil(accueil: PreferencesAccueil): Promise<PreferencesAccueil>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -661,6 +679,8 @@ export const coeurTauri: Coeur = {
   analyserImport: (chemin) => appeler("analyser_import", { chemin }),
   importerMcl: (chemin, choix) => appeler("importer_mcl", { chemin, choix }),
   ouvrirRapportImport: (chemin) => appeler("ouvrir_rapport_import", { chemin }),
+  accueil: () => appeler("accueil"),
+  enregistrerAccueil: (accueil) => appeler("enregistrer_accueil", { accueil }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -758,6 +778,15 @@ export function creerCoeurDeDemonstration(
   let caractere: CaractereTrames = "@";
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
+  let accueilDemo: PreferencesAccueil = {
+    masques: [],
+    pense_betes: exemples
+      ? [
+          { id: "pense-bete-a", texte: "Commander des draps d’examen", le: "2026-10-02" },
+          { id: "pense-bete-b", texte: "Renouveler l’assurance RCP avant le 30 novembre", le: "2026-09-15" },
+        ]
+      : [],
+  };
   /** Patients créés par l'import de démonstration : un second import ne les recopie pas. */
   const importDemo: string[] = [];
   let patients: Patient[] = exemples
@@ -1239,6 +1268,17 @@ export function creerCoeurDeDemonstration(
     },
     async ouvrirRapportImport() {
       throw new Error("Pas de rapport écrit dans la démonstration.");
+    },
+    async accueil() {
+      return structuredClone(accueilDemo);
+    },
+    async enregistrerAccueil(nouveau) {
+      if (nouveau.pense_betes.some((p) => !p.texte.trim())) throw new Error("Un pense-bête vide ne sert à rien.");
+      accueilDemo = {
+        masques: [...new Set(nouveau.masques)],
+        pense_betes: nouveau.pense_betes.map((p) => ({ ...p, texte: p.texte.trim().split(/\s+/).join(" "), id: p.id || `pense-bete-${(compteur += 1)}` })),
+      };
+      return structuredClone(accueilDemo);
     },
   };
   return coeur;

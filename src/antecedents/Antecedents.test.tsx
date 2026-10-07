@@ -8,7 +8,7 @@ const saisir = (libelle: string, valeur: string) => fireEvent.change(screen.getB
 
 async function ouvrirDossier(adresse: string) {
   render(<App coeur={creerCoeurDeDemonstration("ouvert")} />);
-  await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+  await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   await act(async () => {
     window.location.hash = adresse;
     window.dispatchEvent(new HashChangeEvent("hashchange"));

@@ -26,7 +26,7 @@ beforeEach(() => {
 describe("patients", () => {
   it("cherche sans accents ni fautes et ouvre le dossier au clavier", async () => {
     demarrer();
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     await ouvrir("#/patients");
     const liste = await screen.findByRole("table");
     expect(within(liste).getAllByRole("row")).toHaveLength(9);
@@ -43,7 +43,7 @@ describe("patients", () => {
 
   it("crée un dossier, vérifie la date et prévient d'un doublon probable", async () => {
     demarrer();
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     await ouvrir("#/patients/nouveau");
     await screen.findByRole("heading", { name: "Nouveau patient" });
     saisir("Nom", "MARTIN");
@@ -66,7 +66,7 @@ describe("patients", () => {
 
   it("modifie la fiche, puis archive le dossier", async () => {
     demarrer();
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     await ouvrir("#/patients/patient-1/identite");
     await screen.findByRole("heading", { name: "Camille Martin" });
     const alertes = document.querySelectorAll(".entete-dossier .puce-alerte");
@@ -93,7 +93,7 @@ describe("patients", () => {
 
   it("propose de créer le dossier cherché quand il n'existe pas", async () => {
     demarrer();
-    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     await ouvrir("#/patients");
     await screen.findByRole("table");
     saisir("Rechercher un patient", "Durand Léa");

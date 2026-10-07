@@ -3628,3 +3628,129 @@ kbd {
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* Accueil (maquette 1) */
+.grille-accueil {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .grille-accueil {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.bloc-accueil {
+  gap: 12px;
+}
+
+.bloc-accueil h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.lien-discret {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.liste-accueil {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.liste-accueil li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bordure);
+  font-size: 14px;
+}
+
+.liste-accueil li:last-child {
+  border-bottom: 0;
+}
+
+.ligne-accueil {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  min-width: 0;
+  color: var(--encre);
+  text-decoration: none;
+}
+
+.ligne-accueil:hover span:first-child,
+.ligne-accueil:focus-visible span:first-child {
+  text-decoration: underline;
+}
+
+.heure-accueil {
+  flex: none;
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chiffres-accueil {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chiffres-accueil div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.chiffres-accueil dt {
+  font-size: 14px;
+  color: var(--encre-2);
+}
+
+.chiffres-accueil dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.chiffres-accueil strong {
+  font-size: 22px;
+}
+
+.ajout-pense-bete {
+  display: flex;
+  gap: 8px;
+}
+
+.ajout-pense-bete input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 8px;
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 14px;
+}
+
+.choix-blocs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+}

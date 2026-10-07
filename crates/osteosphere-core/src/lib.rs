@@ -17,9 +17,11 @@
 //! - [`export`] : export complet en CSV et JSON, journal consultable.
 //! - [`statistiques`] : chiffre d'affaires, activité et patientèle, comparés à l'année précédente.
 //! - [`import_mcl`] : reprise des données de MonCabinetLibéral.
+//! - [`accueil`] : blocs de l'accueil et pense-bêtes.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
+pub mod accueil;
 pub mod antecedents;
 pub mod base;
 pub mod cabinet;
