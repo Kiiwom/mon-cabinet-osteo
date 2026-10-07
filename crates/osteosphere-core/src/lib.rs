@@ -9,6 +9,7 @@
 //! - [`trames`] : textes réutilisables appelés par un code court pendant la saisie.
 //! - [`patients`] : dossiers patients, identité, profil, remarques, archives.
 //! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
+//! - [`modeles`] : modèles de consultation versionnés, modèles fournis.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -20,6 +21,7 @@ pub mod cle_de_secours;
 mod fichier;
 mod hexa;
 pub mod identifiant;
+pub mod modeles;
 pub mod numerotation;
 pub mod patients;
 pub mod trames;

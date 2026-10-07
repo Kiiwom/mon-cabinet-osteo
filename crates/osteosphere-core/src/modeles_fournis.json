@@ -1,0 +1,290 @@
+[
+  {
+    "nom": "Adulte",
+    "age_min": 18,
+    "age_max": null,
+    "par_defaut": true,
+    "actif": true,
+    "definition": {
+      "champs": [
+        {
+          "id": "mesures",
+          "type": "mesures",
+          "libelle": "Taille, poids et IMC"
+        },
+        {
+          "id": "douleur_avant",
+          "type": "curseur",
+          "libelle": "Douleur avant la séance",
+          "min": 0,
+          "max": 10,
+          "pas": 1,
+          "role": "douleur_avant"
+        },
+        {
+          "id": "motif",
+          "type": "texte_enrichi",
+          "libelle": "Motif de consultation",
+          "role": "motif"
+        },
+        {
+          "id": "tests",
+          "type": "texte_enrichi",
+          "libelle": "Tests ostéopathiques / différentiels"
+        },
+        {
+          "id": "schema_dysfonctionnel",
+          "type": "texte_enrichi",
+          "libelle": "Schéma dysfonctionnel"
+        },
+        {
+          "id": "traitements",
+          "type": "texte_enrichi",
+          "libelle": "Traitements"
+        },
+        {
+          "id": "remarques",
+          "type": "texte_enrichi",
+          "libelle": "Remarques"
+        },
+        {
+          "id": "douleur_apres",
+          "type": "curseur",
+          "libelle": "Douleur après la séance",
+          "min": 0,
+          "max": 10,
+          "pas": 1,
+          "role": "douleur_apres"
+        },
+        {
+          "id": "schema",
+          "type": "dessin",
+          "libelle": "Schéma sur planches"
+        }
+      ]
+    }
+  },
+  {
+    "nom": "Femme enceinte",
+    "age_min": null,
+    "age_max": null,
+    "par_defaut": false,
+    "actif": true,
+    "definition": {
+      "champs": [
+        {
+          "id": "amenorrhee",
+          "type": "curseur",
+          "libelle": "Semaines d'aménorrhée",
+          "min": 0,
+          "max": 42,
+          "pas": 1
+        },
+        {
+          "id": "douleur_avant",
+          "type": "curseur",
+          "libelle": "Douleur avant la séance",
+          "min": 0,
+          "max": 10,
+          "pas": 1,
+          "role": "douleur_avant"
+        },
+        {
+          "id": "sexe_bebe",
+          "type": "liste",
+          "libelle": "Sexe du bébé",
+          "options": [
+            "Non connu",
+            "Fille",
+            "Garçon",
+            "Jumeaux"
+          ]
+        },
+        {
+          "id": "mesures",
+          "type": "mesures",
+          "libelle": "Taille, poids et IMC"
+        },
+        {
+          "id": "motif",
+          "type": "texte_enrichi",
+          "libelle": "Motif de consultation",
+          "role": "motif"
+        },
+        {
+          "id": "tests",
+          "type": "texte_enrichi",
+          "libelle": "Tests ostéopathiques / différentiels"
+        },
+        {
+          "id": "schema_dysfonctionnel",
+          "type": "texte_enrichi",
+          "libelle": "Schéma dysfonctionnel"
+        },
+        {
+          "id": "traitements",
+          "type": "texte_enrichi",
+          "libelle": "Traitements"
+        },
+        {
+          "id": "remarques",
+          "type": "texte_enrichi",
+          "libelle": "Remarques"
+        },
+        {
+          "id": "douleur_apres",
+          "type": "curseur",
+          "libelle": "Douleur après la séance",
+          "min": 0,
+          "max": 10,
+          "pas": 1,
+          "role": "douleur_apres"
+        },
+        {
+          "id": "schema",
+          "type": "dessin",
+          "libelle": "Schéma sur planches"
+        }
+      ]
+    }
+  },
+  {
+    "nom": "Nourrisson",
+    "age_min": null,
+    "age_max": 2,
+    "par_defaut": false,
+    "actif": true,
+    "definition": {
+      "champs": [
+        {
+          "id": "mesures",
+          "type": "mesures",
+          "libelle": "Taille, poids et IMC"
+        },
+        {
+          "id": "douleur_avant",
+          "type": "curseur",
+          "libelle": "Douleur avant la séance",
+          "min": 0,
+          "max": 10,
+          "pas": 1,
+          "role": "douleur_avant"
+        },
+        {
+          "id": "motif",
+          "type": "texte_enrichi",
+          "libelle": "Motif de consultation",
+          "role": "motif"
+        },
+        {
+          "id": "tests",
+          "type": "texte_enrichi",
+          "libelle": "Tests ostéopathiques / différentiels"
+        },
+        {
+          "id": "schema_dysfonctionnel",
+          "type": "texte_enrichi",
+          "libelle": "Schéma dysfonctionnel"
+        },
+        {
+          "id": "traitements",
+          "type": "texte_enrichi",
+          "libelle": "Traitements"
+        },
+        {
+          "id": "remarques",
+          "type": "texte_enrichi",
+          "libelle": "Remarques"
+        },
+        {
+          "id": "schema",
+          "type": "dessin",
+          "libelle": "Schéma sur planches"
+        },
+        {
+          "id": "douleur_apres",
+          "type": "curseur",
+          "libelle": "Douleur après la séance",
+          "min": 0,
+          "max": 10,
+          "pas": 1,
+          "role": "douleur_apres"
+        }
+      ]
+    }
+  },
+  {
+    "nom": "Note libre",
+    "age_min": null,
+    "age_max": null,
+    "par_defaut": false,
+    "actif": true,
+    "definition": {
+      "champs": [
+        {
+          "id": "note",
+          "type": "texte_enrichi",
+          "libelle": "Note de séance",
+          "role": "motif"
+        }
+      ]
+    }
+  },
+  {
+    "nom": "Examen par sphères",
+    "age_min": null,
+    "age_max": null,
+    "par_defaut": false,
+    "actif": false,
+    "definition": {
+      "champs": [
+        {
+          "id": "motif",
+          "type": "texte_enrichi",
+          "libelle": "Motif de consultation",
+          "role": "motif"
+        },
+        {
+          "id": "titre_examen",
+          "type": "intertitre",
+          "libelle": "Examen par sphères"
+        },
+        {
+          "id": "sphere_crane",
+          "type": "texte_enrichi",
+          "libelle": "Sphère crânienne"
+        },
+        {
+          "id": "sphere_orl",
+          "type": "texte_enrichi",
+          "libelle": "Sphère ORL"
+        },
+        {
+          "id": "sphere_cardio",
+          "type": "texte_enrichi",
+          "libelle": "Sphère cardio-pulmonaire"
+        },
+        {
+          "id": "sphere_viscerale",
+          "type": "texte_enrichi",
+          "libelle": "Sphère viscérale"
+        },
+        {
+          "id": "sphere_musculo",
+          "type": "texte_enrichi",
+          "libelle": "Sphère musculo-squelettique"
+        },
+        {
+          "id": "traitements",
+          "type": "texte_enrichi",
+          "libelle": "Traitements"
+        },
+        {
+          "id": "remarques",
+          "type": "texte_enrichi",
+          "libelle": "Remarques"
+        }
+      ]
+    }
+  }
+]

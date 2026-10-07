@@ -9,7 +9,9 @@ import { Accueil } from "./pages/Accueil";
 import { DossierPatient, ongletDepuis } from "./pages/Dossier";
 import { EcranAVenir } from "./pages/EcranAVenir";
 import { PageFacturation } from "./pages/Facturation";
+import { PageModeles } from "./pages/Modeles";
 import { NouveauPatient } from "./pages/NouveauPatient";
+import { PageParametres } from "./pages/Parametres";
 import { PagePatients } from "./pages/Patients";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
@@ -115,6 +117,8 @@ function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Co
           <Accueil cabinet={cabinet} />
         ) : ecran === "patients" ? (
           <EcranPatients coeur={coeur} segments={segments} />
+        ) : ecran === "parametres" ? (
+          segments[1] === "modeles" ? <PageModeles coeur={coeur} /> : <PageParametres />
         ) : ecran === "facturation" ? (
           <PageFacturation coeur={coeur} />
         ) : ecran === "trames" ? (

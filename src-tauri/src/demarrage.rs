@@ -10,7 +10,7 @@ use osteosphere_core::cabinet::{
     PARAMETRE_TRAMES, PreferencesSauvegarde,
 };
 use osteosphere_core::cle_de_secours::CleDeSecours;
-use osteosphere_core::trames;
+use osteosphere_core::{modeles, trames};
 use osteosphere_core::trousseau::ProtectionSession;
 use osteosphere_session::SessionOrdinateur;
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,7 @@ impl EtatCabinet {
         let identite = ouvert.base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default();
         // Une seule fois par cabinet : une trame de départ supprimée ne revient pas.
         trames::installer_bibliotheque_de_depart(&ouvert.base).map_err(message)?;
+        modeles::installer_modeles_fournis(&ouvert.base).map_err(message)?;
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
         Ok(identite)
     }

@@ -2,6 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
 import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
+import modelesFournis from "../../crates/osteosphere-core/src/modeles_fournis.json";
 
 export interface IdentiteCabinet {
   prenom: string;
@@ -182,6 +183,69 @@ export interface Antecedent extends SaisieAntecedent {
   patient_id: string;
 }
 
+export type TypeChamp =
+  | "texte_court"
+  | "texte_enrichi"
+  | "liste"
+  | "cases"
+  | "case_precision"
+  | "curseur"
+  | "date"
+  | "nombre"
+  | "intertitre"
+  | "mesures"
+  | "resume_precedent"
+  | "dessin";
+
+/** Rôle d'un champ, repris dans les listes de séances et les statistiques. */
+export type RoleChamp = "" | "motif" | "douleur_avant" | "douleur_apres";
+
+export interface Champ {
+  /** Clé de la valeur dans la séance : ne change plus une fois le champ créé. */
+  id: string;
+  type: TypeChamp;
+  libelle: string;
+  visible: boolean;
+  obligatoire: boolean;
+  imprimer: boolean;
+  role: RoleChamp;
+  options?: string[];
+  min?: number;
+  max?: number;
+  pas?: number;
+  unite?: string;
+}
+
+export interface Definition {
+  champs: Champ[];
+}
+
+export interface SaisieModele {
+  nom: string;
+  /** Proposé automatiquement à partir de cet âge, en années révolues. */
+  age_min: number | null;
+  /** Proposé automatiquement avant cet âge. */
+  age_max: number | null;
+  actif: boolean;
+  definition: Definition;
+}
+
+export interface Modele extends SaisieModele {
+  id: string;
+  par_defaut: boolean;
+  origine: "fourni" | "praticien";
+  version: number;
+  /** Date de la version en cours, en secondes depuis 1970. */
+  version_le: number;
+}
+
+/** Les champs tels qu'écrits dans un fichier : les réglages absents prennent leur valeur habituelle. */
+export function completerChamp(champ: Partial<Champ> & Pick<Champ, "id" | "type" | "libelle">): Champ {
+  const complet: Champ = { visible: true, obligatoire: false, imprimer: true, role: "", ...champ };
+  if (complet.type === "curseur") return { min: 0, max: 10, pas: 1, ...complet };
+  return complet;
+}
+
 export function resumeDe(patient: Patient): ResumePatient {
   const { id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut, notes_importantes, decede, archive } =
     patient;
@@ -215,6 +279,10 @@ export interface Coeur {
   listerAntecedents(patientId: string): Promise<Antecedent[]>;
   enregistrerAntecedent(patientId: string, id: string | null, saisie: SaisieAntecedent): Promise<Antecedent>;
   supprimerAntecedent(id: string): Promise<void>;
+  listerModeles(): Promise<Modele[]>;
+  lireVersionModele(id: string, version: number): Promise<Definition>;
+  enregistrerModele(id: string | null, saisie: SaisieModele): Promise<Modele>;
+  definirModeleParDefaut(id: string): Promise<Modele>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -269,6 +337,10 @@ export const coeurTauri: Coeur = {
   listerAntecedents: (patientId) => appeler("lister_antecedents", { patientId }),
   enregistrerAntecedent: (patientId, id, saisie) => appeler("enregistrer_antecedent", { patientId, id, saisie }),
   supprimerAntecedent: (id) => appeler("supprimer_antecedent", { id }),
+  listerModeles: () => appeler("lister_modeles"),
+  lireVersionModele: (id, version) => appeler("lire_version_modele", { id, version }),
+  enregistrerModele: (id, saisie) => appeler("enregistrer_modele", { id, saisie }),
+  definirModeleParDefaut: (id) => appeler("definir_modele_par_defaut", { id }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -341,6 +413,20 @@ export function creerCoeurDeDemonstration(
   let antecedents: Antecedent[] = exemples
     ? ANTECEDENTS_FICTIFS.map((a, rang) => ({ ...SAISIE_ANTECEDENT_VIDE, ...a, id: `antecedent-${rang + 1}`, patient_id: "patient-1" }))
     : [];
+  let modeles: Modele[] = modelesFournis.map((m, rang) => ({
+    ...m,
+    definition: { champs: m.definition.champs.map((c) => completerChamp(c as Champ)) },
+    id: `modele-${rang + 1}`,
+    origine: "fourni",
+    version: 1,
+    version_le: 0,
+  }));
+  const versions = new Map<string, Definition>(modeles.map((m) => [`${m.id}@1`, m.definition]));
+  const trouverModele = (id: string) => {
+    const modele = modeles.find((m) => m.id === id);
+    if (!modele) throw new Error("Ce modèle n’existe plus");
+    return modele;
+  };
   const trouverPatient = (id: string) => {
     const patient = patients.find((p) => p.id === id);
     if (!patient) throw new Error("Ce dossier n’existe plus");
@@ -467,6 +553,38 @@ export function creerCoeurDeDemonstration(
     },
     async supprimerAntecedent(id) {
       antecedents = antecedents.filter((a) => a.id !== id);
+    },
+    async listerModeles() {
+      return [...modeles].sort((a, b) => Number(b.par_defaut) - Number(a.par_defaut));
+    },
+    async lireVersionModele(id, version) {
+      const definition = versions.get(`${id}@${version}`);
+      if (!definition) throw new Error("Ce modèle n’existe plus");
+      return definition;
+    },
+    async enregistrerModele(id, saisie) {
+      if (!saisie.nom.trim()) throw new Error("Donnez un nom au modèle");
+      if (saisie.definition.champs.length === 0) throw new Error("Le modèle a besoin d’au moins un champ");
+      const avant = id ? trouverModele(id) : null;
+      if (avant?.par_defaut && !saisie.actif) throw new Error("Un modèle désactivé ne peut pas être le modèle par défaut");
+      const nouvelleVersion = !avant || JSON.stringify(avant.definition) !== JSON.stringify(saisie.definition);
+      const modele: Modele = {
+        ...saisie,
+        nom: saisie.nom.trim(),
+        id: avant?.id ?? `modele-${(compteur += 1)}-${Date.now()}`,
+        par_defaut: avant?.par_defaut ?? false,
+        origine: avant?.origine ?? "praticien",
+        version: avant ? avant.version + (nouvelleVersion ? 1 : 0) : 1,
+        version_le: nouvelleVersion ? Math.floor(Date.now() / 1000) : (avant?.version_le ?? 0),
+      };
+      versions.set(`${modele.id}@${modele.version}`, modele.definition);
+      modeles = avant ? modeles.map((m) => (m.id === modele.id ? modele : m)) : [...modeles, modele];
+      return modele;
+    },
+    async definirModeleParDefaut(id) {
+      if (!trouverModele(id).actif) throw new Error("Un modèle désactivé ne peut pas être le modèle par défaut");
+      modeles = modeles.map((m) => ({ ...m, par_defaut: m.id === id }));
+      return trouverModele(id);
     },
   };
 }

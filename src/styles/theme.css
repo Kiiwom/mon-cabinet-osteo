@@ -1847,3 +1847,243 @@ a.bouton {
   outline: 3px solid var(--accent-fonce);
   outline-offset: 2px;
 }
+
+/* Paramètres et constructeur de modèles (maquettes 10 et 11) */
+.rubriques-parametres {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.rubrique-parametre {
+  height: 100%;
+  gap: 6px;
+  color: var(--encre);
+  text-decoration: none;
+}
+
+a.rubrique-parametre:hover {
+  border-color: var(--accent);
+}
+
+.rubrique-parametre[data-a-venir="true"] {
+  border-style: dashed;
+  background: var(--fond);
+}
+
+.rubrique-parametre .etiquette {
+  align-self: flex-start;
+}
+
+.abandon {
+  align-items: center;
+}
+
+.constructeur {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .constructeur {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .constructeur .reglages-champ {
+    grid-column: 2;
+  }
+}
+
+.liste-modeles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.carte-modele {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--bordure);
+  border-radius: 14px;
+  background: var(--fond-carte);
+  font: inherit;
+  text-align: left;
+  color: var(--encre);
+  cursor: pointer;
+}
+
+.carte-modele[aria-current="true"] {
+  border: 2px solid var(--accent);
+}
+
+.carte-modele[data-inactif="true"] {
+  border-style: dashed;
+  background: var(--fond);
+}
+
+.carte-modele .discret {
+  font-size: 13px;
+}
+
+.carte-modele-titre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tranche-age input {
+  width: 64px;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.liste-champs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ligne-champ {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 10px;
+  background: var(--fond-carte);
+}
+
+.ligne-champ[aria-current="true"] {
+  border: 2px solid var(--accent);
+  background: var(--accent-doux);
+}
+
+.ligne-champ[data-indisponible="true"] {
+  border-style: dashed;
+  background: var(--fond);
+}
+
+.ligne-champ[data-glisse="true"] {
+  opacity: 0.5;
+}
+
+.poignee {
+  color: var(--encre-discrete);
+  cursor: grab;
+  letter-spacing: -2px;
+}
+
+.ligne-champ-nom {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  color: var(--encre);
+  cursor: pointer;
+}
+
+.ligne-champ-type {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ligne-champ-ordre {
+  display: inline-flex;
+}
+
+.ligne-champ-ordre .bouton-icone {
+  min-height: 32px;
+  padding: 0 6px;
+}
+
+.case-visible {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent-fonce);
+}
+
+.ajout-champ {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--bordure);
+  border-radius: 12px;
+}
+
+.ajout-champ h3 {
+  font-size: 15px;
+}
+
+.grille-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.grille-types .bouton {
+  min-height: 44px;
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+.grille-types .bouton[data-module="true"] {
+  border-style: dashed;
+}
+
+.reglages-champ .trois-colonnes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.apercu-champ {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--fond-barre);
+  font-size: 14px;
+}
+
+.apercu-champ input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-fonce);
+}
+
+.apercu-zone {
+  display: block;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 8px;
+  background: var(--fond-carte);
+  color: var(--encre-discrete);
+}
+
+.groupe-apercu {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
