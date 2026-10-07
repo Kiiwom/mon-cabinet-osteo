@@ -5,13 +5,17 @@ mod facturation;
 mod modeles;
 mod parametres;
 mod patients;
+mod sauvegardes;
 mod seances;
 mod trames;
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
+use osteosphere_core::sauvegardes::Moment;
 use serde::Serialize;
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 
 #[derive(Serialize)]
 struct InfosApplication {
@@ -43,6 +47,7 @@ fn dossier_du_cabinet(app: &tauri::App) -> tauri::Result<PathBuf> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle()
@@ -54,8 +59,22 @@ pub fn run() {
                 .document_dir()
                 .map(|documents| documents.join("Osteosphere"))
                 .unwrap_or_else(|_| dossier.join("documents"));
-            app.manage(demarrage::EtatCabinet::new(dossier, documents));
+            let etat = demarrage::EtatCabinet::new(dossier, documents);
+            app.manage(Arc::clone(&etat));
+            // Chaque minute, la sauvegarde automatique se demande si elle est due (intervalle, jour, semaine).
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(Duration::from_secs(60));
+                    etat.sauvegarde_automatique(Moment::Minute);
+                }
+            });
             Ok(())
+        })
+        .on_window_event(|fenetre, evenement| {
+            // À la fermeture de la fenêtre : la sauvegarde « à chaque fermeture », si quelque chose a changé.
+            if let WindowEvent::CloseRequested { .. } = evenement {
+                fenetre.state::<Arc<demarrage::EtatCabinet>>().sauvegarde_automatique(Moment::Fermeture);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             infos_application,
@@ -125,6 +144,21 @@ pub fn run() {
             facturation::imprimer_facture,
             facturation::preparer_email_facture,
             facturation::exporter_fichier,
+            sauvegardes::etat_des_sauvegardes,
+            sauvegardes::enregistrer_preferences_sauvegarde,
+            sauvegardes::sauvegarder_maintenant,
+            sauvegardes::lister_sauvegardes,
+            sauvegardes::choisir_fichier,
+            sauvegardes::choisir_dossier,
+            sauvegardes::apercu_restauration,
+            sauvegardes::confirmer_restauration,
+            sauvegardes::annuler_restauration,
+            sauvegardes::securite,
+            sauvegardes::definir_mot_de_passe,
+            sauvegardes::retirer_mot_de_passe,
+            sauvegardes::verrouiller,
+            sauvegardes::exporter_tout,
+            sauvegardes::journal,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

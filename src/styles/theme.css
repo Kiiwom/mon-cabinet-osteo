@@ -268,6 +268,20 @@ h3 {
   background: var(--accent-fonce);
 }
 
+.point[data-etat="alerte"] {
+  background: #b4432f;
+}
+
+a.etat-sauvegarde {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.etat-sauvegarde[data-alerte="true"] {
+  background: #fbe3df;
+  color: #6f1f16;
+}
+
 .lecteur-seulement {
   position: absolute;
   width: 1px;
@@ -3057,4 +3071,79 @@ a.tuile:hover {
   .impression-seule {
     display: inline;
   }
+}
+
+/* Sauvegardes, sécurité, journal */
+.liste-sauvegardes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.liste-sauvegardes li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+}
+
+.chemin-fichier {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.champ-dossier {
+  flex: 1 1 320px;
+}
+
+.champ-court input {
+  width: 120px;
+}
+
+.restauration {
+  border-color: var(--accent);
+}
+
+.apercu-sauvegarde {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.apercu-sauvegarde dt {
+  font-size: 13px;
+  color: var(--encre-discrete);
+}
+
+.apercu-sauvegarde dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.saisie-cle {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 5px;
+  background: var(--fond);
+  font: inherit;
+  font-size: 12px;
+}
+
+.tableau-journal tbody tr {
+  cursor: default;
 }

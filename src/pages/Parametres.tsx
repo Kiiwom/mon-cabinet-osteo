@@ -5,8 +5,10 @@ const RUBRIQUES: { titre: string; detail: string; lien?: string }[] = [
   { titre: "Prestations et numérotation", detail: "Vos actes, leurs tarifs, le numéro de vos factures.", lien: adresse("parametres", "facturation") },
   { titre: "Modèles de consultation", detail: "Les champs proposés à chaque séance, selon le patient.", lien: adresse("parametres", "modeles") },
   { titre: "Trames", detail: "Textes réutilisables appelés par un code pendant la saisie.", lien: adresse("trames") },
-  { titre: "Sécurité et mot de passe", detail: "Mot de passe facultatif, verrouillage, clé de secours." },
-  { titre: "Sauvegardes", detail: "Fréquence, dossier, restauration." },
+  { titre: "Sauvegardes", detail: "Fréquence, dossier, sauvegarde à la demande, restauration.", lien: adresse("parametres", "sauvegardes") },
+  { titre: "Sécurité et mot de passe", detail: "Mot de passe facultatif, verrouillage, clé de secours.", lien: adresse("parametres", "securite") },
+  { titre: "Import et export", detail: "Reprise depuis MonCabinetLibéral, export complet.", lien: adresse("parametres", "import") },
+  { titre: "Journal des modifications", detail: "Chaque création, modification et suppression, datée.", lien: adresse("parametres", "journal") },
   { titre: "Modules", detail: "Agenda, dépenses, schéma corporel, Biokinergie…" },
 ];
 

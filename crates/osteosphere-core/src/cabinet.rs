@@ -11,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::base::{Base, ErreurBase};
-use crate::chiffrement::{CleDonnees, ErreurChiffrement, ReglagesDerivation};
+use crate::chiffrement::{CleDonnees, Enveloppe, ErreurChiffrement, ReglagesDerivation};
 use crate::cle_de_secours::CleDeSecours;
 use crate::trousseau::{ErreurTrousseau, ProtectionSession, Trousseau};
 
@@ -127,6 +127,10 @@ fn intervalle_par_defaut() -> u32 {
     60
 }
 
+fn conserver_par_defaut() -> u32 {
+    30
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PreferencesSauvegarde {
     pub frequence: FrequenceSauvegarde,
@@ -135,11 +139,19 @@ pub struct PreferencesSauvegarde {
     pub intervalle_minutes: u32,
     /// Dossier choisi par le praticien ; vide = dossier proposé par l'application.
     pub dossier: String,
+    /// Nombre de sauvegardes gardées dans le dossier ; les plus anciennes sont effacées.
+    #[serde(default = "conserver_par_defaut")]
+    pub conserver: u32,
 }
 
 impl Default for PreferencesSauvegarde {
     fn default() -> Self {
-        Self { frequence: FrequenceSauvegarde::default(), intervalle_minutes: intervalle_par_defaut(), dossier: String::new() }
+        Self {
+            frequence: FrequenceSauvegarde::default(),
+            intervalle_minutes: intervalle_par_defaut(),
+            dossier: String::new(),
+            conserver: conserver_par_defaut(),
+        }
     }
 }
 
@@ -148,7 +160,10 @@ impl PreferencesSauvegarde {
         if !INTERVALLES_SAUVEGARDE.contains(&self.intervalle_minutes) {
             return Err(ErreurCabinet::IntervalleSauvegarde(self.intervalle_minutes));
         }
-        Ok(self)
+        if !(3..=365).contains(&self.conserver) {
+            return Err(ErreurCabinet::Identite("gardez entre 3 et 365 sauvegardes"));
+        }
+        Ok(Self { dossier: self.dossier.trim().to_owned(), ..self })
     }
 }
 
@@ -197,7 +212,7 @@ impl Cabinet {
     }
 
     #[cfg(test)]
-    fn pour_tests(dossier: &Path) -> Self {
+    pub(crate) fn pour_tests(dossier: &Path) -> Self {
         Self { dossier: dossier.to_owned(), reglages: ReglagesDerivation::pour_tests() }
     }
 
@@ -205,7 +220,7 @@ impl Cabinet {
         &self.dossier
     }
 
-    fn chemin_base(&self) -> PathBuf {
+    pub fn chemin_base(&self) -> PathBuf {
         self.dossier.join(FICHIER_BASE)
     }
 
@@ -215,6 +230,11 @@ impl Cabinet {
 
     pub fn existe(&self) -> bool {
         self.chemin_trousseau().exists()
+    }
+
+    /// L'enveloppe de la clé de secours, recopiée dans chaque sauvegarde.
+    pub fn enveloppe_secours(&self) -> Result<Enveloppe, ErreurCabinet> {
+        Ok(Trousseau::charger(&self.chemin_trousseau())?.secours)
     }
 
     pub fn mot_de_passe_actif(&self) -> Result<bool, ErreurCabinet> {
@@ -306,6 +326,42 @@ impl Cabinet {
         trousseau.retirer_mot_de_passe(&ouvert.cle, protection)?;
         trousseau.enregistrer(&self.chemin_trousseau())?;
         Ok(())
+    }
+
+    /// Remplace les données du cabinet par une sauvegarde déchiffrée (`copie`, rangée dans le dossier du
+    /// cabinet). La base et le trousseau en place sont mis de côté, jamais effacés. Le cabinet restauré
+    /// garde la clé de secours de la sauvegarde et s'ouvre directement, sans mot de passe : le praticien
+    /// peut en remettre un dans les paramètres.
+    pub fn restaurer(
+        &self,
+        copie: &Path,
+        cle: &CleDonnees,
+        secours: Enveloppe,
+        protection: &dyn ProtectionSession,
+    ) -> Result<CabinetOuvert, ErreurCabinet> {
+        std::fs::create_dir_all(&self.dossier)?;
+        let horodatage = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        for suffixe in ["", "-wal", "-shm"] {
+            let source = self.dossier.join(format!("{FICHIER_BASE}{suffixe}"));
+            if source.exists() {
+                std::fs::rename(&source, self.dossier.join(format!("{FICHIER_BASE}.avant-restauration-{horodatage}{suffixe}")))?;
+            }
+        }
+        if self.existe() {
+            std::fs::rename(self.chemin_trousseau(), self.dossier.join(format!("{FICHIER_TROUSSEAU}.avant-restauration-{horodatage}")))?;
+        }
+        std::fs::rename(copie, self.chemin_base())?;
+        for suffixe in ["-wal", "-shm"] {
+            let mut reste = copie.as_os_str().to_owned();
+            reste.push(suffixe);
+            let _ = std::fs::remove_file(PathBuf::from(reste));
+        }
+        let mut trousseau = Trousseau { version: 1, secours, mot_de_passe: None, session: None };
+        // Sans coffre de session (Linux sans trousseau), la clé de secours sera demandée à l'ouverture.
+        let _ = trousseau.confier_a_la_session(cle, protection);
+        let ouvert = self.ouvrir_base(cle.clone())?;
+        trousseau.enregistrer(&self.chemin_trousseau())?;
+        Ok(ouvert)
     }
 
     fn ouvrir_base(&self, cle: CleDonnees) -> Result<CabinetOuvert, ErreurCabinet> {

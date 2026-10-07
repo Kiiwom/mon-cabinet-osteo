@@ -67,7 +67,7 @@ impl Date {
     }
 
     /// Jours écoulés depuis le 1er janvier 1970 (algorithme « civil from days » de H. Hinnant).
-    fn depuis_jours_unix(jours: i64) -> Self {
+    pub fn depuis_jours_unix(jours: i64) -> Self {
         let z = jours + 719_468;
         let ere = z.div_euclid(146_097);
         let doe = z.rem_euclid(146_097);
@@ -78,6 +78,17 @@ impl Date {
         let mois = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
         let annee = (yoe + ere * 400 + i64::from(mois <= 2)) as i32;
         Self { annee, mois, jour }
+    }
+
+    /// L'inverse : jours écoulés depuis le 1er janvier 1970 (« days from civil »).
+    pub fn jours_unix(&self) -> i64 {
+        let annee = i64::from(self.annee) - i64::from(self.mois <= 2);
+        let ere = annee.div_euclid(400);
+        let yoe = annee.rem_euclid(400);
+        let mois = i64::from(self.mois);
+        let doy = (153 * (if mois > 2 { mois - 3 } else { mois + 9 }) + 2) / 5 + i64::from(self.jour) - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        ere * 146_097 + doe - 719_468
     }
 
     pub fn annee(&self) -> i32 {
@@ -195,6 +206,9 @@ mod tests {
         assert_eq!(Date::depuis_jours_unix(11_016), Date::lire("2000-02-29").unwrap());
         assert!(Date::du_jour_utc(0) > Date::lire("2026-01-01").unwrap());
         assert!(Date::du_jour_utc(1) > Date::du_jour_utc(0));
+        for jours in [-1, 0, 11_016, 20_733, 50_000] {
+            assert_eq!(Date::depuis_jours_unix(jours).jours_unix(), jours);
+        }
     }
 
     fn date(texte: &str) -> Date {

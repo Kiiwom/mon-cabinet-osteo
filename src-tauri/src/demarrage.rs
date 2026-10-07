@@ -9,7 +9,9 @@ use osteosphere_core::cabinet::{
     Cabinet, CabinetOuvert, CaractereTrames, IdentiteCabinet, Ouverture, PARAMETRE_IDENTITE, PARAMETRE_SAUVEGARDES,
     PARAMETRE_TRAMES, PreferencesSauvegarde,
 };
+use osteosphere_core::chiffrement::CleDonnees;
 use osteosphere_core::cle_de_secours::CleDeSecours;
+use osteosphere_core::sauvegardes::{self, Entete, FichierSauvegarde, Moment};
 use osteosphere_core::{modeles, prestations, seances, trames};
 use osteosphere_core::trousseau::ProtectionSession;
 use osteosphere_session::SessionOrdinateur;
@@ -18,7 +20,7 @@ use tauri::State;
 use zeroize::Zeroizing;
 
 /// Relie la session de l'ordinateur au trousseau du cœur.
-struct Session;
+pub struct Session;
 
 impl ProtectionSession for Session {
     fn nom(&self) -> &'static str {
@@ -42,6 +44,16 @@ pub struct EtatCabinet {
     ouvert: Mutex<Option<CabinetOuvert>>,
     /// Clé de secours affichée par l'assistant, gardée ici jusqu'à la création du cabinet.
     cle_en_attente: Mutex<Option<CleDeSecours>>,
+    /// Sauvegarde déchiffrée et vérifiée, en attente de la confirmation du praticien.
+    pub restauration: Mutex<Option<Restauration>>,
+    /// Dernière erreur de la sauvegarde automatique, montrée dans les paramètres.
+    pub erreur_sauvegarde: Mutex<Option<String>>,
+}
+
+pub struct Restauration {
+    pub entete: Entete,
+    pub cle: CleDonnees,
+    pub copie: PathBuf,
 }
 
 impl EtatCabinet {
@@ -52,7 +64,76 @@ impl EtatCabinet {
             dossier_documents,
             ouvert: Mutex::new(None),
             cle_en_attente: Mutex::new(None),
+            restauration: Mutex::new(None),
+            erreur_sauvegarde: Mutex::new(None),
         })
+    }
+
+    pub fn cabinet(&self) -> &Cabinet {
+        &self.cabinet
+    }
+
+    /// Dossier des sauvegardes : celui choisi par le praticien, sinon celui proposé.
+    pub fn dossier_sauvegardes(&self, preferences: &PreferencesSauvegarde) -> PathBuf {
+        if preferences.dossier.is_empty() { self.dossier_sauvegardes_propose.clone() } else { PathBuf::from(&preferences.dossier) }
+    }
+
+    /// Sauvegarde le cabinet ouvert, puis efface les sauvegardes au-delà du nombre gardé.
+    pub fn sauvegarder(&self, base: &Base) -> Result<FichierSauvegarde, String> {
+        let preferences: PreferencesSauvegarde = base.lire_parametre(PARAMETRE_SAUVEGARDES).map_err(message)?.unwrap_or_default();
+        let dossier = self.dossier_sauvegardes(&preferences);
+        let secours = self.cabinet.enveloppe_secours().map_err(message)?;
+        let fichier = sauvegardes::ecrire(
+            base,
+            &self.cabinet.chemin_base(),
+            &secours,
+            &dossier,
+            env!("CARGO_PKG_VERSION"),
+            osteosphere_core::base::maintenant(),
+        )
+        .map_err(message)?;
+        sauvegardes::purger(&dossier, preferences.conserver as usize).map_err(message)?;
+        Ok(fichier)
+    }
+
+    /// Sauvegarde automatique, si la fréquence choisie le demande et si quelque chose a changé.
+    /// Une erreur est gardée pour les paramètres et le journal de l'application, jamais bloquante.
+    pub fn sauvegarde_automatique(&self, moment: Moment) {
+        let resultat = (|| -> Result<(), String> {
+            let garde = self.ouvert.lock().map_err(message)?;
+            let Some(ouvert) = garde.as_ref() else { return Ok(()) };
+            let preferences: PreferencesSauvegarde = ouvert.base.lire_parametre(PARAMETRE_SAUVEGARDES).map_err(message)?.unwrap_or_default();
+            if sauvegardes::due(&ouvert.base, &preferences, moment, osteosphere_core::base::maintenant()).map_err(message)? {
+                self.sauvegarder(&ouvert.base)?;
+            }
+            Ok(())
+        })();
+        if let Ok(mut erreur) = self.erreur_sauvegarde.lock() {
+            match resultat {
+                Ok(()) => {}
+                Err(texte) => {
+                    log::warn!("sauvegarde automatique : {texte}");
+                    *erreur = Some(texte);
+                }
+            }
+        }
+    }
+
+    /// Ferme le cabinet : la base est relâchée, le mot de passe sera redemandé.
+    pub fn fermer(&self) -> Result<(), String> {
+        *self.ouvert.lock().map_err(message)? = None;
+        Ok(())
+    }
+
+    /// Remplace les données par la sauvegarde vérifiée, puis rouvre le cabinet.
+    pub fn restaurer(&self, restauration: Restauration) -> Result<IdentiteCabinet, String> {
+        // La base en place est relâchée avant d'être mise de côté.
+        *self.ouvert.lock().map_err(message)? = None;
+        let ouvert = self
+            .cabinet
+            .restaurer(&restauration.copie, &restauration.cle, restauration.entete.secours, &Session)
+            .map_err(message)?;
+        self.garder_ouvert(ouvert)
     }
 
     fn garder_ouvert(&self, ouvert: CabinetOuvert) -> Result<IdentiteCabinet, String> {
@@ -64,6 +145,8 @@ impl EtatCabinet {
         // Les séances restées plus de 30 jours à la corbeille sont effacées à l'ouverture.
         seances::vider_corbeille_ancienne(&ouvert.base).map_err(message)?;
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
+        // Sauvegarde « du jour » ou « de la semaine » : à la première ouverture.
+        self.sauvegarde_automatique(Moment::Ouverture);
         Ok(identite)
     }
 
@@ -72,6 +155,12 @@ impl EtatCabinet {
     }
 
     /// Exécute une opération sur la base du cabinet ouvert.
+    pub fn avec_ouvert<T>(&self, operation: impl FnOnce(&CabinetOuvert) -> Result<T, String>) -> Result<T, String> {
+        let garde = self.ouvert.lock().map_err(message)?;
+        let ouvert = garde.as_ref().ok_or("Le cabinet n'est pas ouvert.")?;
+        operation(ouvert)
+    }
+
     pub fn avec_base<T>(&self, operation: impl FnOnce(&Base) -> Result<T, String>) -> Result<T, String> {
         let garde = self.ouvert.lock().map_err(message)?;
         let ouvert = garde.as_ref().ok_or("Le cabinet n'est pas ouvert.")?;
@@ -90,7 +179,7 @@ pub fn message(erreur: impl Display) -> String {
 }
 
 /// Travail long (dérivation de clé, ouverture de la base) hors du fil de l'interface.
-async fn en_arriere_plan<T: Send + 'static>(
+pub async fn en_arriere_plan<T: Send + 'static>(
     travail: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(travail).await.map_err(message)?

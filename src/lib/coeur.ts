@@ -35,13 +35,69 @@ export interface IdentiteCabinet {
 export type CaractereTrames = "@" | "/";
 export type FrequenceSauvegarde = "fermeture" | "intervalle" | "jour" | "semaine" | "manuelle";
 
+export interface PreferencesSauvegarde {
+  frequence: FrequenceSauvegarde;
+  /** Pour la fréquence « intervalle » : 10, 15, 30, 60, 120 ou 240. */
+  intervalle_minutes: number;
+  /** Vide : le dossier proposé par l'application. */
+  dossier: string;
+  /** Nombre de sauvegardes gardées, de 3 à 365. */
+  conserver: number;
+}
+
 export interface ChoixPremierDemarrage {
   identite: IdentiteCabinet;
   mot_de_passe: string | null;
   cle_notee: boolean;
   caractere_trames: CaractereTrames;
-  /** `intervalle_minutes` sert à la fréquence « intervalle » : 10, 15, 30, 60, 120 ou 240. */
-  sauvegardes: { frequence: FrequenceSauvegarde; intervalle_minutes: number; dossier: string };
+  sauvegardes: PreferencesSauvegarde;
+}
+
+export interface DerniereSauvegarde {
+  le: number;
+  journal: number;
+  fichier: string;
+}
+
+export interface EtatSauvegardes {
+  preferences: PreferencesSauvegarde;
+  /** Dossier réellement utilisé. */
+  dossier: string;
+  derniere: DerniereSauvegarde | null;
+  /** Dernière erreur de la sauvegarde automatique depuis l'ouverture. */
+  erreur: string | null;
+}
+
+export interface FichierSauvegarde {
+  chemin: string;
+  nom: string;
+  cree_le: number;
+  taille: number;
+  logiciel: string;
+}
+
+/** Contenu d'une sauvegarde, lu après l'avoir déchiffrée avec la clé de secours. */
+export interface ApercuSauvegarde {
+  cree_le: number;
+  logiciel: string;
+  praticien: string;
+  patients: number;
+  seances: number;
+  factures: number;
+  derniere_seance: string | null;
+}
+
+export interface Securite {
+  mot_de_passe_actif: boolean;
+  session_protegee: boolean;
+  systeme: string;
+}
+
+export interface LigneJournal {
+  id: number;
+  le: number;
+  action: string;
+  entite: string;
 }
 
 export interface PreparationPremierDemarrage {
@@ -394,6 +450,25 @@ export interface Coeur {
   preparerEmailFacture(id: string, email: string): Promise<string>;
   /** Écrit un fichier dans Documents › Osteosphere › Exports ; rend son chemin. */
   exporterFichier(nom: string, contenu: string): Promise<string>;
+  etatDesSauvegardes(): Promise<EtatSauvegardes>;
+  enregistrerPreferencesSauvegarde(preferences: PreferencesSauvegarde): Promise<EtatSauvegardes>;
+  sauvegarderMaintenant(): Promise<FichierSauvegarde>;
+  listerSauvegardes(): Promise<FichierSauvegarde[]>;
+  /** Fenêtre de choix du système ; `null` si le praticien annule. */
+  choisirFichier(sorte: "sauvegarde" | "import"): Promise<string | null>;
+  choisirDossier(): Promise<string | null>;
+  /** Déchiffre et vérifie une sauvegarde, sans rien remplacer. */
+  apercuRestauration(chemin: string, cle: string): Promise<ApercuSauvegarde>;
+  /** Remplace les données par la sauvegarde vérifiée ; l'ancienne base est mise de côté. */
+  confirmerRestauration(): Promise<IdentiteCabinet>;
+  annulerRestauration(): Promise<void>;
+  securite(): Promise<Securite>;
+  definirMotDePasse(motDePasse: string): Promise<void>;
+  retirerMotDePasse(): Promise<void>;
+  verrouiller(): Promise<void>;
+  /** Export complet en clair (CSV et JSON) dans Documents › Osteosphere › Exports ; rend le dossier. */
+  exporterTout(): Promise<string>;
+  journal(limite: number, avant: number | null): Promise<LigneJournal[]>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -492,6 +567,21 @@ export const coeurTauri: Coeur = {
   imprimerFacture: (id) => appeler("imprimer_facture", { id }),
   preparerEmailFacture: (id, email) => appeler("preparer_email_facture", { id, email }),
   exporterFichier: (nom, contenu) => appeler("exporter_fichier", { nom, contenu }),
+  etatDesSauvegardes: () => appeler("etat_des_sauvegardes"),
+  enregistrerPreferencesSauvegarde: (preferences) => appeler("enregistrer_preferences_sauvegarde", { preferences }),
+  sauvegarderMaintenant: () => appeler("sauvegarder_maintenant"),
+  listerSauvegardes: () => appeler("lister_sauvegardes"),
+  choisirFichier: (sorte) => appeler("choisir_fichier", { sorte }),
+  choisirDossier: () => appeler("choisir_dossier"),
+  apercuRestauration: (chemin, cle) => appeler("apercu_restauration", { chemin, cle }),
+  confirmerRestauration: () => appeler("confirmer_restauration"),
+  annulerRestauration: () => appeler("annuler_restauration"),
+  securite: () => appeler("securite"),
+  definirMotDePasse: (motDePasse) => appeler("definir_mot_de_passe", { motDePasse }),
+  retirerMotDePasse: () => appeler("retirer_mot_de_passe"),
+  verrouiller: () => appeler("verrouiller"),
+  exporterTout: () => appeler("exporter_tout"),
+  journal: (limite, avant) => appeler("journal", { limite, avant }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -682,6 +772,28 @@ export function creerCoeurDeDemonstration(
     patients = [...patients.filter((p) => p.id !== patient.id), patient];
     return patient;
   };
+  let preferencesSauvegarde: PreferencesSauvegarde = { frequence: "fermeture", intervalle_minutes: 60, dossier: "", conserver: 30 };
+  const DOSSIER_DEMO = "C:\\Users\\Praticien\\Documents\\Osteosphere\\Sauvegardes";
+  const nomSauvegarde = (le: number) => {
+    const d = new Date(le * 1000);
+    const deux = (n: number) => String(n).padStart(2, "0");
+    return `Osteosphere ${dateDuJour(d)} ${deux(d.getHours())}h${deux(d.getMinutes())}.osteosauve`;
+  };
+  let sauvegardesDemo: FichierSauvegarde[] = exemples
+    ? [3, 2, 1].map((jours) => {
+        const le = Math.floor(Date.now() / 1000) - jours * 86_400;
+        return { chemin: `${DOSSIER_DEMO}\\${nomSauvegarde(le)}`, nom: nomSauvegarde(le), cree_le: le, taille: 2_400_000, logiciel: "0.7.0" };
+      })
+    : [];
+  let restaurationDemo: string | null = null;
+  const etatSauvegardesDemo = (): EtatSauvegardes => ({
+    preferences: { ...preferencesSauvegarde },
+    dossier: preferencesSauvegarde.dossier || DOSSIER_DEMO,
+    derniere: sauvegardesDemo[sauvegardesDemo.length - 1]
+      ? { le: sauvegardesDemo[sauvegardesDemo.length - 1].cree_le, journal: 0, fichier: sauvegardesDemo[sauvegardesDemo.length - 1].chemin }
+      : null,
+    erreur: null,
+  });
   const codePropre = (code: string) => code.trim().replace(/^[@/]/, "").toLowerCase();
   const normaliser = (cle: string) => cle.toUpperCase().replace(/[\s-]/g, "");
 
@@ -938,6 +1050,79 @@ export function creerCoeurDeDemonstration(
         URL.revokeObjectURL(lien.href);
       }
       return `Téléchargements/${nom}`;
+    },
+    async etatDesSauvegardes() {
+      return etatSauvegardesDemo();
+    },
+    async enregistrerPreferencesSauvegarde(preferences) {
+      if (![10, 15, 30, 60, 120, 240].includes(preferences.intervalle_minutes)) throw new Error(`Intervalle de sauvegarde non proposé : ${preferences.intervalle_minutes} minutes`);
+      if (preferences.conserver < 3 || preferences.conserver > 365) throw new Error("Gardez entre 3 et 365 sauvegardes");
+      preferencesSauvegarde = { ...preferences, dossier: preferences.dossier.trim() };
+      return etatSauvegardesDemo();
+    },
+    async sauvegarderMaintenant() {
+      const le = Math.floor(Date.now() / 1000);
+      const fichier = { chemin: `${etatSauvegardesDemo().dossier}\\${nomSauvegarde(le)}`, nom: nomSauvegarde(le), cree_le: le, taille: 2_400_000, logiciel: "0.7.0" };
+      sauvegardesDemo = [...sauvegardesDemo, fichier].slice(-preferencesSauvegarde.conserver);
+      return fichier;
+    },
+    async listerSauvegardes() {
+      return [...sauvegardesDemo].reverse();
+    },
+    async choisirFichier(sorte) {
+      return sorte === "sauvegarde" ? (sauvegardesDemo[0]?.chemin ?? null) : "C:\\Users\\Praticien\\Téléchargements\\export-mcl.zip";
+    },
+    async choisirDossier() {
+      return "D:\\Sauvegardes Osteosphere";
+    },
+    async apercuRestauration(chemin, cle) {
+      const fichier = sauvegardesDemo.find((f) => f.chemin === chemin);
+      if (!fichier) throw new Error("Ce fichier n’est pas une sauvegarde Osteosphere");
+      if (normaliser(cle) !== normaliser(CLE_DE_DEMONSTRATION)) throw new Error("Clé de secours incorrecte pour cette sauvegarde");
+      restaurationDemo = chemin;
+      const vivantes = seances.filter((s) => s.supprimee_le === null);
+      return {
+        cree_le: fichier.cree_le,
+        logiciel: fichier.logiciel,
+        praticien: `${identite.prenom} ${identite.nom}`,
+        patients: patients.length,
+        seances: vivantes.length,
+        factures: (await facturation.listerFactures("1900-01-01", "2999-12-31")).filter((f) => f.numero).length,
+        derniere_seance: vivantes.map((s) => s.debut.slice(0, 10)).sort().pop() ?? null,
+      };
+    },
+    async confirmerRestauration() {
+      if (!restaurationDemo) throw new Error("Choisissez d’abord la sauvegarde à restaurer.");
+      restaurationDemo = null;
+      etat = "ouvert";
+      return identite;
+    },
+    async annulerRestauration() {
+      restaurationDemo = null;
+    },
+    async securite() {
+      return { mot_de_passe_actif: motDePasse !== null, session_protegee: true, systeme: "windows" };
+    },
+    async definirMotDePasse(nouveau) {
+      if (nouveau.length < 8) throw new Error("Choisissez un mot de passe d’au moins 8 caractères.");
+      motDePasse = nouveau;
+    },
+    async retirerMotDePasse() {
+      motDePasse = null;
+    },
+    async verrouiller() {
+      if (motDePasse === null) throw new Error("Sans mot de passe, utilisez le verrouillage de votre ordinateur.");
+      etat = "mot_de_passe_requis";
+    },
+    async exporterTout() {
+      return "C:\\Users\\Praticien\\Documents\\Osteosphere\\Exports\\Export Osteosphere (démonstration)";
+    },
+    async journal(limite, avant) {
+      const lignes: LigneJournal[] = [
+        ...patients.map((p, rang) => ({ id: rang + 1, le: 1_780_000_000 + rang * 3_600, action: "patient.cree", entite: p.id })),
+        ...seances.map((s, rang) => ({ id: 100 + rang, le: 1_790_000_000 + rang * 3_600, action: "seance.creee", entite: s.id })),
+      ].sort((a, b) => b.id - a.id);
+      return lignes.filter((l) => avant === null || l.id < avant).slice(0, limite);
     },
   };
 }

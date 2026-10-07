@@ -94,9 +94,11 @@ interface Props {
   seancesAFacturer: number;
   /** Faux dans le navigateur : les données sont fictives et rien n'est enregistré. */
   donneesReelles: boolean;
+  /** État des sauvegardes, en bas de la barre : « Sauvegardé aujourd’hui à 20:30 ». */
+  sauvegarde?: { texte: string; alerte: boolean } | null;
 }
 
-export function BarreLaterale({ courant, seancesAFacturer, donneesReelles }: Props) {
+export function BarreLaterale({ courant, seancesAFacturer, donneesReelles, sauvegarde }: Props) {
   const lien = ({ ecran, libelle, icone }: Entree) => (
     <a
       key={ecran}
@@ -118,10 +120,10 @@ export function BarreLaterale({ courant, seancesAFacturer, donneesReelles }: Pro
       <div className="menu">{PRINCIPAL.map(lien)}</div>
       <div className="separateur" />
       <div className="menu">{OUTILS.map(lien)}</div>
-      <div className="etat-sauvegarde">
-        <span className="point" data-etat={donneesReelles ? "ok" : "demo"} />
-        <span>{donneesReelles ? "Cabinet chiffré sur cet ordinateur" : "Démonstration\u00a0: rien n’est enregistré"}</span>
-      </div>
+      <a className="etat-sauvegarde" href="#/parametres/sauvegardes" data-alerte={sauvegarde?.alerte || undefined}>
+        <span className="point" data-etat={!donneesReelles ? "demo" : sauvegarde?.alerte ? "alerte" : "ok"} />
+        <span>{!donneesReelles ? "Démonstration\u00a0: rien n’est enregistré" : (sauvegarde?.texte ?? "Cabinet chiffré sur cet ordinateur")}</span>
+      </a>
     </nav>
   );
 }

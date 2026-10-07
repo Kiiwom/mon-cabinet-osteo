@@ -10,6 +10,7 @@ import {
   type PreparationPremierDemarrage,
 } from "../lib/coeur";
 import { verifierIdentite, type ErreursIdentite } from "../lib/identite";
+import { RestaurationSauvegarde } from "../sauvegardes/Restauration";
 
 const ETAPES = [
   { titre: "Bienvenue", detail: "Présentation et licence" },
@@ -20,7 +21,7 @@ const ETAPES = [
   { titre: "Reprise des données", detail: "Facultatif · depuis un autre logiciel" },
 ] as const;
 
-const FREQUENCES: { valeur: FrequenceSauvegarde; libelle: string; detail: string }[] = [
+export const FREQUENCES: { valeur: FrequenceSauvegarde; libelle: string; detail: string }[] = [
   { valeur: "fermeture", libelle: "À chaque fermeture du logiciel", detail: "Conseillé : rien n’est perdu d’une journée à l’autre." },
   { valeur: "intervalle", libelle: "Régulièrement, pendant l’utilisation", detail: "" },
   { valeur: "jour", libelle: "Une fois par jour", detail: "À la première ouverture de la journée." },
@@ -29,7 +30,7 @@ const FREQUENCES: { valeur: FrequenceSauvegarde; libelle: string; detail: string
 ];
 
 /** Intervalles proposés pour la sauvegarde régulière, en minutes (les mêmes que le cœur). */
-const INTERVALLES: { minutes: number; libelle: string }[] = [
+export const INTERVALLES: { minutes: number; libelle: string }[] = [
   { minutes: 10, libelle: "Toutes les 10 minutes" },
   { minutes: 15, libelle: "Toutes les 15 minutes" },
   { minutes: 30, libelle: "Toutes les 30 minutes" },
@@ -40,7 +41,8 @@ const INTERVALLES: { minutes: number; libelle: string }[] = [
 
 interface Props {
   coeur: Coeur;
-  surOuverture: (cabinet: IdentiteCabinet) => void;
+  /** `destination` : l'écran à montrer après l'ouverture, l'accueil sinon. */
+  surOuverture: (cabinet: IdentiteCabinet, destination?: string) => void;
 }
 
 export function PremierDemarrage({ coeur, surOuverture }: Props) {
@@ -57,6 +59,8 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
   const [intervalle, setIntervalle] = useState(60);
   const [dossier, setDossier] = useState("");
   const [caractere, setCaractere] = useState<CaractereTrames>("@");
+  const [reprise, setReprise] = useState<"vide" | "mcl">("vide");
+  const [restauration, setRestauration] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const titre = useRef<HTMLHeadingElement>(null);
@@ -118,9 +122,9 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
         mot_de_passe: avecMotDePasse ? motDePasse : null,
         cle_notee: cleNotee,
         caractere_trames: caractere,
-        sauvegardes: { frequence, intervalle_minutes: intervalle, dossier: dossier.trim() },
+        sauvegardes: { frequence, intervalle_minutes: intervalle, dossier: dossier.trim(), conserver: 30 },
       });
-      surOuverture(cabinet);
+      surOuverture(cabinet, reprise === "mcl" ? "#/parametres/import" : undefined);
     } catch (e) {
       setErreur((e as Error).message);
       setEnvoi(false);
@@ -189,7 +193,12 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
             </p>
           )}
 
-          {etape === 0 && <EtapeBienvenue />}
+          {etape === 0 &&
+            (restauration ? (
+              <RestaurationSauvegarde coeur={coeur} premierDemarrage surRestauration={(cabinet) => surOuverture(cabinet)} annuler={() => setRestauration(false)} />
+            ) : (
+              <EtapeBienvenue restaurer={() => setRestauration(true)} />
+            ))}
           {etape === 1 && <EtapeCabinet identite={identite} erreurs={erreursIdentite} changer={changerIdentite} />}
           {etape === 2 && (
             <EtapeProtection
@@ -219,7 +228,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
             />
           )}
           {etape === 4 && <EtapePratique caractere={caractere} setCaractere={setCaractere} />}
-          {etape === 5 && <EtapeReprise />}
+          {etape === 5 && <EtapeReprise reprise={reprise} setReprise={setReprise} />}
 
           <div className="assistant-actions">
             {etape > 0 && (
@@ -231,7 +240,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
               </button>
             )}
             {!derniere && <span className="assistant-ensuite">Ensuite&nbsp;: {ETAPES[etape + 1].titre.toLowerCase()}</span>}
-            <button type="button" className="bouton bouton-principal" onClick={continuer} disabled={envoi || (etape >= 2 && !preparation)}>
+            <button type="button" className="bouton bouton-principal" onClick={continuer} disabled={envoi || (etape >= 2 && !preparation) || restauration}>
               {derniere ? (envoi ? "Création du cabinet…" : "Créer mon cabinet") : "Continuer"}
               {!derniere && <span aria-hidden="true">→</span>}
             </button>
@@ -242,7 +251,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
   );
 }
 
-function EtapeBienvenue() {
+function EtapeBienvenue({ restaurer }: { restaurer: () => void }) {
   return (
     <div className="pile">
       <p className="introduction">
@@ -255,8 +264,14 @@ function EtapeBienvenue() {
         <li>Les fonctions dont vous n’avez pas besoin restent masquées, et s’activent en un clic.</li>
       </ul>
       <p className="discret">
-        Osteosphere est distribué sous licence GPL-3.0, sans garantie. Ce prototype ne doit recevoir que des données
-        fictives.
+        Osteosphere est distribué sous licence GPL-3.0, sans garantie. Version d’essai&nbsp;: gardez votre ancien logiciel en
+        parallèle tant que vous n’avez pas vérifié la reprise de vos données.
+      </p>
+      <p className="info">
+        Vous avez déjà un cabinet Osteosphere, sur un autre ordinateur&nbsp;?{" "}
+        <button type="button" className="lien-bouton" onClick={restaurer}>
+          Restaurer une sauvegarde
+        </button>
       </p>
     </div>
   );
@@ -373,7 +388,7 @@ function verrouillageDuSysteme(systeme: string | undefined): string {
   return "le verrouillage de Windows";
 }
 
-function CarteChoix({
+export function CarteChoix({
   nom,
   coche,
   choisir,
@@ -536,7 +551,7 @@ function EtapeSauvegardes(props: {
         aide="Une clé USB ou un disque externe protège aussi contre la panne de l’ordinateur."
         large
       />
-      <p className="info">Prototype&nbsp;: votre choix est enregistré, les sauvegardes automatiques arrivent en phase 5.</p>
+      <p className="info">Vous pourrez tout changer ensuite dans Paramètres › Sauvegardes, et sauvegarder à la demande.</p>
     </div>
   );
 }
@@ -563,17 +578,18 @@ function EtapePratique(props: { caractere: CaractereTrames; setCaractere: (c: Ca
   );
 }
 
-function EtapeReprise() {
+function EtapeReprise({ reprise, setReprise }: { reprise: "vide" | "mcl"; setReprise: (r: "vide" | "mcl") => void }) {
   return (
     <div className="pile">
       <fieldset className="groupe">
         <legend>Point de départ</legend>
         <div className="choix-liste">
-          <CarteChoix nom="reprise" coche choisir={() => undefined} titre="Commencer avec un cabinet vide">
+          <CarteChoix nom="reprise" coche={reprise === "vide"} choisir={() => setReprise("vide")} titre="Commencer avec un cabinet vide">
             Vous pourrez importer vos données plus tard, depuis Paramètres › Import et export.
           </CarteChoix>
-          <CarteChoix nom="reprise" coche={false} choisir={() => undefined} titre="Importer depuis MonCabinetLibéral" etiquette="phase 5" desactive>
-            Patients, séances, antécédents, factures et règlements, vérifiés avant tout enregistrement.
+          <CarteChoix nom="reprise" coche={reprise === "mcl"} choisir={() => setReprise("mcl")} titre="Importer depuis MonCabinetLibéral">
+            Juste après la création du cabinet : patients, séances, antécédents, factures et règlements, vérifiés avant tout
+            enregistrement.
           </CarteChoix>
         </div>
       </fieldset>

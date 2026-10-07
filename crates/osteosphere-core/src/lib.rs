@@ -13,6 +13,8 @@
 //! - [`seances`] : séances enregistrées au fil de la saisie, corbeille de 30 jours.
 //! - [`prestations`] : actes proposés à la facturation, avec leur tarif.
 //! - [`facturation`] : factures et avoirs numérotés, règlements, recettes.
+//! - [`sauvegardes`] : sauvegardes chiffrées, automatiques si quelque chose a changé, restauration.
+//! - [`export`] : export complet en CSV et JSON, journal consultable.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -21,14 +23,17 @@ pub mod base;
 pub mod cabinet;
 pub mod chiffrement;
 pub mod cle_de_secours;
+pub mod export;
 pub mod facturation;
 mod fichier;
 mod hexa;
+pub mod horloge;
 pub mod identifiant;
 pub mod modeles;
 pub mod numerotation;
 pub mod patients;
 pub mod prestations;
+pub mod sauvegardes;
 pub mod seances;
 pub mod trames;
 pub mod trousseau;
