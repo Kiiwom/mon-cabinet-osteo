@@ -115,7 +115,7 @@ describe("navigation", () => {
       window.location.hash = "#/trames";
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
-    expect(screen.getByRole("heading", { name: "Trames" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Trames" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trames" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Accueil" })).not.toHaveAttribute("aria-current");
   });

@@ -6,6 +6,7 @@
 //! - [`cle_de_secours`] : clé imprimable remise au premier démarrage.
 //! - [`trousseau`] : enveloppes rangées à côté de la base (clé de secours, session, mot de passe).
 //! - [`numerotation`] : numéros de facture continus et chronologiques.
+//! - [`trames`] : textes réutilisables appelés par un code court pendant la saisie.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -16,6 +17,7 @@ pub mod cle_de_secours;
 mod fichier;
 mod hexa;
 pub mod numerotation;
+pub mod trames;
 pub mod trousseau;
 
 /// Version du cœur, affichée dans « À propos ».

@@ -825,3 +825,354 @@ h3 {
     border: 2px solid #000000;
   }
 }
+
+/* Écran Trames (maquette 9) */
+.entete-page {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trames-colonnes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.trames-liste {
+  flex: 1 1 280px;
+  max-width: 100%;
+  padding: 16px;
+  gap: 10px;
+}
+
+.trames-liste ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trames-detail {
+  flex: 999 1 520px;
+  min-width: 0;
+}
+
+.recherche {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: var(--rayon);
+  font: inherit;
+}
+
+.trame-ligne {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--rayon);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--encre);
+  cursor: pointer;
+}
+
+.trame-ligne:hover {
+  background: var(--fond);
+}
+
+.trame-ligne[aria-current="true"] {
+  background: var(--accent-doux);
+}
+
+.trame-ligne-haut {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.trame-code {
+  flex: none;
+  font-weight: 700;
+  background: var(--fond-barre);
+  border-radius: 6px;
+  padding: 0 6px;
+}
+
+.trame-titre {
+  font-weight: 600;
+}
+
+.champ textarea {
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  font: inherit;
+  color: var(--encre);
+  resize: vertical;
+}
+
+.champ-prefixe {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  background: var(--fond-carte);
+  padding-left: 12px;
+  color: var(--encre-discrete);
+  font-weight: 700;
+}
+
+.champ-prefixe:focus-within {
+  outline: 3px solid var(--accent-fonce);
+  outline-offset: 2px;
+}
+
+.champ .champ-prefixe input {
+  flex: 1;
+  border: 0;
+  padding-left: 2px;
+}
+
+.champ .champ-prefixe input:focus-visible {
+  outline: none;
+}
+
+.bouton-discret {
+  border-color: transparent;
+  background: none;
+}
+
+.bouton-danger {
+  border-color: #e7b9b3;
+  color: #8c2f25;
+}
+
+.confirmation {
+  align-items: center;
+  font-size: 14px;
+}
+
+.etat-enregistre {
+  align-self: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--succes-texte);
+}
+
+.texte-valide {
+  padding: 12px 14px;
+  border-radius: var(--rayon);
+  background: var(--succes-fond);
+}
+
+.texte-valide p {
+  margin: 4px 0 0;
+}
+
+/* Aperçu d'une trame */
+.apercu-trame {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--fond);
+  line-height: 2.1;
+}
+
+.apercu-choix,
+.trame-choix {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 2px;
+  padding: 1px 3px;
+  border: 1px dashed #c9b994;
+  border-radius: 999px;
+  vertical-align: baseline;
+  line-height: 1.4;
+}
+
+.apercu-pastille,
+.trame-pastille {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--fond-barre);
+  color: var(--encre-2);
+  font: inherit;
+  font-size: 14px;
+}
+
+.apercu-blanc {
+  display: inline-block;
+  min-width: 56px;
+  padding: 0 6px;
+  border-bottom: 2px solid var(--encre-discrete);
+  color: var(--encre-discrete);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.trame-choix-plusieurs,
+.apercu-choix[data-multiple="true"] > span[aria-hidden] {
+  padding: 0 4px;
+  font-weight: 700;
+  color: var(--accent-fonce);
+}
+
+/* Champ de séance avec trames */
+.champ-trame {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.champ-trame-libelle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.champ-trame-saisie {
+  min-height: 96px;
+  padding: 12px 14px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  line-height: 2;
+  outline: none;
+}
+
+.champ-trame-saisie:focus-within {
+  outline: 3px solid var(--accent-fonce);
+  outline-offset: 2px;
+}
+
+.champ-trame-saisie p {
+  margin: 0;
+}
+
+.trame-choix[data-complet="true"] {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.trame-pastille {
+  border: 0;
+  cursor: pointer;
+}
+
+.trame-pastille:hover {
+  background: var(--fond-discret);
+}
+
+.trame-pastille[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--encre);
+  font-weight: 700;
+}
+
+.trame-pastille:focus-visible,
+.trame-blanc input:focus-visible {
+  outline: 3px solid var(--accent-fonce);
+  outline-offset: 1px;
+}
+
+.trame-blanc input {
+  margin: 0 2px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 2px solid var(--encre-discrete);
+  border-radius: 0;
+  background: var(--accent-doux);
+  font: inherit;
+  color: var(--encre);
+  line-height: 1.4;
+}
+
+.trame-blanc[data-complet="true"] input {
+  background: transparent;
+  border-bottom-color: var(--accent-fonce);
+}
+
+.trame-blanc input::placeholder {
+  color: var(--encre-discrete);
+  font-style: italic;
+}
+
+.champ-trame-pied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.champ-trame-pied .discret {
+  flex: 1 1 260px;
+}
+
+.champ-trame-etat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+/* Menu des trames */
+.menu-trames {
+  z-index: 50;
+  min-width: 280px;
+  max-width: 420px;
+  padding: 6px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  box-shadow: 0 10px 30px rgba(51, 41, 31, 0.16);
+  font-family: "Figtree Variable", system-ui, sans-serif;
+  color: var(--encre);
+}
+
+.menu-trames-option {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-trames-option[aria-selected="true"] {
+  background: var(--accent-doux);
+}
+
+.menu-trames-code {
+  flex: none;
+  font-weight: 700;
+}
+
+.menu-trames-titre {
+  color: var(--encre-2);
+}
+
+.menu-trames-vide,
+.menu-trames-aide {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--encre-discrete);
+}
+
+.menu-trames-aide {
+  border-top: 1px solid var(--bordure);
+  margin-top: 4px;
+}

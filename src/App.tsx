@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 
 import { BarreLaterale } from "./composants/BarreLaterale";
 import { SaisieCleDeSecours, Verrouillage } from "./demarrage/EcransOuverture";
@@ -7,6 +7,9 @@ import { coeurParDefaut, type Coeur, type IdentiteCabinet } from "./lib/coeur";
 import { useEcranCourant, type Ecran } from "./lib/navigation";
 import { Accueil } from "./pages/Accueil";
 import { EcranAVenir } from "./pages/EcranAVenir";
+
+// L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
+const PageTrames = lazy(() => import("./pages/Trames").then((module) => ({ default: module.PageTrames })));
 
 const TITRES: Record<Exclude<Ecran, "accueil">, string> = {
   patients: "Patients",
@@ -87,17 +90,25 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
         />
       );
     case "ouvert":
-      return <CabinetOuvert cabinet={phase.cabinet} donneesReelles={coeur.reel} />;
+      return <CabinetOuvert cabinet={phase.cabinet} coeur={coeur} />;
   }
 }
 
-function CabinetOuvert({ cabinet, donneesReelles }: { cabinet: IdentiteCabinet; donneesReelles: boolean }) {
+function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Coeur }) {
   const ecran = useEcranCourant();
   return (
     <div className="coque">
-      <BarreLaterale courant={ecran} seancesAFacturer={0} donneesReelles={donneesReelles} />
+      <BarreLaterale courant={ecran} seancesAFacturer={0} donneesReelles={coeur.reel} />
       <div className="contenu">
-        {ecran === "accueil" ? <Accueil cabinet={cabinet} /> : <EcranAVenir titre={TITRES[ecran]} />}
+        {ecran === "accueil" ? (
+          <Accueil cabinet={cabinet} />
+        ) : ecran === "trames" ? (
+          <Suspense fallback={<p className="page discret">Chargement des trames…</p>}>
+            <PageTrames coeur={coeur} />
+          </Suspense>
+        ) : (
+          <EcranAVenir titre={TITRES[ecran]} />
+        )}
       </div>
     </div>
   );

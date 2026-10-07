@@ -11,7 +11,10 @@ use crate::chiffrement::CleDonnees;
 use crate::hexa;
 
 /// Migrations dans l'ordre ; la version du schéma est le nombre de migrations appliquées.
-const MIGRATIONS: &[&str] = &[include_str!("migrations/0001_initiale.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("migrations/0001_initiale.sql"),
+    include_str!("migrations/0002_trames.sql"),
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum ErreurBase {
@@ -23,6 +26,14 @@ pub enum ErreurBase {
     Sqlite(#[from] rusqlite::Error),
     #[error("paramètre illisible : {0}")]
     Parametre(#[from] serde_json::Error),
+}
+
+/// Secondes depuis le 1er janvier 1970, en temps universel.
+pub fn maintenant() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 pub struct Base {
@@ -68,6 +79,21 @@ impl Base {
             "INSERT INTO parametres (cle, valeur) VALUES (?1, ?2)
              ON CONFLICT (cle) DO UPDATE SET valeur = excluded.valeur",
             (cle, serde_json::to_string(valeur)?),
+        )?;
+        Ok(())
+    }
+
+    /// Inscrit une création, modification ou suppression au journal, avec l'état avant et après.
+    pub fn journaliser(
+        &self,
+        action: &str,
+        entite: &str,
+        avant: Option<&str>,
+        apres: Option<&str>,
+    ) -> Result<(), ErreurBase> {
+        self.connexion.execute(
+            "INSERT INTO journal (le, action, entite, avant, apres) VALUES (?1, ?2, ?3, ?4, ?5)",
+            (maintenant().to_string(), action, entite, avant, apres),
         )?;
         Ok(())
     }

@@ -1,0 +1,38 @@
+[
+  {
+    "code": "lomb",
+    "titre": "Douleur lombaire",
+    "categorie": "Anamnèse",
+    "modele": "Douleur lombaire {droite | gauche | bilatérale}, {aiguë | subaiguë | chronique}, depuis [durée], EVA [0 à 10]/10."
+  },
+  {
+    "code": "cerv",
+    "titre": "Cervicalgie",
+    "categorie": "Anamnèse",
+    "modele": "Cervicalgie {droite | gauche | bilatérale} depuis [durée], irradiation {absente | vers l'épaule | vers le bras | vers la main}."
+  },
+  {
+    "code": "eg",
+    "titre": "État général",
+    "categorie": "Anamnèse",
+    "modele": "Sommeil {bon | moyen | perturbé}, appétit {conservé | diminué}, fatigue {absente | modérée | importante}."
+  },
+  {
+    "code": "nour",
+    "titre": "Nourrisson\u00a0: naissance et alimentation",
+    "categorie": "Anamnèse",
+    "modele": "Naissance à [terme] SA, accouchement {par voie basse | par césarienne | instrumental}, allaitement {maternel | artificiel | mixte}."
+  },
+  {
+    "code": "post",
+    "titre": "Conseils au poste assis",
+    "categorie": "Conseils",
+    "modele": "Conseils donnés\u00a0: {+ pauses régulières | écran à hauteur des yeux | auto-étirements quotidiens | hydratation}."
+  },
+  {
+    "code": "revoir",
+    "titre": "Revoir",
+    "categorie": "Conseils",
+    "modele": "À revoir dans [délai] {si les douleurs persistent | en suivi | si besoin}."
+  }
+]

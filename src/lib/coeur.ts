@@ -1,5 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
+
 export interface IdentiteCabinet {
   prenom: string;
   nom: string;
@@ -36,7 +38,24 @@ export type EtatDemarrage =
   | { etat: "cle_de_secours_requise" }
   | { etat: "ouvert"; cabinet: IdentiteCabinet };
 
-/** Ce que l'interface demande au cœur Rust pour démarrer. */
+export interface Trame {
+  id: string;
+  code: string;
+  titre: string;
+  categorie: string;
+  modele: string;
+  origine: "depart" | "praticien";
+  utilisations: number;
+}
+
+export interface SaisieTrame {
+  code: string;
+  titre: string;
+  categorie: string;
+  modele: string;
+}
+
+/** Ce que l'interface demande au cœur Rust. */
 export interface Coeur {
   /** Vrai dans l'application ; faux dans le navigateur, où les données sont fictives. */
   readonly reel: boolean;
@@ -45,6 +64,11 @@ export interface Coeur {
   terminerPremierDemarrage(choix: ChoixPremierDemarrage): Promise<IdentiteCabinet>;
   deverrouiller(motDePasse: string): Promise<IdentiteCabinet>;
   ouvrirAvecCleDeSecours(cle: string): Promise<IdentiteCabinet>;
+  listerTrames(): Promise<Trame[]>;
+  enregistrerTrame(id: string | null, saisie: SaisieTrame): Promise<Trame>;
+  supprimerTrame(id: string): Promise<void>;
+  noterUtilisationTrame(id: string): Promise<void>;
+  caractereTrames(): Promise<CaractereTrames>;
 }
 
 export const IDENTITE_VIDE: IdentiteCabinet = {
@@ -76,6 +100,11 @@ export const coeurTauri: Coeur = {
   terminerPremierDemarrage: (choix) => appeler("terminer_premier_demarrage", { choix }),
   deverrouiller: (motDePasse) => appeler("deverrouiller", { motDePasse }),
   ouvrirAvecCleDeSecours: (cle) => appeler("ouvrir_avec_cle_de_secours", { cle }),
+  listerTrames: () => appeler("lister_trames"),
+  enregistrerTrame: (id, saisie) => appeler("enregistrer_trame", { id, saisie }),
+  supprimerTrame: (id) => appeler("supprimer_trame", { id }),
+  noterUtilisationTrame: (id) => appeler("noter_utilisation_trame", { id }),
+  caractereTrames: () => appeler("caractere_trames"),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -88,6 +117,10 @@ export function creerCoeurDeDemonstration(depart: EtatDemarrage["etat"] = "premi
   let etat = depart;
   let motDePasse: string | null = depart === "mot_de_passe_requis" ? "motdepasse" : null;
   let identite: IdentiteCabinet = { ...IDENTITE_VIDE, prenom: "Alexandre", nom: "Roux" };
+  let caractere: CaractereTrames = "@";
+  let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
+  let compteur = 0;
+  const codePropre = (code: string) => code.trim().replace(/^[@/]/, "").toLowerCase();
   const normaliser = (cle: string) => cle.toUpperCase().replace(/[\s-]/g, "");
 
   return {
@@ -106,6 +139,7 @@ export function creerCoeurDeDemonstration(depart: EtatDemarrage["etat"] = "premi
       if (!choix.cle_notee) throw new Error("Cochez la case qui confirme que la clé de secours est notée ou imprimée.");
       identite = choix.identite;
       motDePasse = choix.mot_de_passe;
+      caractere = choix.caractere_trames;
       etat = "ouvert";
       return identite;
     },
@@ -118,6 +152,35 @@ export function creerCoeurDeDemonstration(depart: EtatDemarrage["etat"] = "premi
       if (normaliser(cle) !== normaliser(CLE_DE_DEMONSTRATION)) throw new Error("Clé de secours incorrecte");
       etat = "ouvert";
       return identite;
+    },
+    async listerTrames() {
+      return [...trames].sort((a, b) => a.code.localeCompare(b.code));
+    },
+    async enregistrerTrame(id, saisie) {
+      const code = codePropre(saisie.code);
+      if (!/^[a-z0-9-]{1,20}$/.test(code)) throw new Error("Le code ne contient que des lettres sans accent, des chiffres ou des tirets, 20 au plus");
+      if (trames.some((t) => t.code === code && t.id !== id)) throw new Error(`Le code « ${code} » est déjà pris par une autre trame`);
+      const existante = trames.find((t) => t.id === id);
+      const trame: Trame = {
+        id: id ?? `essai-${(compteur += 1)}`,
+        code,
+        titre: saisie.titre.trim(),
+        categorie: saisie.categorie.trim(),
+        modele: saisie.modele.trim(),
+        origine: existante?.origine ?? "praticien",
+        utilisations: existante?.utilisations ?? 0,
+      };
+      trames = [...trames.filter((t) => t.id !== trame.id), trame];
+      return trame;
+    },
+    async supprimerTrame(id) {
+      trames = trames.filter((t) => t.id !== id);
+    },
+    async noterUtilisationTrame(id) {
+      trames = trames.map((t) => (t.id === id ? { ...t, utilisations: t.utilisations + 1 } : t));
+    },
+    async caractereTrames() {
+      return caractere;
     },
   };
 }

@@ -4,11 +4,13 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use osteosphere_core::base::Base;
 use osteosphere_core::cabinet::{
     Cabinet, CabinetOuvert, CaractereTrames, IdentiteCabinet, Ouverture, PARAMETRE_IDENTITE, PARAMETRE_SAUVEGARDES,
     PARAMETRE_TRAMES, PreferencesSauvegarde,
 };
 use osteosphere_core::cle_de_secours::CleDeSecours;
+use osteosphere_core::trames;
 use osteosphere_core::trousseau::ProtectionSession;
 use osteosphere_session::SessionOrdinateur;
 use serde::{Deserialize, Serialize};
@@ -52,13 +54,22 @@ impl EtatCabinet {
 
     fn garder_ouvert(&self, ouvert: CabinetOuvert) -> Result<IdentiteCabinet, String> {
         let identite = ouvert.base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default();
+        // Une seule fois par cabinet : une trame de départ supprimée ne revient pas.
+        trames::installer_bibliotheque_de_depart(&ouvert.base).map_err(message)?;
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
         Ok(identite)
+    }
+
+    /// Exécute une opération sur la base du cabinet ouvert.
+    pub fn avec_base<T>(&self, operation: impl FnOnce(&Base) -> Result<T, String>) -> Result<T, String> {
+        let garde = self.ouvert.lock().map_err(message)?;
+        let ouvert = garde.as_ref().ok_or("Le cabinet n'est pas ouvert.")?;
+        operation(&ouvert.base)
     }
 }
 
 /// Message d'erreur affiché tel quel dans l'interface, avec une majuscule.
-fn message(erreur: impl Display) -> String {
+pub fn message(erreur: impl Display) -> String {
     let texte = erreur.to_string();
     let mut lettres = texte.chars();
     match lettres.next() {
