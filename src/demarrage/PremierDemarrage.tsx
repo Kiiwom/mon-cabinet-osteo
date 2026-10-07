@@ -85,6 +85,10 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
         setErreur("Les deux mots de passe ne sont pas identiques.");
         return false;
       }
+      if (!avecMotDePasse && preparation && sansTrousseau(preparation)) {
+        setErreur("Sans trousseau de session, choisissez un mot de passe pour ce cabinet.");
+        return false;
+      }
       if (!cleNotee) {
         setErreur("Cochez la case qui confirme que la clé de secours est notée ou imprimée.");
         return false;
@@ -324,6 +328,17 @@ function EtapeCabinet({
   );
 }
 
+/** Sous Linux, l'ouverture directe s'appuie sur le trousseau de la session : sans lui, pas d'ouverture directe. */
+function sansTrousseau(preparation: PreparationPremierDemarrage): boolean {
+  return preparation.systeme === "linux" && !preparation.session_protegee;
+}
+
+function verrouillageDuSysteme(systeme: string | undefined): string {
+  if (systeme === "linux") return "le verrouillage de votre session";
+  if (systeme === "macos") return "le verrouillage de macOS";
+  return "le verrouillage de Windows";
+}
+
 function CarteChoix({
   nom,
   coche,
@@ -380,7 +395,7 @@ function EtapeProtection(props: {
         <legend>Demander un mot de passe à l’ouverture&nbsp;?</legend>
         <div className="choix-cartes">
           <CarteChoix nom="mot-de-passe" coche={!avecMotDePasse} choisir={() => props.setAvecMotDePasse(false)} titre="Non, ouvrir directement" etiquette="par défaut">
-            Le logiciel s’ouvre directement. Vous protégez l’écran avec le verrouillage de Windows.
+            Le logiciel s’ouvre directement. Vous protégez l’écran avec {verrouillageDuSysteme(preparation?.systeme)}.
           </CarteChoix>
           <CarteChoix nom="mot-de-passe" coche={avecMotDePasse} choisir={() => props.setAvecMotDePasse(true)} titre="Oui, à chaque ouverture">
             Mot de passe à l’ouverture et verrouillage après une absence, avec un code court facultatif pour la journée.
@@ -395,8 +410,9 @@ function EtapeProtection(props: {
         <span className="discret">Modifiable à tout moment dans Paramètres › Sécurité et mot de passe, sans perte de données.</span>
         {preparation && !preparation.session_protegee && !avecMotDePasse && (
           <p className="info">
-            Version de développement&nbsp;: sur ce système, la session ne protège pas encore la clé. Sous Windows, elle
-            est protégée par votre compte.
+            {sansTrousseau(preparation)
+              ? "Le trousseau de votre session (GNOME, KDE…) ne répond pas : sans lui, Osteosphere ne peut pas s’ouvrir directement sur cet ordinateur. Choisissez un mot de passe, ou démarrez le trousseau puis relancez Osteosphere."
+              : "Version de développement : sur ce système, la session ne protège pas encore la clé. Sous Windows et Linux, elle est protégée par votre session."}
           </p>
         )}
       </fieldset>

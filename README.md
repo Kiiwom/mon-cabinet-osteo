@@ -9,18 +9,25 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 | Dossier | Rôle |
 | --- | --- |
 | `src/` | Interface en React et TypeScript, d'après les maquettes validées |
-| `src-tauri/` | Application de bureau Tauri 2 (Windows d'abord, macOS et Linux ensuite) |
+| `src-tauri/` | Application de bureau Tauri 2 (Windows et Linux, macOS ensuite) |
 | `crates/osteosphere-core/` | Cœur en Rust, sans interface : ouverture du cabinet, base chiffrée, clé de secours, mot de passe facultatif, numérotation des factures |
 | `crates/osteosphere-documents/` | Documents PDF (factures) mis en page par Typst, polices Figtree embarquées |
-| `crates/osteosphere-session/` | Protection de la clé par la session Windows (DPAPI) |
+| `crates/osteosphere-session/` | Protection de la clé par la session : DPAPI sous Windows, trousseau de la session sous Linux |
 
 ## Principes
 
 - Les données restent sur le poste, dans une base SQLite chiffrée par SQLCipher. Aucune connexion sortante sans action du praticien, aucun traceur.
 - Une clé de secours imprimable est remise au premier démarrage ; elle seule rouvre les sauvegardes sur un autre poste.
-- Le mot de passe à l'ouverture est facultatif et désactivé par défaut. Sans lui, la clé de la base est protégée par la session Windows (DPAPI) : le logiciel s'ouvre directement et l'écran est protégé par le verrouillage de Windows. Sous macOS et Linux, cette protection reste à écrire.
+- Le mot de passe à l'ouverture est facultatif et désactivé par défaut. Sans lui, la clé de la base est protégée par la session de l'ordinateur : DPAPI sous Windows, trousseau de la session sous Linux (GNOME, KDE). Le logiciel s'ouvre directement et l'écran est protégé par le verrouillage du système. Sous macOS, cette protection reste à écrire.
 - Les factures suivent une numérotation continue et chronologique ; une facture émise ne se modifie pas, elle se corrige par un avoir.
 - Tests, captures, rapports de problème et pièces jointes publiques n'utilisent que des exemples fictifs.
+
+## Installer le prototype
+
+Chaque version poussée sur le dépôt produit ses paquets dans [l'intégration continue](https://github.com/Kiiwom/mon-cabinet-osteo/actions) : « osteosphere-windows » et « osteosphere-linux », en bas de la page d'une exécution réussie.
+
+- **Windows 10 et 11** : lancer l'installateur `.exe`. Il ne demande pas de droits administrateur.
+- **Ubuntu 24.04 et suivantes** : `sudo apt install ./Osteosphere_0.5.0_amd64.deb`, puis lancer Osteosphere depuis les applications. L'ouverture directe utilise le trousseau de la session (« Mots de passe et clés »), présent d'office sous GNOME et KDE.
 
 ## Développer
 
@@ -35,9 +42,9 @@ cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session  
 npm run tauri build             # installateur pour le système courant
 ```
 
-Le cabinet est rangé dans `%LOCALAPPDATA%\fr.pierre-besnier.osteosphere\cabinet`. Pour un essai sans toucher à ce dossier, la variable `OSTEOSPHERE_DOSSIER` désigne un autre emplacement.
+Le cabinet est rangé dans `%LOCALAPPDATA%\fr.pierre-besnier.osteosphere\cabinet` sous Windows et dans `~/.local/share/fr.pierre-besnier.osteosphere/cabinet` sous Linux. Pour un essai sans toucher à ce dossier, la variable `OSTEOSPHERE_DOSSIER` désigne un autre emplacement.
 
-Sous Windows, l'installateur ne demande pas de droits administrateur. La première compilation est longue : SQLCipher et OpenSSL sont compilés avec le logiciel, sans rien à installer à côté.
+La première compilation est longue : SQLCipher et OpenSSL sont compilés avec le logiciel, sans rien à installer à côté. Sous Linux, les tests de `osteosphere-session` s'adressent au trousseau de la session : ils passent dans une session de bureau ordinaire ; ailleurs, les lancer dans `dbus-run-session` avec `gnome-keyring-daemon --unlock`, comme l'intégration continue.
 
 ## Feuille de route
 

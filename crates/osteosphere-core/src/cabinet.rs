@@ -186,7 +186,8 @@ impl Cabinet {
         }
         match trousseau.ouvrir_avec_session(protection) {
             Ok(cle) => Ok(Ouverture::Ouvert(self.ouvrir_base(cle)?)),
-            // Autre poste, autre compte Windows ou sauvegarde restaurée : la clé de secours prend le relais.
+            // Autre poste, autre compte, trousseau de session effacé ou sauvegarde restaurée :
+            // la clé de secours prend le relais.
             Err(ErreurTrousseau::SessionAbsente | ErreurTrousseau::Session(_)) => Ok(Ouverture::CleDeSecoursRequise),
             Err(erreur) => Err(erreur.into()),
         }

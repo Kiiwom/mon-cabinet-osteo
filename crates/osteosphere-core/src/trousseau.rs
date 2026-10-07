@@ -2,7 +2,8 @@
 //!
 //! La clé de secours scelle toujours une enveloppe. Ensuite, de deux choses l'une :
 //! - sans mot de passe (choix par défaut), la clé est confiée à la session de l'ordinateur
-//!   (DPAPI sous Windows) : le logiciel s'ouvre directement, c'est un fonctionnement normal ;
+//!   (DPAPI sous Windows, trousseau de la session sous Linux) : le logiciel s'ouvre directement,
+//!   c'est un fonctionnement normal ;
 //! - avec mot de passe, l'enveloppe de session est retirée : sans le mot de passe ou la clé de
 //!   secours, la base reste illisible.
 //!
@@ -18,7 +19,8 @@ use crate::chiffrement::{self, CleDonnees, Enveloppe, ErreurChiffrement, Reglage
 use crate::cle_de_secours::CleDeSecours;
 use crate::{fichier, hexa};
 
-/// Coffre de la session de l'ordinateur, fourni par l'application (DPAPI sous Windows).
+/// Coffre de la session de l'ordinateur, fourni par l'application (DPAPI sous Windows,
+/// trousseau de la session sous Linux).
 /// Ce qu'il protège ne se relit que dans la même session, sur le même poste.
 pub trait ProtectionSession {
     /// Nom du mécanisme, gardé dans le trousseau : « dpapi » par exemple.
@@ -53,7 +55,7 @@ pub enum ErreurTrousseau {
     MotDePasseVide,
     #[error("la clé n'est pas confiée à la session de cet ordinateur")]
     SessionAbsente,
-    #[error("la session de cet ordinateur ne peut pas relire la clé : {0}")]
+    #[error("protection par la session de cet ordinateur : {0}")]
     Session(String),
     #[error("fichier du trousseau : {0}")]
     Fichier(#[from] io::Error),

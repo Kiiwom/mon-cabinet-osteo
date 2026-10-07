@@ -116,24 +116,36 @@ pub async fn etat_demarrage(etat: State<'_, Arc<EtatCabinet>>) -> Result<EtatDem
 pub struct PreparationPremierDemarrage {
     cle_de_secours: String,
     dossier_sauvegardes_propose: String,
+    /// Faux si la session ne peut pas protéger la clé : trousseau absent sous Linux, macOS pas encore pris en charge.
     session_protegee: bool,
+    /// « windows », « linux » ou « macos » : l'assistant parle du verrouillage propre au système.
+    systeme: &'static str,
 }
 
 /// Prépare la clé de secours affichée par l'assistant. Rappelée, elle rend la même clé.
 #[tauri::command]
-pub fn preparer_premier_demarrage(etat: State<'_, Arc<EtatCabinet>>) -> Result<PreparationPremierDemarrage, String> {
-    if etat.cabinet.existe() {
-        return Err("Un cabinet existe déjà sur cet ordinateur.".into());
-    }
-    let mut en_attente = etat.cle_en_attente.lock().map_err(message)?;
-    if en_attente.is_none() {
-        *en_attente = Some(CleDeSecours::generer().map_err(message)?);
-    }
-    Ok(PreparationPremierDemarrage {
-        cle_de_secours: en_attente.as_ref().map(CleDeSecours::affichage).unwrap_or_default(),
-        dossier_sauvegardes_propose: etat.dossier_sauvegardes_propose.display().to_string(),
-        session_protegee: SessionOrdinateur::protege_vraiment(),
+pub async fn preparer_premier_demarrage(etat: State<'_, Arc<EtatCabinet>>) -> Result<PreparationPremierDemarrage, String> {
+    let etat = Arc::clone(&etat);
+    // Sous Linux, la question au trousseau de la session passe par le bus : hors du fil de l'interface.
+    en_arriere_plan(move || {
+        if etat.cabinet.existe() {
+            return Err("Un cabinet existe déjà sur cet ordinateur.".into());
+        }
+        let cle_de_secours = {
+            let mut en_attente = etat.cle_en_attente.lock().map_err(message)?;
+            if en_attente.is_none() {
+                *en_attente = Some(CleDeSecours::generer().map_err(message)?);
+            }
+            en_attente.as_ref().map(CleDeSecours::affichage).unwrap_or_default()
+        };
+        Ok(PreparationPremierDemarrage {
+            cle_de_secours,
+            dossier_sauvegardes_propose: etat.dossier_sauvegardes_propose.display().to_string(),
+            session_protegee: SessionOrdinateur::protection_disponible(),
+            systeme: std::env::consts::OS,
+        })
     })
+    .await
 }
 
 #[derive(Deserialize)]

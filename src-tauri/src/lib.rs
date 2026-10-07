@@ -4,7 +4,6 @@ mod trames;
 
 use std::path::PathBuf;
 
-use osteosphere_session::SessionOrdinateur;
 use serde::Serialize;
 use tauri::Manager;
 
@@ -13,7 +12,6 @@ struct InfosApplication {
     nom: &'static str,
     version: &'static str,
     version_coeur: &'static str,
-    session_protegee: bool,
 }
 
 /// Informations affichées dans « À propos » et sur l'accueil du prototype.
@@ -23,11 +21,11 @@ fn infos_application() -> InfosApplication {
         nom: "Osteosphere",
         version: env!("CARGO_PKG_VERSION"),
         version_coeur: osteosphere_core::VERSION,
-        session_protegee: SessionOrdinateur::protege_vraiment(),
     }
 }
 
-/// Dossier du cabinet : `%LOCALAPPDATA%\fr.pierre-besnier.osteosphere\cabinet` sous Windows.
+/// Dossier du cabinet : `%LOCALAPPDATA%\fr.pierre-besnier.osteosphere\cabinet` sous Windows,
+/// `~/.local/share/fr.pierre-besnier.osteosphere/cabinet` sous Linux.
 /// La variable OSTEOSPHERE_DOSSIER le remplace, pour les essais et les démonstrations.
 fn dossier_du_cabinet(app: &tauri::App) -> tauri::Result<PathBuf> {
     match std::env::var_os("OSTEOSPHERE_DOSSIER") {

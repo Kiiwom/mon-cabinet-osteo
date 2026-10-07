@@ -1,6 +1,6 @@
 [package]
 name = "osteosphere-session"
-description = "Protection d'une clé par la session de l'ordinateur (DPAPI sous Windows)"
+description = "Protection d'une clé par la session de l'ordinateur (DPAPI sous Windows, trousseau de session sous Linux)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,9 @@ zeroize = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
+# Trousseau de la session (GNOME, KDE…) par l'interface Secret Service, en Rust pur.
+[target.'cfg(target_os = "linux")'.dependencies]
+chacha20poly1305 = "0.10"
+getrandom = "0.3"
+secret-service = { version = "5.2", features = ["rt-async-io-crypto-rust"] }

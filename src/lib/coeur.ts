@@ -29,7 +29,10 @@ export interface ChoixPremierDemarrage {
 export interface PreparationPremierDemarrage {
   cle_de_secours: string;
   dossier_sauvegardes_propose: string;
+  /** Faux si la session ne peut pas protéger la clé : trousseau absent sous Linux, macOS pas encore pris en charge. */
   session_protegee: boolean;
+  /** « windows », « linux » ou « macos ». */
+  systeme: string;
 }
 
 export type EtatDemarrage =
@@ -144,6 +147,7 @@ export function creerCoeurDeDemonstration(depart: EtatDemarrage["etat"] = "premi
         cle_de_secours: CLE_DE_DEMONSTRATION,
         dossier_sauvegardes_propose: "C:\\Users\\Praticien\\Documents\\Osteosphere\\Sauvegardes",
         session_protegee: true,
+        systeme: "windows",
       };
     },
     async terminerPremierDemarrage(choix) {

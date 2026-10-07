@@ -29,7 +29,36 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session
+      # Sous Linux, la protection par la session passe par un trousseau : un trousseau GNOME
+      # neuf, déverrouillé, dans une session D-Bus propre aux tests.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gnome-keyring dbus
+      - run: |
+          dbus-run-session -- sh -c '
+            printf essai | gnome-keyring-daemon --unlock --components=secrets --daemonize >/dev/null &&
+            cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session'
+
+  linux:
+    name: Paquet Linux
+    # Compilé sur la plus ancienne Ubuntu LTS suivie : le paquet s'installe aussi sur les suivantes.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run tauri build -- --bundles deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: osteosphere-linux
+          path: target/release/bundle/deb/*.deb
+          if-no-files-found: error
 
   windows:
     name: Installateur Windows

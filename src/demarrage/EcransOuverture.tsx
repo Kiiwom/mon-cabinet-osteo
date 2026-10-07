@@ -86,7 +86,7 @@ export function Verrouillage({ coeur, surOuverture, utiliserCle }: PropsOuvertur
   );
 }
 
-/** Ouverture avec la clé de secours : mot de passe oublié, autre poste ou autre compte Windows. */
+/** Ouverture avec la clé de secours : mot de passe oublié, autre poste, autre compte ou trousseau de session effacé. */
 export function SaisieCleDeSecours({
   coeur,
   surOuverture,
@@ -115,7 +115,7 @@ export function SaisieCleDeSecours({
     <CarteCentrale titre="Clé de secours">
       <p className="discret-centre">
         {origine === "autre_poste"
-          ? "Ce cabinet a été créé sur un autre ordinateur ou une autre session Windows. Saisissez sa clé de secours : ensuite, il s’ouvrira directement ici."
+          ? "Ce cabinet a été créé sur un autre ordinateur ou dans une autre session. Saisissez sa clé de secours : ensuite, il s’ouvrira directement ici."
           : "Saisissez la clé de secours remise au premier démarrage. Votre mot de passe actuel reste valable."}
       </p>
       <form className="formulaire" onSubmit={valider}>

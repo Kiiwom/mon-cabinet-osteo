@@ -8,8 +8,8 @@ const continuer = () => fireEvent.click(screen.getByRole("button", { name: /Cont
 const saisir = (libelle: RegExp | string, valeur: string) =>
   fireEvent.change(screen.getByLabelText(libelle), { target: { value: valeur } });
 
-async function allerALaProtection() {
-  render(<App coeur={creerCoeurDeDemonstration("premier_demarrage")} />);
+async function allerALaProtection(coeur = creerCoeurDeDemonstration("premier_demarrage")) {
+  render(<App coeur={coeur} />);
   await screen.findByRole("heading", { name: "Bienvenue dans Osteosphere" });
   continuer();
   saisir(/Prénom/, "Alexandre");
@@ -65,6 +65,44 @@ describe("premier démarrage", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /J’ai imprimé ou noté/ }));
     continuer();
     expect(screen.getByRole("alert")).toHaveTextContent("Les deux mots de passe ne sont pas identiques.");
+    saisir("Confirmation", "un mot de passe");
+    continuer();
+    expect(await screen.findByRole("heading", { name: "Vos sauvegardes" })).toBeInTheDocument();
+  });
+});
+
+describe("premier démarrage sous Linux", () => {
+  const coeurLinux = (sessionProtegee: boolean) => {
+    const demonstration = creerCoeurDeDemonstration("premier_demarrage");
+    return {
+      ...demonstration,
+      preparerPremierDemarrage: async () => ({
+        ...(await demonstration.preparerPremierDemarrage()),
+        systeme: "linux",
+        session_protegee: sessionProtegee,
+      }),
+    };
+  };
+
+  it("parle du verrouillage de la session et ouvre directement avec le trousseau", async () => {
+    await allerALaProtection(coeurLinux(true));
+    expect(screen.getByText(/verrouillage de votre session/)).toBeInTheDocument();
+    expect(screen.queryByText(/trousseau de votre session/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /J’ai imprimé ou noté/ }));
+    continuer();
+    expect(await screen.findByRole("heading", { name: "Vos sauvegardes" })).toBeInTheDocument();
+  });
+
+  it("demande un mot de passe quand le trousseau de la session ne répond pas", async () => {
+    await allerALaProtection(coeurLinux(false));
+    expect(screen.getByText(/trousseau de votre session \(GNOME, KDE…\) ne répond pas/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /J’ai imprimé ou noté/ }));
+    continuer();
+    expect(screen.getByRole("alert")).toHaveTextContent("Sans trousseau de session, choisissez un mot de passe");
+
+    fireEvent.click(screen.getByRole("radio", { name: /Oui, à chaque ouverture/ }));
+    expect(screen.queryByText(/ne répond pas/)).not.toBeInTheDocument();
+    saisir("Mot de passe", "un mot de passe");
     saisir("Confirmation", "un mot de passe");
     continuer();
     expect(await screen.findByRole("heading", { name: "Vos sauvegardes" })).toBeInTheDocument();
