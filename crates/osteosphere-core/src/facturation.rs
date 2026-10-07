@@ -342,6 +342,9 @@ pub struct Facture {
     pub regle_centimes: i64,
     /// Ce qui reste dû : seulement pour une facture émise. Négatif s'il y a un trop-perçu.
     pub reste_centimes: i64,
+    /// Pour un avoir : ce qui peut encore être remboursé, d'après les règlements restés sur la
+    /// facture annulée. Zéro si elle n'avait pas été réglée, ou si ses règlements sont reportés.
+    pub remboursable_centimes: i64,
     /// Identité du cabinet au jour de l'émission.
     pub praticien: Option<IdentiteCabinet>,
     /// Pour un avoir, la facture annulée ; pour une facture rectificative, celle qu'elle remplace.
@@ -500,6 +503,7 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<(Facture, Option<String>)> 
             total_centimes: ligne.get("total_centimes")?,
             regle_centimes: 0,
             reste_centimes: 0,
+            remboursable_centimes: 0,
             praticien,
             origine: None,
             avoir: None,
@@ -554,6 +558,14 @@ pub fn lire(base: &Base, id: &str) -> Result<Facture, ErreurFacture> {
     facture.reste_centimes = reste(facture.nature, facture.etat, facture.total_centimes, facture.regle_centimes);
     if let Some(origine) = origine {
         facture.origine = renvoi(base, "id = ?1", &origine)?;
+        if facture.nature == Nature::Avoir {
+            let regle_origine: i64 = base.connexion().query_row(
+                "SELECT coalesce(sum(montant_centimes), 0) FROM reglements WHERE facture_id = ?1",
+                [&origine],
+                |l| l.get(0),
+            )?;
+            facture.remboursable_centimes = (regle_origine + facture.regle_centimes).max(0);
+        }
     }
     if facture.etat == EtatFacture::Annulee {
         facture.avoir = renvoi(base, "origine_id = ?1 AND nature = 'avoir'", id)?;
@@ -937,6 +949,9 @@ fn verifier_montant(facture: &Facture, remplace: i64, montant: i64) -> Result<()
         Nature::Avoir if montant > 0 => Err(ErreurFacture::Invalide("sur un avoir, notez un remboursement : un montant négatif")),
         Nature::Avoir if regle < facture.total_centimes => {
             Err(ErreurFacture::Invalide("le remboursement dépasse le montant de l'avoir"))
+        }
+        Nature::Avoir if montant < 0 && -montant > facture.remboursable_centimes + remplace.abs() => {
+            Err(ErreurFacture::Invalide("le remboursement dépasse ce que le patient avait réglé sur la facture annulée"))
         }
         _ => Ok(()),
     }
@@ -1335,6 +1350,9 @@ mod tests {
         assert_eq!(originale.rectificative.unwrap().id, rectificative.id);
         let avoir = lire(&c.base, &avoir.id).unwrap();
         assert_eq!((avoir.nature, avoir.total_centimes, avoir.reste_centimes), (Nature::Avoir, -5500, 0));
+        // Le règlement est reporté sur la rectificative : rien à rembourser sur l'avoir.
+        assert_eq!(avoir.remboursable_centimes, 0);
+        assert!(ajouter_reglement(&c.base, &avoir.id, &carte(-5500, "2026-10-07")).is_err());
         // Le règlement n'est compté qu'une fois dans les recettes.
         let recettes = recettes(&c.base, "2026-10-01", "2026-10-31").unwrap();
         assert_eq!(recettes.len(), 1);
@@ -1353,6 +1371,7 @@ mod tests {
         let s = seance(&c, "2026-10-06T14:30");
         let f = facturer_seance(&c.base, &s, &consultation(5500), Some(&carte(5500, "2026-10-06")), "2026-10-06").unwrap();
         let avoir = annuler(&c.base, &f.id, "2026-10-06").unwrap();
+        assert_eq!(avoir.remboursable_centimes, 5500);
         assert_eq!((avoir.nature, avoir.numero.as_deref(), avoir.origine.unwrap().numero.as_str()), (Nature::Avoir, Some("2026-10-2"), "2026-10-1"));
         assert!(de_la_seance(&c.base, &s).unwrap().is_none());
         assert!(ajouter_reglement(&c.base, &f.id, &carte(100, "2026-10-07")).is_err());

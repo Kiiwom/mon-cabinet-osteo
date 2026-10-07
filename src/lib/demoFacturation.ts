@@ -97,6 +97,7 @@ export function creerFacturationDeDemonstration(acces: AccesDemonstration, exemp
       ...reste_,
       regle_centimes: r,
       reste_centimes: reste(f, r),
+      remboursable_centimes: f.nature === "avoir" && origine_id ? Math.max(0, regle(origine_id) + r) : 0,
       origine: renvoi(factures.find((x) => x.id === origine_id)),
       avoir: f.etat === "annulee" ? renvoi(factures.find((x) => x.origine_id === id && x.nature === "avoir")) : null,
       rectificative: f.etat === "annulee" ? renvoi(factures.find((x) => x.origine_id === id && x.nature === "facture")) : null,
@@ -281,6 +282,8 @@ export function creerFacturationDeDemonstration(acces: AccesDemonstration, exemp
     if (f.nature === "facture" && total < 0) throw new Error("Le remboursement dépasse ce qui a été réglé");
     if (f.nature === "avoir" && montant > 0) throw new Error("Sur un avoir, notez un remboursement : un montant négatif");
     if (f.nature === "avoir" && total < f.total_centimes) throw new Error("Le remboursement dépasse le montant de l’avoir");
+    if (f.nature === "avoir" && montant < 0 && f.origine_id && -montant > Math.max(0, regle(f.origine_id) + regle(f.id)) + Math.abs(remplace))
+      throw new Error("Le remboursement dépasse ce que le patient avait réglé sur la facture annulée");
   }
 
   function ajouterReglement(factureId: string, saisie: SaisieReglement): Facture {

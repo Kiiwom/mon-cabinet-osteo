@@ -211,6 +211,14 @@ pub async fn apercu_facture(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Re
     .await
 }
 
+/// Montre le fichier dans le gestionnaire de fichiers. Sans gestionnaire de fichiers disponible,
+/// le fichier reste écrit et son chemin s'affiche : ce n'est pas une erreur.
+fn montrer(chemin: &Path) {
+    if let Err(erreur) = tauri_plugin_opener::reveal_item_in_dir(chemin) {
+        log::warn!("impossible de montrer {} : {erreur}", chemin.display());
+    }
+}
+
 /// Retire d'un nom de fichier les caractères refusés par Windows.
 fn nom_de_fichier(texte: &str) -> String {
     texte
@@ -247,7 +255,7 @@ pub async fn enregistrer_facture_pdf(etat: State<'_, Arc<EtatCabinet>>, id: Stri
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
         let (_, chemin) = enregistrer(&etat, &id)?;
-        tauri_plugin_opener::reveal_item_in_dir(&chemin).map_err(message)?;
+        montrer(&chemin);
         Ok(chemin.display().to_string())
     })
     .await
@@ -292,7 +300,7 @@ pub async fn preparer_email_facture(etat: State<'_, Arc<EtatCabinet>>, id: Strin
             praticien.nom
         );
         let adresse = format!("mailto:{}?subject={}&body={}", encoder_url(email.trim()), encoder_url(&sujet), encoder_url(&corps));
-        tauri_plugin_opener::reveal_item_in_dir(&chemin).map_err(message)?;
+        montrer(&chemin);
         tauri_plugin_opener::open_url(adresse, None::<&str>).map_err(message)?;
         Ok(chemin.display().to_string())
     })
@@ -308,7 +316,7 @@ pub async fn exporter_fichier(etat: State<'_, Arc<EtatCabinet>>, nom: String, co
         std::fs::create_dir_all(&dossier).map_err(message)?;
         let chemin = dossier.join(nom_de_fichier(&nom));
         std::fs::write(&chemin, contenu).map_err(message)?;
-        tauri_plugin_opener::reveal_item_in_dir(&chemin).map_err(message)?;
+        montrer(&chemin);
         Ok(chemin.display().to_string())
     })
     .await

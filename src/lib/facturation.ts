@@ -73,6 +73,8 @@ export interface Facture extends SaisieFacture {
   regle_centimes: number;
   /** Ce qui reste dû, pour une facture émise ; négatif s'il y a un trop-perçu. */
   reste_centimes: number;
+  /** Avoir : ce qui peut encore être remboursé d'après les règlements de la facture annulée. */
+  remboursable_centimes: number;
   praticien: IdentiteCabinet | null;
   /** Avoir : la facture annulée. Facture rectificative : celle qu'elle remplace. */
   origine: Renvoi | null;

@@ -34,7 +34,7 @@ function Reglements({ coeur, facture, changer }: { coeur: Coeur; facture: Factur
   const [edition, setEdition] = useState<Reglement | "nouveau" | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const avoir = facture.nature === "avoir";
-  const peutAjouter = facture.etat === "emise" && (avoir ? facture.regle_centimes > facture.total_centimes : facture.reste_centimes > 0);
+  const peutAjouter = facture.etat === "emise" && (avoir ? facture.remboursable_centimes > 0 : facture.reste_centimes > 0);
 
   async function supprimer(r: Reglement) {
     setErreur(null);
@@ -49,7 +49,11 @@ function Reglements({ coeur, facture, changer }: { coeur: Coeur; facture: Factur
   return (
     <section className="carte" aria-labelledby="titre-reglements">
       <h2 id="titre-reglements">{avoir ? "Remboursements" : "Règlements"}</h2>
-      {facture.reglements.length === 0 && <p className="discret">{avoir ? "Aucun remboursement noté." : "Aucun règlement reçu."}</p>}
+      {facture.reglements.length === 0 && (
+        <p className="discret">
+          {!avoir ? "Aucun règlement reçu." : peutAjouter ? "Aucun remboursement noté." : "Rien à rembourser : la facture annulée n’avait pas été réglée, ou son règlement est reporté sur la facture corrigée."}
+        </p>
+      )}
       {facture.reglements.map((r) =>
         edition !== "nouveau" && edition?.id === r.id ? (
           <FormulaireReglement
@@ -102,7 +106,7 @@ function Reglements({ coeur, facture, changer }: { coeur: Coeur; facture: Factur
       {facture.reste_centimes < 0 && <p className="discret">Le trop-perçu se rembourse avec un règlement de montant négatif : « Ajouter un remboursement ».</p>}
       {edition === "nouveau" ? (
         <FormulaireReglement
-          initial={{ ...REGLEMENT_VIDE, montant_centimes: avoir ? facture.total_centimes - facture.regle_centimes : facture.reste_centimes }}
+          initial={{ ...REGLEMENT_VIDE, montant_centimes: avoir ? facture.remboursable_centimes : facture.reste_centimes }}
           remboursement={avoir || facture.reste_centimes < 0}
           libelleValider={avoir || facture.reste_centimes < 0 ? "Enregistrer le remboursement" : "Enregistrer le règlement"}
           annuler={() => setEdition(null)}
