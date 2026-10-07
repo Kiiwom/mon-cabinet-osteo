@@ -4,10 +4,13 @@ import { BarreLaterale } from "./composants/BarreLaterale";
 import { SaisieCleDeSecours, Verrouillage } from "./demarrage/EcransOuverture";
 import { PremierDemarrage } from "./demarrage/PremierDemarrage";
 import { coeurParDefaut, type Coeur, type IdentiteCabinet } from "./lib/coeur";
-import { useEcranCourant, type Ecran } from "./lib/navigation";
+import { useAdresse, type Ecran } from "./lib/navigation";
 import { Accueil } from "./pages/Accueil";
+import { DossierPatient, ongletDepuis } from "./pages/Dossier";
 import { EcranAVenir } from "./pages/EcranAVenir";
 import { PageFacturation } from "./pages/Facturation";
+import { NouveauPatient } from "./pages/NouveauPatient";
+import { PagePatients } from "./pages/Patients";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
 const PageTrames = lazy(() => import("./pages/Trames").then((module) => ({ default: module.PageTrames })));
@@ -95,14 +98,23 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
   }
 }
 
+function EcranPatients({ coeur, segments }: { coeur: Coeur; segments: string[] }) {
+  const [, id, suite] = segments;
+  if (id === "nouveau") return <NouveauPatient key={suite ?? ""} coeur={coeur} depuisRecherche={suite} />;
+  if (id) return <DossierPatient coeur={coeur} id={id} onglet={ongletDepuis(suite)} />;
+  return <PagePatients coeur={coeur} />;
+}
+
 function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Coeur }) {
-  const ecran = useEcranCourant();
+  const { ecran, segments } = useAdresse();
   return (
     <div className="coque">
       <BarreLaterale courant={ecran} seancesAFacturer={0} donneesReelles={coeur.reel} />
       <div className="contenu">
         {ecran === "accueil" ? (
           <Accueil cabinet={cabinet} />
+        ) : ecran === "patients" ? (
+          <EcranPatients coeur={coeur} segments={segments} />
         ) : ecran === "facturation" ? (
           <PageFacturation coeur={coeur} />
         ) : ecran === "trames" ? (

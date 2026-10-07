@@ -1,0 +1,477 @@
+//! Dossiers patients : identité, coordonnées, profil, situations particulières, remarques.
+//!
+//! La recherche instantanée et l'alerte de doublons se font dans l'interface, sur la liste
+//! complète des résumés : quelques milliers de lignes, sans aller-retour à chaque frappe.
+//! Chaque création, modification ou mise aux archives est inscrite au journal.
+
+use rusqlite::{OptionalExtension, Row};
+use serde::{Deserialize, Serialize};
+
+use crate::base::{Base, ErreurBase, maintenant};
+use crate::identifiant;
+use crate::numerotation::Date;
+
+/// Statuts proposés tant que le praticien n'a pas réglé les siens.
+pub const STATUTS_PAR_DEFAUT: [&str; 3] = ["Nouveau", "Suivi", "Ancien patient"];
+pub const PARAMETRE_STATUTS: &str = "patients.statuts";
+
+/// Ce que le praticien saisit dans la fiche. Les champs absents prennent leur valeur vide.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FichePatient {
+    /// « F », « M » ou vide.
+    pub sexe: String,
+    pub nom: String,
+    pub nom_naissance: String,
+    pub prenom: String,
+    /// `AAAA-MM-JJ`.
+    pub naissance: Option<String>,
+    pub adresse: String,
+    pub complement_adresse: String,
+    pub code_postal: String,
+    pub ville: String,
+    pub pays: String,
+    pub portable: String,
+    pub fixe: String,
+    pub email: String,
+    pub profession: String,
+    pub retraite: bool,
+    pub situation_familiale: String,
+    pub enfants: Option<u32>,
+    /// « droitier », « gaucher », « ambidextre » ou vide.
+    pub lateralite: String,
+    pub activites: String,
+    pub medecin_traitant: String,
+    pub autres_therapeutes: String,
+    pub mobilite_reduite: bool,
+    pub decede: bool,
+    pub statut: String,
+    /// Allergie, contre-indication, précaution : affichées en tête du dossier et de chaque séance.
+    pub notes_importantes: String,
+    pub remarques: String,
+    /// Date de recueil du consentement au traitement des données, `AAAA-MM-JJ`.
+    pub consentement_le: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Patient {
+    pub id: String,
+    #[serde(flatten)]
+    pub fiche: FichePatient,
+    pub archive: bool,
+    pub cree_le: i64,
+    pub modifie_le: i64,
+}
+
+/// Une ligne de la liste des patients, avec ce qu'il faut pour chercher et filtrer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ResumePatient {
+    pub id: String,
+    pub sexe: String,
+    pub nom: String,
+    pub nom_naissance: String,
+    pub prenom: String,
+    pub naissance: Option<String>,
+    pub portable: String,
+    pub fixe: String,
+    pub email: String,
+    pub adresse: String,
+    pub ville: String,
+    pub statut: String,
+    pub notes_importantes: String,
+    pub decede: bool,
+    pub archive: bool,
+    pub seances: i64,
+    pub derniere_seance: Option<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ErreurPatient {
+    #[error("indiquez le nom et le prénom du patient")]
+    NomOuPrenomVide,
+    #[error("{0}")]
+    Champ(&'static str),
+    #[error("ce dossier n'existe plus")]
+    Introuvable,
+    #[error(transparent)]
+    Aleatoire(#[from] identifiant::ErreurAleatoire),
+    #[error(transparent)]
+    Base(#[from] ErreurBase),
+}
+
+impl From<rusqlite::Error> for ErreurPatient {
+    fn from(erreur: rusqlite::Error) -> Self {
+        Self::Base(erreur.into())
+    }
+}
+
+impl From<serde_json::Error> for ErreurPatient {
+    fn from(erreur: serde_json::Error) -> Self {
+        Self::Base(erreur.into())
+    }
+}
+
+/// Espaces en trop retirés, espaces multiples réduits à un seul.
+fn propre(texte: &str) -> String {
+    texte.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Texte sur plusieurs lignes : seules les fins de texte sont nettoyées.
+fn propre_long(texte: &str) -> String {
+    texte.trim().replace("\r\n", "\n")
+}
+
+fn date_facultative(texte: &Option<String>, erreur: &'static str) -> Result<Option<String>, ErreurPatient> {
+    match texte.as_deref().map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(date) => {
+            let lue = Date::lire(date).map_err(|_| ErreurPatient::Champ(erreur))?;
+            if lue < Date::lire("1900-01-01").unwrap_or(lue) {
+                return Err(ErreurPatient::Champ(erreur));
+            }
+            Ok(Some(date.to_owned()))
+        }
+    }
+}
+
+impl FichePatient {
+    pub fn verifier(&self) -> Result<Self, ErreurPatient> {
+        let fiche = Self {
+            sexe: self.sexe.trim().to_owned(),
+            nom: propre(&self.nom),
+            nom_naissance: propre(&self.nom_naissance),
+            prenom: propre(&self.prenom),
+            naissance: date_facultative(&self.naissance, "la date de naissance est invalide")?,
+            adresse: propre(&self.adresse),
+            complement_adresse: propre(&self.complement_adresse),
+            code_postal: self.code_postal.split_whitespace().collect(),
+            ville: propre(&self.ville),
+            pays: propre(&self.pays),
+            portable: propre(&self.portable),
+            fixe: propre(&self.fixe),
+            email: self.email.trim().to_owned(),
+            profession: propre(&self.profession),
+            retraite: self.retraite,
+            situation_familiale: propre(&self.situation_familiale),
+            enfants: self.enfants,
+            lateralite: self.lateralite.trim().to_owned(),
+            activites: propre_long(&self.activites),
+            medecin_traitant: propre(&self.medecin_traitant),
+            autres_therapeutes: propre_long(&self.autres_therapeutes),
+            mobilite_reduite: self.mobilite_reduite,
+            decede: self.decede,
+            statut: propre(&self.statut),
+            notes_importantes: propre_long(&self.notes_importantes),
+            remarques: propre_long(&self.remarques),
+            consentement_le: date_facultative(&self.consentement_le, "la date du consentement est invalide")?,
+        };
+        if fiche.nom.is_empty() || fiche.prenom.is_empty() {
+            return Err(ErreurPatient::NomOuPrenomVide);
+        }
+        if !["", "F", "M"].contains(&fiche.sexe.as_str()) {
+            return Err(ErreurPatient::Champ("sexe inconnu"));
+        }
+        if !["", "droitier", "gaucher", "ambidextre"].contains(&fiche.lateralite.as_str()) {
+            return Err(ErreurPatient::Champ("latéralité inconnue"));
+        }
+        // Le lendemain reste admis : l'horloge est en temps universel, le praticien en heure locale.
+        if let Some(naissance) = &fiche.naissance
+            && Date::lire(naissance).is_ok_and(|n| n > Date::du_jour_utc(1))
+        {
+            return Err(ErreurPatient::Champ("la date de naissance est dans le futur"));
+        }
+        let francais = fiche.pays.is_empty() || fiche.pays.eq_ignore_ascii_case("france");
+        if francais && !fiche.code_postal.is_empty() && !(fiche.code_postal.len() == 5 && fiche.code_postal.bytes().all(|o| o.is_ascii_digit())) {
+            return Err(ErreurPatient::Champ("le code postal compte 5 chiffres"));
+        }
+        if !fiche.email.is_empty() {
+            let valide = fiche
+                .email
+                .split_once('@')
+                .is_some_and(|(avant, apres)| !avant.is_empty() && apres.contains('.') && !apres.starts_with('.') && !apres.ends_with('.'));
+            if !valide {
+                return Err(ErreurPatient::Champ("l'adresse email semble incomplète"));
+            }
+        }
+        Ok(fiche)
+    }
+}
+
+const COLONNES: &str = "sexe, nom, nom_naissance, prenom, naissance, adresse, complement_adresse, code_postal, ville, pays,
+  portable, fixe, email, profession, retraite, situation_familiale, enfants, lateralite, activites, medecin_traitant,
+  autres_therapeutes, mobilite_reduite, decede, statut, notes_importantes, remarques, consentement_le";
+
+fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Patient> {
+    Ok(Patient {
+        id: ligne.get("id")?,
+        fiche: FichePatient {
+            sexe: ligne.get("sexe")?,
+            nom: ligne.get("nom")?,
+            nom_naissance: ligne.get("nom_naissance")?,
+            prenom: ligne.get("prenom")?,
+            naissance: ligne.get("naissance")?,
+            adresse: ligne.get("adresse")?,
+            complement_adresse: ligne.get("complement_adresse")?,
+            code_postal: ligne.get("code_postal")?,
+            ville: ligne.get("ville")?,
+            pays: ligne.get("pays")?,
+            portable: ligne.get("portable")?,
+            fixe: ligne.get("fixe")?,
+            email: ligne.get("email")?,
+            profession: ligne.get("profession")?,
+            retraite: ligne.get("retraite")?,
+            situation_familiale: ligne.get("situation_familiale")?,
+            enfants: ligne.get("enfants")?,
+            lateralite: ligne.get("lateralite")?,
+            activites: ligne.get("activites")?,
+            medecin_traitant: ligne.get("medecin_traitant")?,
+            autres_therapeutes: ligne.get("autres_therapeutes")?,
+            mobilite_reduite: ligne.get("mobilite_reduite")?,
+            decede: ligne.get("decede")?,
+            statut: ligne.get("statut")?,
+            notes_importantes: ligne.get("notes_importantes")?,
+            remarques: ligne.get("remarques")?,
+            consentement_le: ligne.get("consentement_le")?,
+        },
+        archive: ligne.get::<_, Option<i64>>("archive_le")?.is_some(),
+        cree_le: ligne.get("cree_le")?,
+        modifie_le: ligne.get("modifie_le")?,
+    })
+}
+
+pub fn lire(base: &Base, id: &str) -> Result<Patient, ErreurPatient> {
+    base.connexion()
+        .query_row("SELECT * FROM patients WHERE id = ?1", [id], depuis_ligne)
+        .optional()?
+        .ok_or(ErreurPatient::Introuvable)
+}
+
+fn ecrire(base: &Base, id: &str, fiche: &FichePatient, cree_le: i64) -> Result<(), ErreurPatient> {
+    let f = fiche;
+    base.connexion().execute(
+        &format!(
+            "INSERT INTO patients (id, {COLONNES}, cree_le, modifie_le)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21,
+                     ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)
+             ON CONFLICT (id) DO UPDATE SET
+               sexe = excluded.sexe, nom = excluded.nom, nom_naissance = excluded.nom_naissance,
+               prenom = excluded.prenom, naissance = excluded.naissance, adresse = excluded.adresse,
+               complement_adresse = excluded.complement_adresse, code_postal = excluded.code_postal,
+               ville = excluded.ville, pays = excluded.pays, portable = excluded.portable, fixe = excluded.fixe,
+               email = excluded.email, profession = excluded.profession, retraite = excluded.retraite,
+               situation_familiale = excluded.situation_familiale, enfants = excluded.enfants,
+               lateralite = excluded.lateralite, activites = excluded.activites,
+               medecin_traitant = excluded.medecin_traitant, autres_therapeutes = excluded.autres_therapeutes,
+               mobilite_reduite = excluded.mobilite_reduite, decede = excluded.decede, statut = excluded.statut,
+               notes_importantes = excluded.notes_importantes, remarques = excluded.remarques,
+               consentement_le = excluded.consentement_le, modifie_le = excluded.modifie_le"
+        ),
+        rusqlite::params![
+            id,
+            f.sexe,
+            f.nom,
+            f.nom_naissance,
+            f.prenom,
+            f.naissance,
+            f.adresse,
+            f.complement_adresse,
+            f.code_postal,
+            f.ville,
+            f.pays,
+            f.portable,
+            f.fixe,
+            f.email,
+            f.profession,
+            f.retraite,
+            f.situation_familiale,
+            f.enfants,
+            f.lateralite,
+            f.activites,
+            f.medecin_traitant,
+            f.autres_therapeutes,
+            f.mobilite_reduite,
+            f.decede,
+            f.statut,
+            f.notes_importantes,
+            f.remarques,
+            f.consentement_le,
+            cree_le,
+            maintenant(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn journaliser(base: &Base, action: &str, avant: Option<&Patient>, apres: &Patient) -> Result<(), ErreurPatient> {
+    let avant = avant.map(serde_json::to_string).transpose()?;
+    base.journaliser(action, &apres.id, avant.as_deref(), Some(&serde_json::to_string(apres)?))?;
+    Ok(())
+}
+
+pub fn creer(base: &Base, fiche: &FichePatient) -> Result<Patient, ErreurPatient> {
+    let fiche = fiche.verifier()?;
+    let id = identifiant::nouveau()?;
+    ecrire(base, &id, &fiche, maintenant())?;
+    let patient = lire(base, &id)?;
+    journaliser(base, "patient.cree", None, &patient)?;
+    Ok(patient)
+}
+
+pub fn modifier(base: &Base, id: &str, fiche: &FichePatient) -> Result<Patient, ErreurPatient> {
+    let fiche = fiche.verifier()?;
+    let avant = lire(base, id)?;
+    if avant.fiche == fiche {
+        return Ok(avant);
+    }
+    ecrire(base, id, &fiche, avant.cree_le)?;
+    let apres = lire(base, id)?;
+    journaliser(base, "patient.modifie", Some(&avant), &apres)?;
+    Ok(apres)
+}
+
+/// Met le dossier aux archives ou l'en sort. Un dossier archivé reste consultable et cherchable.
+pub fn archiver(base: &Base, id: &str, archive: bool) -> Result<Patient, ErreurPatient> {
+    let avant = lire(base, id)?;
+    if avant.archive == archive {
+        return Ok(avant);
+    }
+    base.connexion().execute(
+        "UPDATE patients SET archive_le = ?2, modifie_le = ?3 WHERE id = ?1",
+        rusqlite::params![id, archive.then(maintenant), maintenant()],
+    )?;
+    let apres = lire(base, id)?;
+    journaliser(base, if archive { "patient.archive" } else { "patient.desarchive" }, Some(&avant), &apres)?;
+    Ok(apres)
+}
+
+/// Tous les dossiers, archives comprises, par nom puis prénom.
+pub fn lister(base: &Base) -> Result<Vec<ResumePatient>, ErreurPatient> {
+    let mut requete = base.connexion().prepare(
+        "SELECT id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut,
+                notes_importantes, decede, archive_le
+         FROM patients ORDER BY nom COLLATE NOCASE, prenom COLLATE NOCASE",
+    )?;
+    let lignes = requete.query_map([], |l| {
+        Ok(ResumePatient {
+            id: l.get("id")?,
+            sexe: l.get("sexe")?,
+            nom: l.get("nom")?,
+            nom_naissance: l.get("nom_naissance")?,
+            prenom: l.get("prenom")?,
+            naissance: l.get("naissance")?,
+            portable: l.get("portable")?,
+            fixe: l.get("fixe")?,
+            email: l.get("email")?,
+            adresse: l.get("adresse")?,
+            ville: l.get("ville")?,
+            statut: l.get("statut")?,
+            notes_importantes: l.get("notes_importantes")?,
+            decede: l.get("decede")?,
+            archive: l.get::<_, Option<i64>>("archive_le")?.is_some(),
+            seances: 0,
+            derniere_seance: None,
+        })
+    })?;
+    Ok(lignes.collect::<Result<_, _>>()?)
+}
+
+/// Statuts proposés dans la fiche : ceux du praticien, sinon ceux par défaut.
+pub fn statuts(base: &Base) -> Result<Vec<String>, ErreurPatient> {
+    Ok(base
+        .lire_parametre::<Vec<String>>(PARAMETRE_STATUTS)?
+        .unwrap_or_else(|| STATUTS_PAR_DEFAUT.iter().map(|s| s.to_string()).collect()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chiffrement::CleDonnees;
+
+    fn base() -> (tempfile::TempDir, Base) {
+        let dossier = tempfile::tempdir().unwrap();
+        let base = Base::ouvrir(&dossier.path().join("essai.osteosphere"), &CleDonnees::generer().unwrap()).unwrap();
+        (dossier, base)
+    }
+
+    fn camille() -> FichePatient {
+        FichePatient {
+            sexe: "F".into(),
+            nom: "  Martin ".into(),
+            prenom: "Camille".into(),
+            naissance: Some("1988-03-14".into()),
+            adresse: "12 rue des   Tilleuls".into(),
+            code_postal: "47 500".into(),
+            ville: "Fumel".into(),
+            portable: "06 00 00 00 00".into(),
+            email: "camille.martin@exemple.fr".into(),
+            lateralite: "droitier".into(),
+            notes_importantes: "Allergie aux AINS\n".into(),
+            statut: "Suivi".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn cree_relit_et_nettoie_la_fiche() {
+        let (_dossier, base) = base();
+        let patient = creer(&base, &camille()).unwrap();
+        assert_eq!(patient.fiche.nom, "Martin");
+        assert_eq!(patient.fiche.adresse, "12 rue des Tilleuls");
+        assert_eq!(patient.fiche.code_postal, "47500");
+        assert_eq!(patient.fiche.notes_importantes, "Allergie aux AINS");
+        assert!(!patient.archive);
+        assert_eq!(lire(&base, &patient.id).unwrap(), patient);
+        let liste = lister(&base).unwrap();
+        assert_eq!(liste.len(), 1);
+        assert_eq!(liste[0].prenom, "Camille");
+        assert_eq!(liste[0].notes_importantes, "Allergie aux AINS");
+    }
+
+    #[test]
+    fn refuse_une_fiche_incomplete_ou_incoherente() {
+        let erreur = |fiche: FichePatient| fiche.verifier().unwrap_err().to_string();
+        assert_eq!(erreur(FichePatient { prenom: " ".into(), ..camille() }), "indiquez le nom et le prénom du patient");
+        assert_eq!(erreur(FichePatient { naissance: Some("1988-02-30".into()), ..camille() }), "la date de naissance est invalide");
+        assert_eq!(erreur(FichePatient { naissance: Some("2999-01-01".into()), ..camille() }), "la date de naissance est dans le futur");
+        assert_eq!(erreur(FichePatient { code_postal: "4750".into(), ..camille() }), "le code postal compte 5 chiffres");
+        assert_eq!(erreur(FichePatient { email: "camille@exemple".into(), ..camille() }), "l'adresse email semble incomplète");
+        assert_eq!(erreur(FichePatient { lateralite: "les deux".into(), ..camille() }), "latéralité inconnue");
+        // Code postal étranger : libre.
+        assert!(FichePatient { pays: "Belgique".into(), code_postal: "1000".into(), ..camille() }.verifier().is_ok());
+        // Date vide : pas de date.
+        assert_eq!(FichePatient { naissance: Some(" ".into()), ..camille() }.verifier().unwrap().naissance, None);
+    }
+
+    #[test]
+    fn modifie_archive_et_journalise() {
+        let (_dossier, base) = base();
+        let patient = creer(&base, &camille()).unwrap();
+        let modifie = modifier(&base, &patient.id, &FichePatient { profession: "Infirmière".into(), ..camille() }).unwrap();
+        assert_eq!(modifie.fiche.profession, "Infirmière");
+        assert_eq!(modifie.cree_le, patient.cree_le);
+        // Rien de changé : rien au journal.
+        modifier(&base, &patient.id, &FichePatient { profession: "Infirmière".into(), ..camille() }).unwrap();
+        assert!(archiver(&base, &patient.id, true).unwrap().archive);
+        assert!(lister(&base).unwrap()[0].archive);
+        assert!(!archiver(&base, &patient.id, false).unwrap().archive);
+
+        let actions: Vec<String> = base
+            .connexion()
+            .prepare("SELECT action FROM journal WHERE entite = ?1 ORDER BY id")
+            .unwrap()
+            .query_map([&patient.id], |l| l.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(actions, ["patient.cree", "patient.modifie", "patient.archive", "patient.desarchive"]);
+        assert!(matches!(lire(&base, "inconnu"), Err(ErreurPatient::Introuvable)));
+    }
+
+    #[test]
+    fn statuts_par_defaut_puis_ceux_du_praticien() {
+        let (_dossier, base) = base();
+        assert_eq!(statuts(&base).unwrap(), STATUTS_PAR_DEFAUT);
+        base.ecrire_parametre(PARAMETRE_STATUTS, &["Suivi", "Archivé"]).unwrap();
+        assert_eq!(statuts(&base).unwrap(), ["Suivi", "Archivé"]);
+    }
+}

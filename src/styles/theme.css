@@ -1209,3 +1209,429 @@ h3 {
   border-radius: var(--rayon);
   background: #efe8dc;
 }
+
+/* Patients et dossier (maquettes 2 et 3) */
+.page-large {
+  max-width: 1400px;
+}
+
+.fil {
+  font-size: 13px;
+  color: var(--encre-discrete);
+}
+
+.champ select,
+.filtre select {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 15px;
+}
+
+.case-simple {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.case-simple input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent-fonce);
+}
+
+.fiche-section + .fiche-section {
+  padding-top: 20px;
+  border-top: 1px solid var(--bordure);
+}
+
+/* La légende flotte : sinon elle se pose sur la bordure du haut. */
+.fiche-section legend {
+  float: left;
+  width: 100%;
+}
+
+.fiche-section .champs {
+  clear: both;
+}
+
+.cases {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+
+a.bouton {
+  text-decoration: none;
+  color: var(--encre);
+}
+
+.barre-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.compteur {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.recherche-patients {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 2px solid var(--accent);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  color: var(--encre-discrete);
+}
+
+.recherche-patients input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: 17px;
+  color: var(--encre);
+}
+
+.recherche-patients:focus-within {
+  border-color: var(--accent-fonce);
+}
+
+.recherche-patients .discret {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.filtre {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--encre-2);
+}
+
+.carte-tableau {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.tableau th {
+  padding: 12px 20px;
+  background: var(--fond-barre);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.tableau td {
+  padding: 12px 20px;
+  border-top: 1px solid var(--bordure);
+  vertical-align: middle;
+}
+
+.tableau tbody tr {
+  cursor: pointer;
+}
+
+.tableau tbody tr:hover,
+.tableau tbody tr[data-actif="true"] {
+  background: #fbf6ea;
+}
+
+.tableau .nombre {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sans-retour {
+  white-space: nowrap;
+}
+
+.cellule-patient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cellule-patient .discret {
+  font-size: 13px;
+}
+
+.nom-patient {
+  font-weight: 600;
+  color: var(--encre);
+  text-decoration: none;
+}
+
+.nom-patient:hover {
+  text-decoration: underline;
+}
+
+.icone-alerte {
+  margin-left: 6px;
+  color: #b4432f;
+}
+
+.surligne {
+  background: var(--accent-doux);
+  color: inherit;
+  border-radius: 3px;
+}
+
+.avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.avatar[data-grand="true"] {
+  width: 64px;
+  height: 64px;
+  font-size: 22px;
+}
+
+.puce {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--fond-discret);
+  color: var(--encre-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.puce-discrete {
+  background: none;
+  border: 1px solid var(--bordure-champ);
+  color: var(--encre-discrete);
+}
+
+.puce-alerte {
+  background: #fbe3df;
+  color: #8c2f25;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pied-tableau {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--bordure);
+  font-size: 14px;
+  color: var(--encre-2);
+}
+
+.vide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px;
+}
+
+.vide p {
+  margin: 0;
+}
+
+.liste-doublons {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.liste-doublons li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.entete-dossier {
+  padding-bottom: 0;
+}
+
+.entete-dossier-haut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 20px;
+}
+
+.entete-dossier-nom {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.entete-dossier-nom h1 {
+  font-size: 28px;
+}
+
+.entete-dossier-actions {
+  align-items: center;
+}
+
+.menu-dossier {
+  position: relative;
+}
+
+.menu-dossier .bouton-icone {
+  border: 1px solid var(--bordure-champ);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  font-size: 18px;
+  min-width: 44px;
+}
+
+.menu-dossier-liste {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  box-shadow: 0 8px 24px rgba(51, 41, 31, 0.14);
+}
+
+.menu-dossier-liste button {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-dossier-liste button:hover {
+  background: var(--fond-barre);
+}
+
+.onglets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 8px;
+}
+
+.onglets a {
+  padding: 12px 14px;
+  border-bottom: 3px solid transparent;
+  color: var(--encre-2);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.onglets a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--encre);
+  font-weight: 700;
+}
+
+.onglets a:hover {
+  color: var(--encre);
+}
+
+.colonnes-dossier {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.entete-carte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bouton-petit {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.texte-multiligne {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.liste-infos {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ligne-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+}
+
+.ligne-info dt {
+  color: var(--encre-discrete);
+}
+
+.ligne-info dd {
+  margin: 0;
+  text-align: right;
+}

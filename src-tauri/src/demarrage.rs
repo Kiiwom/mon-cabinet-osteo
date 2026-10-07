@@ -91,7 +91,7 @@ pub enum EtatDemarrage {
     PremierDemarrage,
     MotDePasseRequis,
     CleDeSecoursRequise,
-    Ouvert { cabinet: IdentiteCabinet },
+    Ouvert { cabinet: Box<IdentiteCabinet> },
 }
 
 #[tauri::command]
@@ -100,13 +100,13 @@ pub async fn etat_demarrage(etat: State<'_, Arc<EtatCabinet>>) -> Result<EtatDem
     en_arriere_plan(move || {
         if let Some(ouvert) = etat.ouvert.lock().map_err(message)?.as_ref() {
             let cabinet = ouvert.base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default();
-            return Ok(EtatDemarrage::Ouvert { cabinet });
+            return Ok(EtatDemarrage::Ouvert { cabinet: Box::new(cabinet) });
         }
         Ok(match etat.cabinet.ouvrir_automatiquement(&Session).map_err(message)? {
             Ouverture::PremierDemarrage => EtatDemarrage::PremierDemarrage,
             Ouverture::MotDePasseRequis => EtatDemarrage::MotDePasseRequis,
             Ouverture::CleDeSecoursRequise => EtatDemarrage::CleDeSecoursRequise,
-            Ouverture::Ouvert(ouvert) => EtatDemarrage::Ouvert { cabinet: etat.garder_ouvert(ouvert)? },
+            Ouverture::Ouvert(ouvert) => EtatDemarrage::Ouvert { cabinet: Box::new(etat.garder_ouvert(ouvert)?) },
         })
     })
     .await

@@ -12,7 +12,7 @@ pub fn encoder(octets: &[u8]) -> String {
 }
 
 pub fn decoder(texte: &str) -> Option<Vec<u8>> {
-    if texte.len() % 2 != 0 {
+    if !texte.len().is_multiple_of(2) {
         return None;
     }
     texte

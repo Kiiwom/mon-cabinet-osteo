@@ -8,7 +8,7 @@ use rusqlite::{OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
 use crate::base::{Base, ErreurBase, maintenant};
-use crate::hexa;
+use crate::identifiant;
 
 const BIBLIOTHEQUE_DE_DEPART: &str = include_str!("bibliotheque_depart.json");
 const PARAMETRE_BIBLIOTHEQUE: &str = "trames.bibliotheque_installee";
@@ -153,9 +153,7 @@ fn verifier(saisie: &SaisieTrame) -> Result<SaisieTrame, ErreurTrame> {
 }
 
 fn nouvel_identifiant() -> Result<String, ErreurTrame> {
-    let mut octets = [0u8; 12];
-    getrandom::fill(&mut octets).map_err(|_| ErreurTrame::Aleatoire)?;
-    Ok(hexa::encoder(&octets))
+    identifiant::nouveau().map_err(|_| ErreurTrame::Aleatoire)
 }
 
 fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Trame> {

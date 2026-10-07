@@ -57,6 +57,29 @@ impl Date {
         Ok(Self { annee, mois, jour })
     }
 
+    /// Date du jour en temps universel d'après l'horloge de l'ordinateur, décalée de quelques jours.
+    pub fn du_jour_utc(decalage_jours: i64) -> Self {
+        let secondes = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        Self::depuis_jours_unix((secondes / 86_400) as i64 + decalage_jours)
+    }
+
+    /// Jours écoulés depuis le 1er janvier 1970 (algorithme « civil from days » de H. Hinnant).
+    fn depuis_jours_unix(jours: i64) -> Self {
+        let z = jours + 719_468;
+        let ere = z.div_euclid(146_097);
+        let doe = z.rem_euclid(146_097);
+        let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let jour = (doy - (153 * mp + 2) / 5 + 1) as u32;
+        let mois = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+        let annee = (yoe + ere * 400 + i64::from(mois <= 2)) as i32;
+        Self { annee, mois, jour }
+    }
+
     pub fn annee(&self) -> i32 {
         self.annee
     }
@@ -164,6 +187,15 @@ pub fn prochain_numero(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn date_depuis_l_horloge() {
+        assert_eq!(Date::depuis_jours_unix(0), Date::lire("1970-01-01").unwrap());
+        assert_eq!(Date::depuis_jours_unix(20_733), Date::lire("2026-10-07").unwrap());
+        assert_eq!(Date::depuis_jours_unix(11_016), Date::lire("2000-02-29").unwrap());
+        assert!(Date::du_jour_utc(0) > Date::lire("2026-01-01").unwrap());
+        assert!(Date::du_jour_utc(1) > Date::du_jour_utc(0));
+    }
 
     fn date(texte: &str) -> Date {
         Date::lire(texte).unwrap()

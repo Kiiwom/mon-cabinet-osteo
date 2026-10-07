@@ -328,7 +328,7 @@ mod tests {
         ouvert
             .base
             .connexion()
-            .execute("INSERT INTO patients VALUES ('p1', 'Martin', 'Camille', NULL, '2026-10-07', '2026-10-07')", [])
+            .execute("INSERT INTO patients (id, nom, prenom, cree_le, modifie_le) VALUES ('p1', 'Martin', 'Camille', 0, 0)", [])
             .unwrap();
     }
 

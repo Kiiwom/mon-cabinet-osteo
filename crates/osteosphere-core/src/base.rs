@@ -14,6 +14,7 @@ use crate::hexa;
 const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0001_initiale.sql"),
     include_str!("migrations/0002_trames.sql"),
+    include_str!("migrations/0003_patients.sql"),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -136,7 +137,7 @@ mod tests {
             assert_eq!(base.version_schema().unwrap(), MIGRATIONS.len() as i64);
             base.connexion()
                 .execute(
-                    "INSERT INTO patients VALUES ('p1', 'Martin', 'Camille', '1987-03-14', '2026-10-06', '2026-10-06')",
+                    "INSERT INTO patients (id, nom, prenom, naissance, cree_le, modifie_le) VALUES ('p1', 'Martin', 'Camille', '1987-03-14', 0, 0)",
                     [],
                 )
                 .unwrap();
@@ -144,6 +145,23 @@ mod tests {
         let base = Base::ouvrir(&chemin, &cle).unwrap();
         let prenom: String = base.connexion().query_row("SELECT prenom FROM patients", [], |l| l.get(0)).unwrap();
         assert_eq!(prenom, "Camille");
+    }
+
+    #[test]
+    fn la_migration_des_patients_garde_les_dossiers_du_prototype() {
+        let connexion = Connection::open_in_memory().unwrap();
+        connexion.execute_batch(MIGRATIONS[0]).unwrap();
+        connexion.execute_batch(MIGRATIONS[1]).unwrap();
+        connexion
+            .execute("INSERT INTO patients VALUES ('p1', 'Martin', 'Camille', '1987-03-14', '2026-10-06', '2026-10-06')", [])
+            .unwrap();
+        connexion.execute_batch(MIGRATIONS[2]).unwrap();
+        let (nom, naissance, statut): (String, String, String) = connexion
+            .query_row("SELECT nom, naissance, statut FROM patients WHERE id = 'p1'", [], |l| {
+                Ok((l.get(0)?, l.get(1)?, l.get(2)?))
+            })
+            .unwrap();
+        assert_eq!((nom.as_str(), naissance.as_str(), statut.as_str()), ("Martin", "1987-03-14", ""));
     }
 
     #[test]
