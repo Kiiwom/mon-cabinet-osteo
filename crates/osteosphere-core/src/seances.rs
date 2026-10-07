@@ -95,6 +95,15 @@ pub struct Seance {
     pub modifie_le: i64,
 }
 
+/// La facture en cours d'une séance, pour les listes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct FactureDeSeance {
+    pub id: String,
+    /// Absent pour un brouillon.
+    pub numero: Option<String>,
+    pub reste_centimes: i64,
+}
+
 /// Une ligne des listes de séances.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ResumeSeance {
@@ -114,6 +123,8 @@ pub struct ResumeSeance {
     pub facturation: Facturation,
     pub commentaire_gratuit: String,
     pub supprimee_le: Option<i64>,
+    /// Brouillon ou facture émise, ni annulée ni corrigée.
+    pub facture: Option<FactureDeSeance>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -362,6 +373,9 @@ pub fn enregistrer(base: &Base, id: &str, saisie: &SaisieSeance) -> Result<Seanc
     if avant.saisie == saisie {
         return Ok(avant);
     }
+    if saisie.facturation == Facturation::Gratuit && avant.saisie.facturation != Facturation::Gratuit && facture_en_cours(base, id)?.is_some() {
+        return Err(ErreurSeance::Invalide("cette séance a une facture : annulez-la par un avoir avant d'en faire un acte gratuit"));
+    }
     verifier_references(base, &avant.patient_id, &saisie)?;
     let s = &saisie;
     base.connexion().execute(
@@ -387,11 +401,34 @@ pub fn enregistrer(base: &Base, id: &str, saisie: &SaisieSeance) -> Result<Seanc
     Ok(apres)
 }
 
+/// Identifiant et état (« brouillon » ou « emise ») de la facture en cours de la séance.
+fn facture_en_cours(base: &Base, id: &str) -> Result<Option<(String, String)>, ErreurSeance> {
+    Ok(base
+        .connexion()
+        .query_row(
+            "SELECT id, etat FROM factures WHERE seance_id = ?1 AND nature = 'facture' AND etat IN ('brouillon', 'emise')",
+            [id],
+            |l| Ok((l.get(0)?, l.get(1)?)),
+        )
+        .optional()?)
+}
+
 /// Met la séance à la corbeille. Elle reste restaurable pendant 30 jours.
+/// Une séance déjà facturée reste : ses factures la citent. Un brouillon de facture part avec elle.
 pub fn supprimer(base: &Base, id: &str) -> Result<(), ErreurSeance> {
     let avant = lire(base, id)?;
     if avant.supprimee_le.is_some() {
         return Ok(());
+    }
+    let facturee: Option<i64> =
+        base.connexion().query_row("SELECT 1 FROM factures WHERE seance_id = ?1 AND etat <> 'brouillon' LIMIT 1", [id], |l| l.get(0)).optional()?;
+    if facturee.is_some() {
+        return Err(ErreurSeance::Invalide("cette séance a été facturée : elle reste dans le dossier, avec ses factures"));
+    }
+    if let Some((brouillon, _)) = facture_en_cours(base, id)? {
+        let contenu: String = base.connexion().query_row("SELECT lignes FROM factures WHERE id = ?1", [&brouillon], |l| l.get(0))?;
+        base.connexion().execute("DELETE FROM factures WHERE id = ?1", [&brouillon])?;
+        base.journaliser("facture.brouillon_supprime", &brouillon, Some(&contenu), None)?;
     }
     base.connexion().execute("UPDATE seances SET supprimee_le = ?2 WHERE id = ?1", rusqlite::params![id, maintenant()])?;
     let apres = lire(base, id)?;
@@ -439,7 +476,7 @@ impl<'a> Definitions<'a> {
         Ok(Self { base, cache: HashMap::new(), noms })
     }
 
-    fn resumer(&mut self, seance: &Seance, patient_nom: String, patient_prenom: String) -> ResumeSeance {
+    fn resumer(&mut self, seance: &Seance, patient_nom: String, patient_prenom: String, facture: Option<FactureDeSeance>) -> ResumeSeance {
         let cle = (seance.saisie.modele_id.clone(), seance.saisie.modele_version);
         let definition = self
             .cache
@@ -466,22 +503,32 @@ impl<'a> Definitions<'a> {
             facturation: seance.saisie.facturation,
             commentaire_gratuit: seance.saisie.commentaire_gratuit.clone(),
             supprimee_le: seance.supprimee_le,
+            facture,
         }
     }
 }
 
 fn lister_ou(base: &Base, condition: &str, parametres: &[&dyn rusqlite::ToSql]) -> Result<Vec<ResumeSeance>, ErreurSeance> {
     let mut requete = base.connexion().prepare(&format!(
-        "SELECT s.*, p.nom AS patient_nom, p.prenom AS patient_prenom FROM seances s JOIN patients p ON p.id = s.patient_id
+        "SELECT s.*, p.nom AS patient_nom, p.prenom AS patient_prenom, f.id AS facture_id, f.numero AS facture_numero,
+                f.total_centimes - coalesce((SELECT sum(r.montant_centimes) FROM reglements r WHERE r.facture_id = f.id), 0) AS facture_reste
+         FROM seances s JOIN patients p ON p.id = s.patient_id
+         LEFT JOIN factures f ON f.seance_id = s.id AND f.nature = 'facture' AND f.etat IN ('brouillon', 'emise')
          WHERE {condition} ORDER BY s.debut DESC"
     ))?;
     let lignes = requete
-        .query_map(parametres, |l| Ok((depuis_ligne(l)?, l.get::<_, String>("patient_nom")?, l.get::<_, String>("patient_prenom")?)))?
+        .query_map(parametres, |l| {
+            let facture = match l.get::<_, Option<String>>("facture_id")? {
+                Some(id) => Some(FactureDeSeance { id, numero: l.get("facture_numero")?, reste_centimes: l.get("facture_reste")? }),
+                None => None,
+            };
+            Ok((depuis_ligne(l)?, l.get::<_, String>("patient_nom")?, l.get::<_, String>("patient_prenom")?, facture))
+        })?
         .collect::<Result<Vec<_>, _>>()?;
     let mut definitions = Definitions::new(base)?;
     lignes
         .into_iter()
-        .map(|(ligne, nom, prenom)| Ok(definitions.resumer(&avec_valeurs(ligne)?, nom, prenom)))
+        .map(|(ligne, nom, prenom, facture)| Ok(definitions.resumer(&avec_valeurs(ligne)?, nom, prenom, facture)))
         .collect()
 }
 
@@ -494,6 +541,11 @@ pub fn lister_patient(base: &Base, patient_id: &str) -> Result<Vec<ResumeSeance>
 pub fn lister_periode(base: &Base, du: &str, au: &str) -> Result<Vec<ResumeSeance>, ErreurSeance> {
     let fin = format!("{au}T99");
     lister_ou(base, "s.debut >= ?1 AND s.debut < ?2 AND s.supprimee_le IS NULL", &[&du, &fin])
+}
+
+/// Séances à facturer qui n'ont pas encore de facture, brouillons compris, de la plus récente à la plus ancienne.
+pub fn lister_a_facturer(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance> {
+    lister_ou(base, "s.facturation = 'a_facturer' AND s.supprimee_le IS NULL AND (f.id IS NULL OR f.etat = 'brouillon')", &[])
 }
 
 pub fn corbeille(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance> {

@@ -80,6 +80,21 @@ impl IdentiteCabinet {
         }
         Ok(identite)
     }
+
+    /// Mentions obligatoires d'une facture encore vides, à compléter avant d'émettre.
+    pub fn mentions_manquantes(&self) -> Vec<&'static str> {
+        [
+            ("adresse", &self.adresse),
+            ("code postal", &self.code_postal),
+            ("ville", &self.ville),
+            ("SIRET", &self.siret),
+            ("RPPS", &self.rpps),
+        ]
+        .into_iter()
+        .filter(|(_, valeur)| valeur.trim().is_empty())
+        .map(|(mention, _)| mention)
+        .collect()
+    }
 }
 
 /// Caractère qui ouvre le menu des trames pendant la saisie.

@@ -18,6 +18,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0004_antecedents.sql"),
     include_str!("migrations/0005_modeles.sql"),
     include_str!("migrations/0006_seances.sql"),
+    include_str!("migrations/0007_facturation.sql"),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -100,6 +101,21 @@ impl Base {
             (maintenant().to_string(), action, entite, avant, apres),
         )?;
         Ok(())
+    }
+
+    /// Exécute l'opération d'un seul tenant : si elle échoue, rien de ce qu'elle a écrit ne reste.
+    pub fn atomique<T, E: From<ErreurBase>>(&self, operation: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+        self.connexion.execute_batch("SAVEPOINT atomique").map_err(ErreurBase::from)?;
+        match operation() {
+            Ok(valeur) => {
+                self.connexion.execute_batch("RELEASE atomique").map_err(ErreurBase::from)?;
+                Ok(valeur)
+            }
+            Err(erreur) => {
+                self.connexion.execute_batch("ROLLBACK TO atomique; RELEASE atomique").map_err(ErreurBase::from)?;
+                Err(erreur)
+            }
+        }
     }
 
     pub fn lire_parametre<T: DeserializeOwned>(&self, cle: &str) -> Result<Option<T>, ErreurBase> {

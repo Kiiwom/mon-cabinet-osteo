@@ -11,6 +11,8 @@
 //! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
 //! - [`modeles`] : modèles de consultation versionnés, modèles fournis.
 //! - [`seances`] : séances enregistrées au fil de la saisie, corbeille de 30 jours.
+//! - [`prestations`] : actes proposés à la facturation, avec leur tarif.
+//! - [`facturation`] : factures et avoirs numérotés, règlements, recettes.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -19,12 +21,14 @@ pub mod base;
 pub mod cabinet;
 pub mod chiffrement;
 pub mod cle_de_secours;
+pub mod facturation;
 mod fichier;
 mod hexa;
 pub mod identifiant;
 pub mod modeles;
 pub mod numerotation;
 pub mod patients;
+pub mod prestations;
 pub mod seances;
 pub mod trames;
 pub mod trousseau;
