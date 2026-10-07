@@ -10,13 +10,14 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 | --- | --- |
 | `src/` | Interface en React et TypeScript, d'après les maquettes validées |
 | `src-tauri/` | Application de bureau Tauri 2 (Windows d'abord, macOS et Linux ensuite) |
-| `crates/osteosphere-core/` | Cœur en Rust, sans interface : base chiffrée, clé de secours, mot de passe facultatif, numérotation des factures |
+| `crates/osteosphere-core/` | Cœur en Rust, sans interface : ouverture du cabinet, base chiffrée, clé de secours, mot de passe facultatif, numérotation des factures |
+| `crates/osteosphere-session/` | Protection de la clé par la session Windows (DPAPI) |
 
 ## Principes
 
 - Les données restent sur le poste, dans une base SQLite chiffrée par SQLCipher. Aucune connexion sortante sans action du praticien, aucun traceur.
 - Une clé de secours imprimable est remise au premier démarrage ; elle seule rouvre les sauvegardes sur un autre poste.
-- Le mot de passe à l'ouverture est facultatif et désactivé par défaut. Sans lui, le logiciel s'ouvre directement et l'écran est protégé par le verrouillage de Windows.
+- Le mot de passe à l'ouverture est facultatif et désactivé par défaut. Sans lui, la clé de la base est protégée par la session Windows (DPAPI) : le logiciel s'ouvre directement et l'écran est protégé par le verrouillage de Windows. Sous macOS et Linux, cette protection reste à écrire.
 - Les factures suivent une numérotation continue et chronologique ; une facture émise ne se modifie pas, elle se corrige par un avoir.
 - Tests, captures, rapports de problème et pièces jointes publiques n'utilisent que des exemples fictifs.
 
@@ -29,9 +30,11 @@ npm install
 npm run tauri dev               # l'application dans sa fenêtre
 npm run dev                     # l'interface seule, dans un navigateur
 npm test                        # tests de l'interface
-cargo test -p osteosphere-core  # tests du cœur
+cargo test -p osteosphere-core -p osteosphere-session  # tests du cœur
 npm run tauri build             # installateur pour le système courant
 ```
+
+Le cabinet est rangé dans `%LOCALAPPDATA%\fr.pierre-besnier.osteosphere\cabinet`. Pour un essai sans toucher à ce dossier, la variable `OSTEOSPHERE_DOSSIER` désigne un autre emplacement.
 
 Sous Windows, l'installateur ne demande pas de droits administrateur. La première compilation est longue : SQLCipher et OpenSSL sont compilés avec le logiciel, sans rien à installer à côté.
 

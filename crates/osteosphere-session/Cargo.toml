@@ -1,0 +1,15 @@
+[package]
+name = "osteosphere-session"
+description = "Protection d'une clé par la session de l'ordinateur (DPAPI sous Windows)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+zeroize = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }

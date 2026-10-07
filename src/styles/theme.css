@@ -263,3 +263,565 @@ h3 {
     padding: 20px 16px 40px;
   }
 }
+
+.point[data-etat="demo"] {
+  background: var(--accent-fonce);
+}
+
+.lecteur-seulement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Boutons et champs communs */
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--rayon);
+  border: 1px solid var(--bordure-champ);
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bouton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bouton-principal {
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  background: var(--accent);
+  font-weight: 700;
+}
+
+.bouton-plein {
+  width: 100%;
+}
+
+.lien-bouton {
+  border: 0;
+  background: none;
+  padding: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lien);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.champ-large {
+  grid-column: 1 / -1;
+}
+
+.champ label,
+.formulaire label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.obligatoire {
+  font-weight: 400;
+  color: var(--encre-discrete);
+}
+
+.champ input,
+.formulaire input {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 15px;
+}
+
+.champ input[aria-invalid="true"],
+.formulaire input[aria-invalid="true"] {
+  border: 2px solid #b4432f;
+}
+
+.champ-erreur {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8c2f25;
+}
+
+.champs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px 16px;
+}
+
+.alerte {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fbe3df;
+  color: #6f1f16;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.info {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--fond-barre);
+  color: var(--encre-2);
+  font-size: 14px;
+}
+
+.avertissement {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--rayon);
+  background: var(--alerte-fond);
+  color: #5e2f08;
+  font-size: 14px;
+}
+
+.case {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.case input,
+.carte-choix input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--accent-fonce);
+}
+
+.pile {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pile-serree {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rangee {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.etiquette {
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--fond-carte);
+  color: var(--encre-2);
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+
+/* Assistant de premier démarrage (maquette 13) */
+.assistant {
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.assistant-cote {
+  flex: 1 1 300px;
+  max-width: 100%;
+  background: var(--fond-barre);
+  border-right: 1px solid var(--bordure);
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.assistant-intro {
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--encre-2);
+}
+
+.assistant-intro strong {
+  font-size: 18px;
+  color: var(--encre);
+}
+
+.assistant-etapes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-etapes li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--rayon);
+  line-height: 1.3;
+}
+
+.assistant-etapes li > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-etapes li[data-etat="courant"] {
+  background: var(--fond-carte);
+  box-shadow: var(--ombre-legere);
+}
+
+.assistant-pastille {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  box-sizing: border-box;
+  border: 2px solid #9c8a72;
+  color: var(--encre-discrete);
+}
+
+.assistant-etapes li[data-etat="fait"] .assistant-pastille {
+  border: 0;
+  background: var(--encre);
+  color: #ffffff;
+}
+
+.assistant-etapes li[data-etat="courant"] .assistant-pastille {
+  border: 0;
+  background: var(--accent);
+  color: var(--encre);
+}
+
+.assistant-note {
+  margin: auto 0 0;
+  padding: 12px;
+  border-radius: var(--rayon);
+  background: var(--fond-discret);
+  font-size: 13px;
+  color: var(--encre-2);
+}
+
+.assistant-principal {
+  flex: 999 1 560px;
+  min-width: 0;
+  padding: 40px 48px 48px;
+}
+
+.assistant-contenu {
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.assistant-numero {
+  margin: 0 0 -14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--encre-discrete);
+}
+
+.assistant-titre {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.assistant-titre:focus {
+  outline: none;
+}
+
+.introduction {
+  margin: 0;
+  max-width: 640px;
+  font-size: 16px;
+  color: var(--encre-2);
+}
+
+.liste-points {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.groupe {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.groupe legend {
+  padding: 0;
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.choix-cartes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.choix-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.carte-choix {
+  flex: 1 1 260px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--bordure-champ);
+  background: var(--fond-carte);
+  font-size: 14px;
+  color: var(--encre-2);
+  cursor: pointer;
+}
+
+.carte-choix[data-coche="true"] {
+  border: 2px solid var(--accent);
+  background: var(--accent-doux);
+}
+
+.carte-choix[data-desactive="true"] {
+  border-style: dashed;
+  background: var(--fond);
+  cursor: not-allowed;
+}
+
+.carte-choix-titre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 15px;
+  color: var(--encre);
+}
+
+.cle-carte h2 {
+  font-size: 20px;
+}
+
+.cle-imprimable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 16px;
+  border: 2px dashed #d9cdba;
+  border-radius: 14px;
+  background: var(--fond);
+}
+
+.cle-valeur,
+.saisie-cle {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.cle-valeur {
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.assistant-ensuite {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--encre-discrete);
+}
+
+.assistant-actions .bouton-principal:only-child,
+.assistant-actions .bouton:first-child:nth-last-child(2) + .bouton-principal {
+  margin-left: auto;
+}
+
+/* Verrouillage et clé de secours (maquette 14) */
+.ecran-centre {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: #efe8dc;
+  color: var(--encre-2);
+}
+
+.carte-centrale {
+  width: 100%;
+  max-width: 460px;
+  background: var(--fond-carte);
+  border-radius: 24px;
+  padding: 40px 36px 28px;
+  box-shadow: 0 12px 40px rgba(51, 41, 31, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+  color: var(--encre);
+}
+
+.carte-centrale h1 {
+  font-size: 26px;
+}
+
+.marque-centree {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.discret-centre {
+  margin: 0;
+  color: var(--encre-2);
+}
+
+.formulaire {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.champ-avec-bouton {
+  display: flex;
+  align-items: center;
+  border: 2px solid var(--encre);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+}
+
+.champ-avec-bouton input {
+  flex: 1;
+  border: 0;
+  font-size: 17px;
+}
+
+/* Le contour de focus entoure le champ et son bouton, pas le seul champ. */
+.champ-avec-bouton:focus-within {
+  outline: 3px solid var(--accent-fonce);
+  outline-offset: 2px;
+}
+
+.champ-avec-bouton input:focus-visible {
+  outline: none;
+}
+
+.champ-avec-bouton input[aria-invalid="true"] {
+  border: 0;
+}
+
+.champ-avec-bouton:has(input[aria-invalid="true"]) {
+  border-color: #b4432f;
+}
+
+.bouton-icone {
+  flex: none;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-2);
+  cursor: pointer;
+}
+
+.saisie-cle {
+  font-size: 17px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .assistant-principal {
+    padding: 24px 16px 40px;
+  }
+
+  .carte-centrale {
+    padding: 28px 20px 20px;
+  }
+}
+
+/* Impression de la clé de secours : la clé seule, rien d'autre de l'écran. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .cle-imprimable,
+  .cle-imprimable * {
+    visibility: visible;
+  }
+
+  .cle-imprimable {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    border: 2px solid #000000;
+  }
+}

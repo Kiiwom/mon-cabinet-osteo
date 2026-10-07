@@ -2,7 +2,9 @@
 
 use std::path::Path;
 
-use rusqlite::{Connection, ErrorCode};
+use rusqlite::{Connection, ErrorCode, OptionalExtension};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use zeroize::Zeroizing;
 
 use crate::chiffrement::CleDonnees;
@@ -19,6 +21,8 @@ pub enum ErreurBase {
     SchemaFutur(i64),
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
+    #[error("paramètre illisible : {0}")]
+    Parametre(#[from] serde_json::Error),
 }
 
 pub struct Base {
@@ -56,6 +60,24 @@ impl Base {
 
     pub fn connexion_mut(&mut self) -> &mut Connection {
         &mut self.connexion
+    }
+
+    /// Enregistre un paramètre du cabinet, sérialisé en JSON.
+    pub fn ecrire_parametre<T: Serialize + ?Sized>(&self, cle: &str, valeur: &T) -> Result<(), ErreurBase> {
+        self.connexion.execute(
+            "INSERT INTO parametres (cle, valeur) VALUES (?1, ?2)
+             ON CONFLICT (cle) DO UPDATE SET valeur = excluded.valeur",
+            (cle, serde_json::to_string(valeur)?),
+        )?;
+        Ok(())
+    }
+
+    pub fn lire_parametre<T: DeserializeOwned>(&self, cle: &str) -> Result<Option<T>, ErreurBase> {
+        let texte: Option<String> = self
+            .connexion
+            .query_row("SELECT valeur FROM parametres WHERE cle = ?1", [cle], |ligne| ligne.get(0))
+            .optional()?;
+        Ok(texte.map(|t| serde_json::from_str(&t)).transpose()?)
     }
 
     fn migrer(&mut self) -> Result<(), ErreurBase> {
@@ -119,6 +141,16 @@ mod tests {
         let chemin = dossier.path().join("cabinet.osteosphere");
         Base::ouvrir(&chemin, &CleDonnees::generer().unwrap()).unwrap();
         assert!(matches!(Base::ouvrir(&chemin, &CleDonnees::generer().unwrap()), Err(ErreurBase::CleRefusee)));
+    }
+
+    #[test]
+    fn ecrit_et_relit_les_parametres() {
+        let dossier = tempfile::tempdir().unwrap();
+        let base = Base::ouvrir(&dossier.path().join("cabinet.osteosphere"), &CleDonnees::generer().unwrap()).unwrap();
+        assert_eq!(base.lire_parametre::<String>("trames.caractere").unwrap(), None);
+        base.ecrire_parametre("trames.caractere", "@").unwrap();
+        base.ecrire_parametre("trames.caractere", "/").unwrap();
+        assert_eq!(base.lire_parametre::<String>("trames.caractere").unwrap().as_deref(), Some("/"));
     }
 
     #[test]

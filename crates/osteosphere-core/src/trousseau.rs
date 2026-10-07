@@ -1,18 +1,37 @@
 //! Trousseau : les enveloppes de la clé de la base, rangées à côté d'elle dans un fichier JSON.
 //!
-//! La clé de secours scelle toujours une enveloppe ; le mot de passe, seulement s'il est activé.
-//! Sans mot de passe, la clé est confiée au coffre de la session de l'ordinateur (côté application) :
-//! le logiciel s'ouvre directement, et c'est un fonctionnement normal, pas un mode dégradé.
+//! La clé de secours scelle toujours une enveloppe. Ensuite, de deux choses l'une :
+//! - sans mot de passe (choix par défaut), la clé est confiée à la session de l'ordinateur
+//!   (DPAPI sous Windows) : le logiciel s'ouvre directement, c'est un fonctionnement normal ;
+//! - avec mot de passe, l'enveloppe de session est retirée : sans le mot de passe ou la clé de
+//!   secours, la base reste illisible.
+//!
 //! Activer, changer ou retirer le mot de passe ne touche jamais à la clé de la base.
 
 use std::io;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
-use crate::chiffrement::{self, CleDonnees, Enveloppe, ErreurChiffrement, ReglagesDerivation};
+use crate::chiffrement::{self, CleDonnees, Enveloppe, ErreurChiffrement, ReglagesDerivation, TAILLE_CLE};
 use crate::cle_de_secours::CleDeSecours;
-use crate::fichier;
+use crate::{fichier, hexa};
+
+/// Coffre de la session de l'ordinateur, fourni par l'application (DPAPI sous Windows).
+/// Ce qu'il protège ne se relit que dans la même session, sur le même poste.
+pub trait ProtectionSession {
+    /// Nom du mécanisme, gardé dans le trousseau : « dpapi » par exemple.
+    fn nom(&self) -> &'static str;
+    fn proteger(&self, donnees: &[u8]) -> Result<Vec<u8>, String>;
+    fn deproteger(&self, protege: &[u8]) -> Result<Zeroizing<Vec<u8>>, String>;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnveloppeSession {
+    pub protection: String,
+    pub donnees: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Trousseau {
@@ -20,6 +39,8 @@ pub struct Trousseau {
     pub secours: Enveloppe,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mot_de_passe: Option<Enveloppe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<EnveloppeSession>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -30,6 +51,10 @@ pub enum ErreurTrousseau {
     MotDePasseInactif,
     #[error("le mot de passe ne peut pas être vide")]
     MotDePasseVide,
+    #[error("la clé n'est pas confiée à la session de cet ordinateur")]
+    SessionAbsente,
+    #[error("la session de cet ordinateur ne peut pas relire la clé : {0}")]
+    Session(String),
     #[error("fichier du trousseau : {0}")]
     Fichier(#[from] io::Error),
     #[error("trousseau illisible : {0}")]
@@ -38,14 +63,19 @@ pub enum ErreurTrousseau {
 
 impl Trousseau {
     pub fn creer(cle: &CleDonnees, secours: &CleDeSecours, reglages: ReglagesDerivation) -> Result<Self, ErreurTrousseau> {
-        Ok(Self { version: 1, secours: chiffrement::sceller(cle, secours.secret(), reglages)?, mot_de_passe: None })
+        Ok(Self {
+            version: 1,
+            secours: chiffrement::sceller(cle, secours.secret(), reglages)?,
+            mot_de_passe: None,
+            session: None,
+        })
     }
 
     pub fn mot_de_passe_actif(&self) -> bool {
         self.mot_de_passe.is_some()
     }
 
-    /// Active ou change le mot de passe.
+    /// Active ou change le mot de passe. La clé n'est plus confiée à la session.
     pub fn definir_mot_de_passe(
         &mut self,
         cle: &CleDonnees,
@@ -56,11 +86,34 @@ impl Trousseau {
             return Err(ErreurTrousseau::MotDePasseVide);
         }
         self.mot_de_passe = Some(chiffrement::sceller(cle, mot_de_passe.as_bytes(), reglages)?);
+        self.session = None;
         Ok(())
     }
 
-    pub fn retirer_mot_de_passe(&mut self) {
+    /// Retire le mot de passe : la clé est de nouveau confiée à la session de l'ordinateur.
+    pub fn retirer_mot_de_passe(&mut self, cle: &CleDonnees, protection: &dyn ProtectionSession) -> Result<(), ErreurTrousseau> {
+        self.confier_a_la_session(cle, protection)?;
         self.mot_de_passe = None;
+        Ok(())
+    }
+
+    /// Confie la clé à la session de cet ordinateur, par exemple après une restauration sur un autre poste.
+    pub fn confier_a_la_session(&mut self, cle: &CleDonnees, protection: &dyn ProtectionSession) -> Result<(), ErreurTrousseau> {
+        let protege = protection.proteger(cle.octets()).map_err(ErreurTrousseau::Session)?;
+        self.session = Some(EnveloppeSession { protection: protection.nom().into(), donnees: hexa::encoder(&protege) });
+        Ok(())
+    }
+
+    pub fn ouvrir_avec_session(&self, protection: &dyn ProtectionSession) -> Result<CleDonnees, ErreurTrousseau> {
+        let enveloppe = self.session.as_ref().ok_or(ErreurTrousseau::SessionAbsente)?;
+        if enveloppe.protection != protection.nom() {
+            return Err(ErreurTrousseau::SessionAbsente);
+        }
+        let protege = hexa::decoder(&enveloppe.donnees).ok_or(ErreurTrousseau::Session("enveloppe abîmée".into()))?;
+        let clair = protection.deproteger(&protege).map_err(ErreurTrousseau::Session)?;
+        let octets: [u8; TAILLE_CLE] =
+            clair.as_slice().try_into().map_err(|_| ErreurTrousseau::Session("taille de clé".into()))?;
+        Ok(CleDonnees::depuis_octets(octets))
     }
 
     pub fn ouvrir_avec_secours(&self, secours: &CleDeSecours) -> Result<CleDonnees, ErreurTrousseau> {
@@ -82,6 +135,30 @@ impl Trousseau {
     }
 }
 
+/// Protection factice pour les tests : réversible, liée à un « poste » fictif.
+#[cfg(test)]
+pub(crate) struct SessionFactice(pub u8);
+
+#[cfg(test)]
+impl ProtectionSession for SessionFactice {
+    fn nom(&self) -> &'static str {
+        "factice"
+    }
+
+    fn proteger(&self, donnees: &[u8]) -> Result<Vec<u8>, String> {
+        let mut protege = vec![self.0];
+        protege.extend(donnees.iter().map(|o| o ^ 0x5a));
+        Ok(protege)
+    }
+
+    fn deproteger(&self, protege: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> {
+        match protege.split_first() {
+            Some((poste, reste)) if *poste == self.0 => Ok(Zeroizing::new(reste.iter().map(|o| o ^ 0x5a).collect())),
+            _ => Err("autre poste".into()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,23 +171,36 @@ mod tests {
     }
 
     #[test]
-    fn sans_mot_de_passe_par_defaut() {
-        let (cle, secours, trousseau) = trousseau();
+    fn sans_mot_de_passe_la_session_ouvre_la_base() {
+        let (cle, secours, mut trousseau) = trousseau();
+        trousseau.confier_a_la_session(&cle, &SessionFactice(1)).unwrap();
         assert!(!trousseau.mot_de_passe_actif());
+        assert_eq!(trousseau.ouvrir_avec_session(&SessionFactice(1)).unwrap().octets(), cle.octets());
         assert_eq!(trousseau.ouvrir_avec_secours(&secours).unwrap().octets(), cle.octets());
         assert!(matches!(trousseau.ouvrir_avec_mot_de_passe("x"), Err(ErreurTrousseau::MotDePasseInactif)));
     }
 
     #[test]
-    fn activer_puis_retirer_le_mot_de_passe_garde_la_meme_cle() {
+    fn un_autre_poste_ne_relit_pas_la_session() {
+        let (cle, _, mut trousseau) = trousseau();
+        trousseau.confier_a_la_session(&cle, &SessionFactice(1)).unwrap();
+        assert!(matches!(trousseau.ouvrir_avec_session(&SessionFactice(2)), Err(ErreurTrousseau::Session(_))));
+    }
+
+    #[test]
+    fn le_mot_de_passe_remplace_la_session_puis_la_rend() {
         let (cle, secours, mut trousseau) = trousseau();
+        trousseau.confier_a_la_session(&cle, &SessionFactice(1)).unwrap();
+
         trousseau.definir_mot_de_passe(&cle, "mot de passe fictif", ReglagesDerivation::pour_tests()).unwrap();
+        assert!(trousseau.session.is_none());
+        assert!(matches!(trousseau.ouvrir_avec_session(&SessionFactice(1)), Err(ErreurTrousseau::SessionAbsente)));
         assert_eq!(trousseau.ouvrir_avec_mot_de_passe("mot de passe fictif").unwrap().octets(), cle.octets());
         assert!(trousseau.ouvrir_avec_mot_de_passe("faux").is_err());
-        assert_eq!(trousseau.ouvrir_avec_secours(&secours).unwrap().octets(), cle.octets());
 
-        trousseau.retirer_mot_de_passe();
+        trousseau.retirer_mot_de_passe(&cle, &SessionFactice(1)).unwrap();
         assert!(!trousseau.mot_de_passe_actif());
+        assert_eq!(trousseau.ouvrir_avec_session(&SessionFactice(1)).unwrap().octets(), cle.octets());
         assert_eq!(trousseau.ouvrir_avec_secours(&secours).unwrap().octets(), cle.octets());
     }
 
@@ -126,7 +216,8 @@ mod tests {
 
     #[test]
     fn se_relit_depuis_le_disque() {
-        let (cle, secours, trousseau) = trousseau();
+        let (cle, secours, mut trousseau) = trousseau();
+        trousseau.confier_a_la_session(&cle, &SessionFactice(1)).unwrap();
         let dossier = tempfile::tempdir().unwrap();
         let chemin = dossier.path().join("trousseau.json");
         trousseau.enregistrer(&chemin).unwrap();

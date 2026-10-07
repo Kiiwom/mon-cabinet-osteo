@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { Ecran } from "../lib/navigation";
+import { Marque } from "./Marque";
 
 const TRAIT = {
   fill: "none",
@@ -91,9 +92,11 @@ const OUTILS: Entree[] = [
 interface Props {
   courant: Ecran;
   seancesAFacturer: number;
+  /** Faux dans le navigateur : les données sont fictives et rien n'est enregistré. */
+  donneesReelles: boolean;
 }
 
-export function BarreLaterale({ courant, seancesAFacturer }: Props) {
+export function BarreLaterale({ courant, seancesAFacturer, donneesReelles }: Props) {
   const lien = ({ ecran, libelle, icone }: Entree) => (
     <a
       key={ecran}
@@ -111,25 +114,13 @@ export function BarreLaterale({ courant, seancesAFacturer }: Props) {
 
   return (
     <nav className="barre" aria-label="Navigation principale">
-      <div className="marque">
-        <div className="marque-logo">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" {...TRAIT} stroke="#33291F">
-            <path d="M12 3c-3 3-3 6 0 9s3 6 0 9" />
-            <path d="M7 7h10" />
-            <path d="M7 17h10" />
-          </svg>
-        </div>
-        <div className="marque-nom">
-          <strong>Osteosphere</strong>
-          <span>logiciel libre</span>
-        </div>
-      </div>
+      <Marque />
       <div className="menu">{PRINCIPAL.map(lien)}</div>
       <div className="separateur" />
       <div className="menu">{OUTILS.map(lien)}</div>
       <div className="etat-sauvegarde">
-        <span className="point" />
-        <span>Prototype : aucune donnée enregistrée</span>
+        <span className="point" data-etat={donneesReelles ? "ok" : "demo"} />
+        <span>{donneesReelles ? "Cabinet chiffré sur cet ordinateur" : "Démonstration\u00a0: rien n’est enregistré"}</span>
       </div>
     </nav>
   );

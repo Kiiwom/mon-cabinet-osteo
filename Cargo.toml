@@ -1,5 +1,5 @@
 [workspace]
-members = ["src-tauri", "crates/osteosphere-core"]
+members = ["src-tauri", "crates/osteosphere-core", "crates/osteosphere-session"]
 resolver = "3"
 
 [workspace.package]
@@ -9,3 +9,19 @@ rust-version = "1.90"
 license = "GPL-3.0-or-later"
 authors = ["Pierre Besnier"]
 repository = "https://github.com/Kiiwom/mon-cabinet-osteo"
+
+# Le chiffrement reste rapide en développement (sinon Argon2 prend plusieurs secondes).
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+[profile.dev.package.chacha20poly1305]
+opt-level = 3
+
+[profile.dev.package.chacha20]
+opt-level = 3
+
+[profile.dev.package.poly1305]
+opt-level = 3
