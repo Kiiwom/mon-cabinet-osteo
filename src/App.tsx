@@ -24,6 +24,7 @@ import { PageModeles } from "./pages/Modeles";
 import { NouveauPatient } from "./pages/NouveauPatient";
 import { PageParametres } from "./pages/Parametres";
 import { PageCorbeille, PageSeances } from "./pages/Seances";
+import { PageStatistiques } from "./pages/Statistiques";
 import { PagePatients } from "./pages/Patients";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
@@ -255,6 +256,8 @@ function CabinetOuvert({
           <EcranParametres coeur={coeur} segments={segments} surRestauration={surRestauration} surVerrouillage={surVerrouillage} />
         ) : ecran === "facturation" ? (
           <EcranFacturation coeur={coeur} segments={segments} />
+        ) : ecran === "statistiques" ? (
+          <PageStatistiques coeur={coeur} />
         ) : ecran === "trames" ? (
           <Suspense fallback={<p className="page discret">Chargement des trames…</p>}>
             <PageTrames coeur={coeur} />

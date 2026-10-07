@@ -15,6 +15,7 @@
 //! - [`facturation`] : factures et avoirs numérotés, règlements, recettes.
 //! - [`sauvegardes`] : sauvegardes chiffrées, automatiques si quelque chose a changé, restauration.
 //! - [`export`] : export complet en CSV et JSON, journal consultable.
+//! - [`statistiques`] : chiffre d'affaires, activité et patientèle, comparés à l'année précédente.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -35,6 +36,7 @@ pub mod patients;
 pub mod prestations;
 pub mod sauvegardes;
 pub mod seances;
+pub mod statistiques;
 pub mod trames;
 pub mod trousseau;
 

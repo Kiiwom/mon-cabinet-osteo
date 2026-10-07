@@ -18,6 +18,7 @@ import type {
   SaisieReglement,
 } from "./facturation";
 import { document, resumer } from "./seances";
+import { calculerStatistiques, type BaseChiffre, type Statistiques } from "./statistiques";
 
 export interface IdentiteCabinet {
   prenom: string;
@@ -469,6 +470,8 @@ export interface Coeur {
   /** Export complet en clair (CSV et JSON) dans Documents › Osteosphere › Exports ; rend le dossier. */
   exporterTout(): Promise<string>;
   journal(limite: number, avant: number | null): Promise<LigneJournal[]>;
+  /** Dates comprises, comparées à la même période un an plus tôt. */
+  statistiques(du: string, au: string, base: BaseChiffre): Promise<Statistiques>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -582,6 +585,7 @@ export const coeurTauri: Coeur = {
   verrouiller: () => appeler("verrouiller"),
   exporterTout: () => appeler("exporter_tout"),
   journal: (limite, avant) => appeler("journal", { limite, avant }),
+  statistiques: (du, au, base) => appeler("statistiques", { du, au, base }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -1123,6 +1127,10 @@ export function creerCoeurDeDemonstration(
         ...seances.map((s, rang) => ({ id: 100 + rang, le: 1_790_000_000 + rang * 3_600, action: "seance.creee", entite: s.id })),
       ].sort((a, b) => b.id - a.id);
       return lignes.filter((l) => avant === null || l.id < avant).slice(0, limite);
+    },
+    async statistiques(du, au, base) {
+      const [recettes, factures] = await Promise.all([facturation.recettes("1900-01-01", "2999-12-31"), facturation.listerFactures("1900-01-01", "2999-12-31")]);
+      return calculerStatistiques({ patients, seances: seances.map(resumerDemo), antecedents, recettes, factures }, du, au, base);
     },
   };
 }

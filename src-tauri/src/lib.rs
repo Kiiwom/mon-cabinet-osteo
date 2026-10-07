@@ -7,6 +7,7 @@ mod parametres;
 mod patients;
 mod sauvegardes;
 mod seances;
+mod statistiques;
 mod trames;
 
 use std::path::PathBuf;
@@ -159,6 +160,7 @@ pub fn run() {
             sauvegardes::verrouiller,
             sauvegardes::exporter_tout,
             sauvegardes::journal,
+            statistiques::statistiques,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");
