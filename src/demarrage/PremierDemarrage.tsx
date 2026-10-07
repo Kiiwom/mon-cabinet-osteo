@@ -316,6 +316,32 @@ function Champ({
   );
 }
 
+/** Les champs de l'identité du cabinet, repris dans Paramètres › Cabinet. */
+export function ChampsIdentite({
+  identite,
+  erreurs,
+  changer,
+}: {
+  identite: IdentiteCabinet;
+  erreurs: ErreursIdentite;
+  changer: (champ: keyof IdentiteCabinet) => (valeur: string) => void;
+}) {
+  return (
+    <div className="champs">
+      <Champ libelle="Prénom" valeur={identite.prenom} changer={changer("prenom")} erreur={erreurs.prenom} autoComplete="given-name" obligatoire />
+      <Champ libelle="Nom" valeur={identite.nom} changer={changer("nom")} erreur={erreurs.nom} autoComplete="family-name" obligatoire />
+      <Champ libelle="Profession" valeur={identite.profession} changer={changer("profession")} large />
+      <Champ libelle="Adresse du cabinet" valeur={identite.adresse} changer={changer("adresse")} autoComplete="street-address" large />
+      <Champ libelle="Code postal" valeur={identite.code_postal} changer={changer("code_postal")} erreur={erreurs.code_postal} autoComplete="postal-code" />
+      <Champ libelle="Ville" valeur={identite.ville} changer={changer("ville")} autoComplete="address-level2" />
+      <Champ libelle="Téléphone" valeur={identite.telephone} changer={changer("telephone")} type="tel" autoComplete="tel" />
+      <Champ libelle="Email" valeur={identite.email} changer={changer("email")} erreur={erreurs.email} type="email" autoComplete="email" />
+      <Champ libelle="SIRET" valeur={identite.siret} changer={changer("siret")} erreur={erreurs.siret} aide="14 chiffres, espaces acceptés" />
+      <Champ libelle="Numéro RPPS" valeur={identite.rpps} changer={changer("rpps")} erreur={erreurs.rpps} aide="11 chiffres" />
+    </div>
+  );
+}
+
 function EtapeCabinet({
   identite,
   erreurs,
@@ -331,18 +357,7 @@ function EtapeCabinet({
         Ces informations figurent sur vos factures. Seuls le prénom et le nom sont nécessaires maintenant&nbsp;; le
         reste sera demandé avant la première facture.
       </p>
-      <div className="champs">
-        <Champ libelle="Prénom" valeur={identite.prenom} changer={changer("prenom")} erreur={erreurs.prenom} autoComplete="given-name" obligatoire />
-        <Champ libelle="Nom" valeur={identite.nom} changer={changer("nom")} erreur={erreurs.nom} autoComplete="family-name" obligatoire />
-        <Champ libelle="Profession" valeur={identite.profession} changer={changer("profession")} large />
-        <Champ libelle="Adresse du cabinet" valeur={identite.adresse} changer={changer("adresse")} autoComplete="street-address" large />
-        <Champ libelle="Code postal" valeur={identite.code_postal} changer={changer("code_postal")} erreur={erreurs.code_postal} autoComplete="postal-code" />
-        <Champ libelle="Ville" valeur={identite.ville} changer={changer("ville")} autoComplete="address-level2" />
-        <Champ libelle="Téléphone" valeur={identite.telephone} changer={changer("telephone")} type="tel" autoComplete="tel" />
-        <Champ libelle="Email" valeur={identite.email} changer={changer("email")} erreur={erreurs.email} type="email" autoComplete="email" />
-        <Champ libelle="SIRET" valeur={identite.siret} changer={changer("siret")} erreur={erreurs.siret} aide="14 chiffres, espaces acceptés" />
-        <Champ libelle="Numéro RPPS" valeur={identite.rpps} changer={changer("rpps")} erreur={erreurs.rpps} aide="11 chiffres" />
-      </div>
+      <ChampsIdentite identite={identite} erreurs={erreurs} changer={changer} />
     </div>
   );
 }

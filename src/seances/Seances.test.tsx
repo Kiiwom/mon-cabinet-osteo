@@ -75,18 +75,27 @@ describe("séances", () => {
 
   it("met une séance à la corbeille puis la restaure", async () => {
     await demarrer();
+    await aller("#/seances/seance-5");
+    await screen.findByRole("heading", { name: "Séance du samedi 3 octobre 2026" });
+    fireEvent.click(screen.getByRole("button", { name: "Autres actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mettre la séance à la corbeille" }));
+    const liste = await screen.findByRole("region", { name: "Séances du dossier" });
+    expect(within(liste).queryByText("Bilan postural, scoliose à surveiller")).not.toBeInTheDocument();
+
+    await aller("#/seances/corbeille");
+    const corbeille = await screen.findByRole("region", { name: "Séances à la corbeille" });
+    expect(within(corbeille).getByText(/Bilan postural, scoliose à surveiller/)).toBeInTheDocument();
+    fireEvent.click(within(corbeille).getByRole("button", { name: "Restaurer" }));
+    expect(await within(corbeille).findByText("La corbeille est vide.")).toBeInTheDocument();
+  });
+
+  it("garde une séance facturée hors de la corbeille", async () => {
+    await demarrer();
     await aller("#/seances/seance-2");
     await screen.findByRole("heading", { name: "Séance du vendredi 3 juillet 2026" });
     fireEvent.click(screen.getByRole("button", { name: "Autres actions" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Mettre la séance à la corbeille" }));
-    const liste = await screen.findByRole("region", { name: "Séances du dossier" });
-    expect(within(liste).queryByText("Cervicalgie, céphalées de tension")).not.toBeInTheDocument();
-
-    await aller("#/seances/corbeille");
-    const corbeille = await screen.findByRole("region", { name: "Séances à la corbeille" });
-    expect(within(corbeille).getByText(/Cervicalgie, céphalées de tension/)).toBeInTheDocument();
-    fireEvent.click(within(corbeille).getByRole("button", { name: "Restaurer" }));
-    expect(await within(corbeille).findByText("La corbeille est vide.")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Cette séance a été facturée");
   });
 
   it("liste les séances d'une période, par jour, avec filtres et recherche", async () => {

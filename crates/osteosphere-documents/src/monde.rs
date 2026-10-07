@@ -74,8 +74,8 @@ fn messages(diagnostics: impl IntoIterator<Item = SourceDiagnostic>) -> ErreurMi
     ErreurMiseEnPage::Typst(diagnostics.into_iter().map(|d| d.message.to_string()).collect::<Vec<_>>().join(" ; "))
 }
 
-/// Compose le modèle avec ses données (un document JSON) et rend le PDF.
-pub fn pdf(modele: &str, donnees_json: String) -> Result<Vec<u8>, ErreurMiseEnPage> {
+/// Compose le modèle avec ses données (un document JSON).
+fn composer(modele: &str, donnees_json: String) -> Result<PagedDocument, ErreurMiseEnPage> {
     let mut entrees = Dict::new();
     entrees.insert("donnees".into(), donnees_json.into_value());
     let chemin = VirtualPath::new("/modele.typ").map_err(|e| ErreurMiseEnPage::Typst(format!("{e:?}")))?;
@@ -85,6 +85,16 @@ pub fn pdf(modele: &str, donnees_json: String) -> Result<Vec<u8>, ErreurMiseEnPa
         principal,
         source: Source::new(principal, modele.to_owned()),
     };
-    let document: PagedDocument = typst::compile(&monde).output.map_err(messages)?;
-    typst_pdf::pdf(&document, &PdfOptions::default()).map_err(messages)
+    typst::compile(&monde).output.map_err(messages)
+}
+
+/// Le PDF du modèle composé avec ses données.
+pub fn pdf(modele: &str, donnees_json: String) -> Result<Vec<u8>, ErreurMiseEnPage> {
+    typst_pdf::pdf(&composer(modele, donnees_json)?, &PdfOptions::default()).map_err(messages)
+}
+
+/// Une image SVG par page, pour l'aperçu dans l'application : texte vectorisé, sans lecteur PDF.
+pub fn svg(modele: &str, donnees_json: String) -> Result<Vec<String>, ErreurMiseEnPage> {
+    let document = composer(modele, donnees_json)?;
+    Ok(document.pages().iter().map(|page| typst_svg::svg(page, &typst_svg::SvgOptions::default())).collect())
 }

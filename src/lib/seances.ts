@@ -152,6 +152,7 @@ export function resumer(
     facturation: seance.facturation,
     commentaire_gratuit: seance.commentaire_gratuit,
     supprimee_le: seance.supprimee_le,
+    facture: null,
   };
 }
 

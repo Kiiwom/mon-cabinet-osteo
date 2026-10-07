@@ -7,5 +7,5 @@ pub mod facture;
 mod format;
 mod monde;
 
-pub use facture::{ErreurDocument, Filigrane, exemple, facture_pdf};
+pub use facture::{ErreurDocument, Filigrane, exemple, facture_pdf, facture_svg};
 pub use format::euros;

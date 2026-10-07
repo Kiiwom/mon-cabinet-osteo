@@ -5,6 +5,7 @@ import type { Antecedent, CategorieAntecedents, CaractereTrames, Coeur, Definiti
 import { dateCourte, ecrireDateFr, lireDateFr } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
 import { estVide, evolutionDouleur, jourEnLettres, TYPES_SEANCE } from "../lib/seances";
+import { FinDeSeance } from "../facturation/FinDeSeance";
 import { Avatar } from "../patients/Avatar";
 import { ChampSeance, type ContexteSaisie } from "../seances/ChampSeance";
 import type { TrameResume } from "../trames/valider";
@@ -211,52 +212,6 @@ function SeancesPrecedentes({
   );
 }
 
-function FinDeSeance({
-  saisie,
-  changer,
-  manquants,
-}: {
-  saisie: SaisieSeance;
-  changer: (s: SaisieSeance) => void;
-  manquants: string[];
-}) {
-  const id = useId();
-  return (
-    <section className="carte" aria-labelledby={`${id}-titre`}>
-      <div className="entete-carte">
-        <h2 id={`${id}-titre`}>Fin de séance</h2>
-        <label className="case-simple">
-          <input
-            type="checkbox"
-            checked={saisie.facturation === "a_facturer"}
-            onChange={(e) => changer({ ...saisie, facturation: e.target.checked ? "a_facturer" : "gratuit" })}
-          />
-          Facturer
-        </label>
-      </div>
-      {saisie.facturation === "gratuit" ? (
-        <div className="champ">
-          <label htmlFor={`${id}-commentaire`}>Acte gratuit : commentaire</label>
-          <textarea
-            id={`${id}-commentaire`}
-            className="zone-texte"
-            rows={2}
-            value={saisie.commentaire_gratuit}
-            onChange={(e) => changer({ ...saisie, commentaire_gratuit: e.target.value })}
-          />
-        </div>
-      ) : (
-        <p className="discret">Séance à facturer. La prestation, le règlement et la facture arrivent avec la phase 4.</p>
-      )}
-      {manquants.length > 0 && (
-        <p className="avertissement">
-          À compléter avant de terminer : {manquants.join(", ")}.
-        </p>
-      )}
-    </section>
-  );
-}
-
 export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
   const idTitre = useId();
   const [seance, setSeance] = useState<Seance | null>(null);
@@ -275,6 +230,7 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
   const [date, setDate] = useState("");
   const [heure, setHeure] = useState("");
   const [menu, setMenu] = useState(false);
+  const [erreurAction, setErreurAction] = useState<string | null>(null);
   const { etat, planifier, envoyer } = useEnregistrementAuto(coeur, id);
 
   useEffect(() => {
@@ -357,9 +313,15 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
   };
 
   async function corbeille() {
-    await envoyer();
-    await coeur.supprimerSeance(id);
-    aller("patients", patient!.id, "seances");
+    setMenu(false);
+    setErreurAction(null);
+    try {
+      await envoyer();
+      await coeur.supprimerSeance(id);
+      aller("patients", patient!.id, "seances");
+    } catch (e) {
+      setErreurAction((e as Error).message);
+    }
   }
 
   const dateSeance = saisie.debut.slice(0, 10);
@@ -412,6 +374,12 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
           </div>
         </div>
       </section>
+
+      {erreurAction && (
+        <p className="alerte" role="alert">
+          {erreurAction}
+        </p>
+      )}
 
       <div className="colonnes-seance">
         <section className="carte saisie-seance" aria-labelledby={idTitre}>
@@ -486,7 +454,15 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
         </section>
 
         <div className="pile">
-          <FinDeSeance saisie={saisie} changer={changer} manquants={manquants} />
+          <FinDeSeance
+            coeur={coeur}
+            seanceId={id}
+            patient={patient}
+            saisie={saisie}
+            changer={changer}
+            manquants={manquants}
+            avantFacturer={envoyer}
+          />
           <Reperes patient={patient} antecedents={antecedents} formulaire={formulaire} />
           <SeancesPrecedentes coeur={coeur} patient={patient} precedentes={precedentes} definition={definition} reprendre={reprendre} />
         </div>

@@ -4,11 +4,14 @@ import { BarreLaterale } from "./composants/BarreLaterale";
 import { SaisieCleDeSecours, Verrouillage } from "./demarrage/EcransOuverture";
 import { PremierDemarrage } from "./demarrage/PremierDemarrage";
 import { coeurParDefaut, type Coeur, type IdentiteCabinet } from "./lib/coeur";
+import { surFacturation } from "./lib/facturation";
 import { useAdresse, type Ecran } from "./lib/navigation";
 import { Accueil } from "./pages/Accueil";
 import { DossierPatient, ongletDepuis } from "./pages/Dossier";
 import { EcranAVenir } from "./pages/EcranAVenir";
-import { PageFacturation } from "./pages/Facturation";
+import { ongletFacturation, PageFacturation } from "./pages/Facturation";
+import { PageFacture, PageNouvelleFacture } from "./pages/Facture";
+import { PageParametresCabinet, PageParametresFacturation } from "./pages/ParametresFacturation";
 import { PageModeles } from "./pages/Modeles";
 import { NouveauPatient } from "./pages/NouveauPatient";
 import { PageParametres } from "./pages/Parametres";
@@ -109,11 +112,46 @@ function EcranPatients({ coeur, segments }: { coeur: Coeur; segments: string[] }
   return <PagePatients coeur={coeur} />;
 }
 
+function EcranFacturation({ coeur, segments }: { coeur: Coeur; segments: string[] }) {
+  const [, page, id, mode] = segments;
+  if (page === "facture" && id) return <PageFacture key={`${id}-${mode ?? ""}`} coeur={coeur} id={id} mode={mode} />;
+  if (page === "nouvelle") return <PageNouvelleFacture coeur={coeur} />;
+  return <PageFacturation coeur={coeur} onglet={ongletFacturation(page)} />;
+}
+
+function EcranParametres({ coeur, segments }: { coeur: Coeur; segments: string[] }) {
+  switch (segments[1]) {
+    case "modeles":
+      return <PageModeles coeur={coeur} />;
+    case "cabinet":
+      return <PageParametresCabinet coeur={coeur} />;
+    case "facturation":
+      return <PageParametresFacturation coeur={coeur} />;
+    default:
+      return <PageParametres />;
+  }
+}
+
+/** Nombre de séances à facturer, pour la barre latérale : relu à chaque changement d'écran. */
+function useSeancesAFacturer(coeur: Coeur, adresse: string): number {
+  const [nombre, setNombre] = useState(0);
+  const [version, setVersion] = useState(0);
+  useEffect(() => surFacturation(() => setVersion((v) => v + 1)), []);
+  useEffect(() => {
+    coeur.seancesAFacturer().then(
+      (s) => setNombre(s.filter((x) => !x.facture).length),
+      () => undefined,
+    );
+  }, [coeur, adresse, version]);
+  return nombre;
+}
+
 function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Coeur }) {
   const { ecran, segments } = useAdresse();
+  const aFacturer = useSeancesAFacturer(coeur, segments.join("/"));
   return (
     <div className="coque">
-      <BarreLaterale courant={ecran} seancesAFacturer={0} donneesReelles={coeur.reel} />
+      <BarreLaterale courant={ecran} seancesAFacturer={aFacturer} donneesReelles={coeur.reel} />
       <div className="contenu">
         {ecran === "accueil" ? (
           <Accueil cabinet={cabinet} />
@@ -130,9 +168,9 @@ function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Co
             <PageSeances coeur={coeur} />
           )
         ) : ecran === "parametres" ? (
-          segments[1] === "modeles" ? <PageModeles coeur={coeur} /> : <PageParametres />
+          <EcranParametres coeur={coeur} segments={segments} />
         ) : ecran === "facturation" ? (
-          <PageFacturation coeur={coeur} />
+          <EcranFacturation coeur={coeur} segments={segments} />
         ) : ecran === "trames" ? (
           <Suspense fallback={<p className="page discret">Chargement des trames…</p>}>
             <PageTrames coeur={coeur} />

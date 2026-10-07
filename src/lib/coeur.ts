@@ -3,6 +3,20 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
 import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
 import modelesFournis from "../../crates/osteosphere-core/src/modeles_fournis.json";
+import { creerFacturationDeDemonstration } from "./demoFacturation";
+import type {
+  EvenementFacture,
+  Facture,
+  FactureDeSeance,
+  LigneFacture,
+  LigneRecette,
+  Prestation,
+  ReglagesNumerotation,
+  ResumeFacture,
+  SaisieFacture,
+  SaisiePrestation,
+  SaisieReglement,
+} from "./facturation";
 import { document, resumer } from "./seances";
 
 export interface IdentiteCabinet {
@@ -282,6 +296,8 @@ export interface ResumeSeance {
   facturation: Facturation;
   commentaire_gratuit: string;
   supprimee_le: number | null;
+  /** Brouillon ou facture émise, ni annulée ni corrigée. */
+  facture: FactureDeSeance | null;
 }
 
 /** Les champs tels qu'écrits dans un fichier : les réglages absents prennent leur valeur habituelle. */
@@ -311,9 +327,11 @@ export interface Coeur {
   supprimerTrame(id: string): Promise<void>;
   noterUtilisationTrame(id: string): Promise<void>;
   caractereTrames(): Promise<CaractereTrames>;
-  /** Facture d'essai en PDF, à la date locale `AAAA-MM-JJ`. */
-  factureEssaiPdf(date: string): Promise<Uint8Array>;
+  /** Pages SVG de la facture d'essai, à la date locale `AAAA-MM-JJ`. */
+  apercuFactureEssai(date: string): Promise<string[]>;
   ouvrirFactureEssai(date: string): Promise<void>;
+  identiteCabinet(): Promise<IdentiteCabinet>;
+  enregistrerIdentiteCabinet(identite: IdentiteCabinet): Promise<IdentiteCabinet>;
   listerPatients(): Promise<ResumePatient[]>;
   lirePatient(id: string): Promise<Patient>;
   creerPatient(fiche: FichePatient): Promise<Patient>;
@@ -338,6 +356,44 @@ export interface Coeur {
   supprimerSeance(id: string): Promise<void>;
   restaurerSeance(id: string): Promise<Seance>;
   corbeilleSeances(): Promise<ResumeSeance[]>;
+  listerPrestations(): Promise<Prestation[]>;
+  enregistrerPrestation(id: string | null, saisie: SaisiePrestation): Promise<Prestation>;
+  reglagesNumerotation(): Promise<ReglagesNumerotation>;
+  enregistrerReglagesNumerotation(reglages: ReglagesNumerotation): Promise<ReglagesNumerotation>;
+  /** Numéro qu'aurait la prochaine facture émise à cette date, sans le réserver. */
+  numeroSuivant(date: string): Promise<string>;
+  lireFacture(id: string): Promise<Facture>;
+  creerFacture(saisie: SaisieFacture): Promise<Facture>;
+  modifierFacture(id: string, saisie: SaisieFacture): Promise<Facture>;
+  annoterFacture(id: string, commentaire: string): Promise<Facture>;
+  supprimerBrouillon(id: string): Promise<void>;
+  emettreFacture(id: string, date: string): Promise<Facture>;
+  /** Fin de séance : facture émise en une fois, avec le règlement s'il est reçu. */
+  facturerSeance(seanceId: string, lignes: LigneFacture[], reglement: SaisieReglement | null, date: string): Promise<Facture>;
+  /** Plusieurs séances, avec la prestation par défaut ; le montant du règlement est celui de chaque facture. */
+  facturerSeances(seances: string[], reglement: SaisieReglement | null, date: string): Promise<Facture[]>;
+  /** Avoir et facture rectificative : rend la facture rectificative. */
+  corrigerFacture(id: string, saisie: SaisieFacture, date: string): Promise<Facture>;
+  /** Avoir total : rend l'avoir. */
+  annulerFacture(id: string, date: string): Promise<Facture>;
+  ajouterReglement(factureId: string, saisie: SaisieReglement): Promise<Facture>;
+  modifierReglement(id: string, saisie: SaisieReglement): Promise<Facture>;
+  supprimerReglement(id: string): Promise<Facture>;
+  listerFactures(du: string, au: string): Promise<ResumeFacture[]>;
+  facturesEnAttente(): Promise<ResumeFacture[]>;
+  facturesPatient(patientId: string): Promise<ResumeFacture[]>;
+  factureDeSeance(seanceId: string): Promise<Facture | null>;
+  historiqueFacture(id: string): Promise<EvenementFacture[]>;
+  recettes(du: string, au: string): Promise<LigneRecette[]>;
+  seancesAFacturer(): Promise<ResumeSeance[]>;
+  /** Pages SVG de la facture, pour l'aperçu. */
+  apercuFacture(id: string): Promise<string[]>;
+  /** Range le PDF dans Documents › Osteosphere › Factures ; rend son chemin. */
+  enregistrerFacturePdf(id: string): Promise<string>;
+  imprimerFacture(id: string): Promise<void>;
+  preparerEmailFacture(id: string, email: string): Promise<string>;
+  /** Écrit un fichier dans Documents › Osteosphere › Exports ; rend son chemin. */
+  exporterFichier(nom: string, contenu: string): Promise<string>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -380,8 +436,10 @@ export const coeurTauri: Coeur = {
   supprimerTrame: (id) => appeler("supprimer_trame", { id }),
   noterUtilisationTrame: (id) => appeler("noter_utilisation_trame", { id }),
   caractereTrames: () => appeler("caractere_trames"),
-  factureEssaiPdf: async (date) => new Uint8Array(await appeler<ArrayBuffer>("facture_essai_pdf", { date })),
+  apercuFactureEssai: (date) => appeler("apercu_facture_essai", { date }),
   ouvrirFactureEssai: (date) => appeler("ouvrir_facture_essai", { date }),
+  identiteCabinet: () => appeler("identite_cabinet"),
+  enregistrerIdentiteCabinet: (identite) => appeler("enregistrer_identite_cabinet", { identite }),
   listerPatients: () => appeler("lister_patients"),
   lirePatient: (id) => appeler("lire_patient", { id }),
   creerPatient: (fiche) => appeler("creer_patient", { fiche }),
@@ -404,6 +462,36 @@ export const coeurTauri: Coeur = {
   supprimerSeance: (id) => appeler("supprimer_seance", { id }),
   restaurerSeance: (id) => appeler("restaurer_seance", { id }),
   corbeilleSeances: () => appeler("corbeille_seances"),
+  listerPrestations: () => appeler("lister_prestations"),
+  enregistrerPrestation: (id, saisie) => appeler("enregistrer_prestation", { id, saisie }),
+  reglagesNumerotation: () => appeler("reglages_numerotation"),
+  enregistrerReglagesNumerotation: (reglages) => appeler("enregistrer_reglages_numerotation", { reglages }),
+  numeroSuivant: (date) => appeler("numero_suivant", { date }),
+  lireFacture: (id) => appeler("lire_facture", { id }),
+  creerFacture: (saisie) => appeler("creer_facture", { saisie }),
+  modifierFacture: (id, saisie) => appeler("modifier_facture", { id, saisie }),
+  annoterFacture: (id, commentaire) => appeler("annoter_facture", { id, commentaire }),
+  supprimerBrouillon: (id) => appeler("supprimer_brouillon", { id }),
+  emettreFacture: (id, date) => appeler("emettre_facture", { id, date }),
+  facturerSeance: (seanceId, lignes, reglement, date) => appeler("facturer_seance", { seanceId, lignes, reglement, date }),
+  facturerSeances: (seances, reglement, date) => appeler("facturer_seances", { seances, reglement, date }),
+  corrigerFacture: (id, saisie, date) => appeler("corriger_facture", { id, saisie, date }),
+  annulerFacture: (id, date) => appeler("annuler_facture", { id, date }),
+  ajouterReglement: (factureId, saisie) => appeler("ajouter_reglement", { factureId, saisie }),
+  modifierReglement: (id, saisie) => appeler("modifier_reglement", { id, saisie }),
+  supprimerReglement: (id) => appeler("supprimer_reglement", { id }),
+  listerFactures: (du, au) => appeler("lister_factures", { du, au }),
+  facturesEnAttente: () => appeler("factures_en_attente"),
+  facturesPatient: (patientId) => appeler("factures_patient", { patientId }),
+  factureDeSeance: (seanceId) => appeler("facture_de_seance", { seanceId }),
+  historiqueFacture: (id) => appeler("historique_facture", { id }),
+  recettes: (du, au) => appeler("recettes", { du, au }),
+  seancesAFacturer: () => appeler("seances_a_facturer"),
+  apercuFacture: (id) => appeler("apercu_facture", { id }),
+  enregistrerFacturePdf: (id) => appeler("enregistrer_facture_pdf", { id }),
+  imprimerFacture: (id) => appeler("imprimer_facture", { id }),
+  preparerEmailFacture: (id, email) => appeler("preparer_email_facture", { id, email }),
+  exporterFichier: (nom, contenu) => appeler("exporter_fichier", { nom, contenu }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -484,7 +572,20 @@ export function creerCoeurDeDemonstration(
 ): Coeur {
   let etat = depart;
   let motDePasse: string | null = depart === "mot_de_passe_requis" ? "motdepasse" : null;
-  let identite: IdentiteCabinet = { ...IDENTITE_VIDE, prenom: "Alexandre", nom: "Roux" };
+  let identite: IdentiteCabinet = exemples
+    ? {
+        ...IDENTITE_VIDE,
+        prenom: "Alexandre",
+        nom: "Roux",
+        adresse: "12 place de la Halle",
+        code_postal: "47150",
+        ville: "Lacapelle-Biron",
+        telephone: "06 00 00 00 00",
+        email: "cabinet@exemple.fr",
+        siret: "12345678900012",
+        rpps: "10000000000",
+      }
+    : { ...IDENTITE_VIDE, prenom: "Alexandre", nom: "Roux" };
   let caractere: CaractereTrames = "@";
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
@@ -536,10 +637,25 @@ export function creerCoeurDeDemonstration(
     if (!seance) throw new Error("Cette séance n’existe plus");
     return seance;
   };
-  const resumerDemo = (s: Seance) => {
+  const facturation = creerFacturationDeDemonstration(
+    {
+      patient: (id) => {
+        const patient = patients.find((p) => p.id === id);
+        if (!patient) throw new Error("Ce dossier n’existe plus");
+        return patient;
+      },
+      seance: (id) => seances.find((s) => s.id === id),
+      identite: () => identite,
+    },
+    exemples,
+  );
+  const resumerDemo = (s: Seance): ResumeSeance => {
     const patient = patients.find((p) => p.id === s.patient_id) ?? { nom: "", prenom: "" };
     const modele = modeles.find((m) => m.id === s.modele_id);
-    return resumer(s, patient, versions.get(`${s.modele_id}@${s.modele_version}`) ?? null, modele?.nom ?? "");
+    return {
+      ...resumer(s, patient, versions.get(`${s.modele_id}@${s.modele_version}`) ?? null, modele?.nom ?? ""),
+      facture: facturation.factureDeSeanceResumee(s.id),
+    };
   };
   const listerDemo = (garder: (s: Seance) => boolean) =>
     seances
@@ -629,11 +745,24 @@ export function creerCoeurDeDemonstration(
     async caractereTrames() {
       return caractere;
     },
-    async factureEssaiPdf() {
-      throw new Error("La facture PDF est mise en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour l’essayer.");
+    async apercuFactureEssai() {
+      throw new Error(SANS_PDF);
     },
     async ouvrirFactureEssai() {
-      throw new Error("La facture PDF est mise en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour l’essayer.");
+      throw new Error(SANS_PDF);
+    },
+    async identiteCabinet() {
+      return { ...identite };
+    },
+    async enregistrerIdentiteCabinet(saisie) {
+      if (!saisie.prenom.trim() || !saisie.nom.trim()) throw new Error("Indiquez votre prénom et votre nom");
+      const chiffres = (t: string) => t.replace(/\s/g, "");
+      const propre = { ...saisie, siret: chiffres(saisie.siret), rpps: chiffres(saisie.rpps), code_postal: chiffres(saisie.code_postal) };
+      if (propre.siret && !/^\d{14}$/.test(propre.siret)) throw new Error("Le SIRET compte 14 chiffres");
+      if (propre.rpps && !/^\d{11}$/.test(propre.rpps)) throw new Error("Le numéro RPPS compte 11 chiffres");
+      if (propre.code_postal && !/^\d{5}$/.test(propre.code_postal)) throw new Error("Le code postal compte 5 chiffres");
+      identite = propre;
+      return { ...identite };
     },
     async listerPatients() {
       return patients
@@ -729,6 +858,8 @@ export function creerCoeurDeDemonstration(
     async enregistrerSeance(id, saisie) {
       const avant = trouverSeance(id);
       if (avant.supprimee_le !== null) throw new Error("Cette séance est à la corbeille : restaurez-la pour la modifier");
+      if (saisie.facturation === "gratuit" && avant.facturation !== "gratuit" && facturation.factureDeSeanceResumee(id))
+        throw new Error("Cette séance a une facture : annulez-la par un avoir avant d’en faire un acte gratuit");
       const apres: Seance = { ...avant, ...verifierSeance(saisie) };
       seances = seances.map((s) => (s.id === id ? apres : s));
       return structuredClone(apres);
@@ -741,6 +872,8 @@ export function creerCoeurDeDemonstration(
     },
     async supprimerSeance(id) {
       trouverSeance(id);
+      if (facturation.seanceFacturee(id)) throw new Error("Cette séance a été facturée : elle reste dans le dossier, avec ses factures");
+      facturation.supprimerBrouillonsDeSeance(id);
       seances = seances.map((s) => (s.id === id ? { ...s, supprimee_le: Math.floor(Date.now() / 1000) } : s));
     },
     async restaurerSeance(id) {
@@ -756,8 +889,60 @@ export function creerCoeurDeDemonstration(
       modeles = modeles.map((m) => ({ ...m, par_defaut: m.id === id }));
       return trouverModele(id);
     },
+    listerPrestations: facturation.listerPrestations,
+    enregistrerPrestation: facturation.enregistrerPrestation,
+    reglagesNumerotation: facturation.reglagesNumerotation,
+    enregistrerReglagesNumerotation: facturation.enregistrerReglagesNumerotation,
+    numeroSuivant: facturation.numeroSuivant,
+    lireFacture: facturation.lireFacture,
+    creerFacture: facturation.creerFacture,
+    modifierFacture: facturation.modifierFacture,
+    annoterFacture: facturation.annoterFacture,
+    supprimerBrouillon: facturation.supprimerBrouillon,
+    emettreFacture: facturation.emettreFacture,
+    facturerSeance: facturation.facturerSeance,
+    facturerSeances: facturation.facturerSeances,
+    corrigerFacture: facturation.corrigerFacture,
+    annulerFacture: facturation.annulerFacture,
+    ajouterReglement: facturation.ajouterReglement,
+    modifierReglement: facturation.modifierReglement,
+    supprimerReglement: facturation.supprimerReglement,
+    listerFactures: facturation.listerFactures,
+    facturesEnAttente: facturation.facturesEnAttente,
+    facturesPatient: facturation.facturesPatient,
+    factureDeSeance: facturation.factureDeSeance,
+    historiqueFacture: facturation.historiqueFacture,
+    recettes: facturation.recettes,
+    async seancesAFacturer() {
+      return listerDemo((s) => s.supprimee_le === null && s.facturation === "a_facturer").filter((s) => !s.facture || s.facture.numero === null);
+    },
+    async apercuFacture() {
+      throw new Error(SANS_PDF);
+    },
+    async enregistrerFacturePdf() {
+      throw new Error(SANS_PDF);
+    },
+    async imprimerFacture() {
+      throw new Error(SANS_PDF);
+    },
+    async preparerEmailFacture() {
+      throw new Error(SANS_PDF);
+    },
+    async exporterFichier(nom, contenu) {
+      // Dans un navigateur, l'export devient un téléchargement.
+      if (typeof URL.createObjectURL === "function") {
+        const lien = window.document.createElement("a");
+        lien.href = URL.createObjectURL(new Blob([contenu], { type: "text/csv;charset=utf-8" }));
+        lien.download = nom;
+        lien.click();
+        URL.revokeObjectURL(lien.href);
+      }
+      return `Téléchargements/${nom}`;
+    },
   };
 }
+
+const SANS_PDF = "Les factures PDF sont mises en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour les voir.";
 
 export function coeurParDefaut(): Coeur {
   return isTauri() ? coeurTauri : creerCoeurDeDemonstration();

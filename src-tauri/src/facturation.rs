@@ -10,9 +10,8 @@ use osteosphere_core::facturation::{
 };
 use osteosphere_core::prestations::{self, Prestation, SaisiePrestation};
 use osteosphere_core::seances::{self, ResumeSeance};
-use osteosphere_documents::{Filigrane, facture_pdf};
+use osteosphere_documents::{Filigrane, facture_pdf, facture_svg};
 use tauri::State;
-use tauri::ipc::Response;
 
 use crate::demarrage::{EtatCabinet, message};
 
@@ -176,8 +175,8 @@ pub fn seances_a_facturer(etat: State<'_, Arc<EtatCabinet>>) -> Result<Vec<Resum
     etat.avec_base(|base| seances::lister_a_facturer(base).map_err(message))
 }
 
-/// La facture et son PDF : l'identité gardée à l'émission, celle du jour pour un brouillon.
-fn pdf_de(etat: &EtatCabinet, id: &str) -> Result<(Facture, Vec<u8>), String> {
+/// La facture et l'identité qui s'y imprime : celle gardée à l'émission, celle du jour pour un brouillon.
+fn a_imprimer(etat: &EtatCabinet, id: &str) -> Result<(Facture, IdentiteCabinet, Option<Filigrane>), String> {
     let (facture, actuelle) = etat.avec_base(|base| {
         let facture = facturation::lire(base, id).map_err(message)?;
         let actuelle: IdentiteCabinet = base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default();
@@ -188,6 +187,11 @@ fn pdf_de(etat: &EtatCabinet, id: &str) -> Result<(Facture, Vec<u8>), String> {
     }
     let filigrane = (facture.etat == EtatFacture::Brouillon).then_some(Filigrane::Brouillon);
     let praticien = facture.praticien.clone().unwrap_or(actuelle);
+    Ok((facture, praticien, filigrane))
+}
+
+fn pdf_de(etat: &EtatCabinet, id: &str) -> Result<(Facture, Vec<u8>), String> {
+    let (facture, praticien, filigrane) = a_imprimer(etat, id)?;
     let pdf = facture_pdf(&facture, &praticien, filigrane).map_err(message)?;
     Ok((facture, pdf))
 }
@@ -196,12 +200,15 @@ async fn en_arriere_plan<T: Send + 'static>(travail: impl FnOnce() -> Result<T, 
     tauri::async_runtime::spawn_blocking(travail).await.map_err(message)?
 }
 
-/// Le PDF en binaire, pour l'aperçu dans l'application.
+/// Les pages de la facture en SVG, pour l'aperçu dans l'application.
 #[tauri::command]
-pub async fn facture_pdf_apercu(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Result<Response, String> {
+pub async fn apercu_facture(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Result<Vec<String>, String> {
     let etat = Arc::clone(&etat);
-    let (_, pdf) = en_arriere_plan(move || pdf_de(&etat, &id)).await?;
-    Ok(Response::new(pdf))
+    en_arriere_plan(move || {
+        let (facture, praticien, filigrane) = a_imprimer(&etat, &id)?;
+        facture_svg(&facture, &praticien, filigrane).map_err(message)
+    })
+    .await
 }
 
 /// Retire d'un nom de fichier les caractères refusés par Windows.

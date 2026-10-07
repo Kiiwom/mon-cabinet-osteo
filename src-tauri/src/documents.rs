@@ -3,9 +3,8 @@
 use std::sync::Arc;
 
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
-use osteosphere_documents::{Filigrane, exemple, facture_pdf};
+use osteosphere_documents::{Filigrane, exemple, facture_pdf, facture_svg};
 use tauri::State;
-use tauri::ipc::Response;
 
 use crate::demarrage::{EtatCabinet, message};
 
@@ -23,10 +22,18 @@ async fn produire(etat: &State<'_, Arc<EtatCabinet>>, date: String) -> Result<Ve
     tauri::async_runtime::spawn_blocking(move || facture_essai(&etat, &date)).await.map_err(message)?
 }
 
-/// Le PDF en binaire, pour l'aperçu dans l'application.
+/// Les pages de la facture d'essai en SVG, pour l'aperçu dans l'application.
 #[tauri::command]
-pub async fn facture_essai_pdf(etat: State<'_, Arc<EtatCabinet>>, date: String) -> Result<Response, String> {
-    Ok(Response::new(produire(&etat, date).await?))
+pub async fn apercu_facture_essai(etat: State<'_, Arc<EtatCabinet>>, date: String) -> Result<Vec<String>, String> {
+    let etat = Arc::clone(&etat);
+    tauri::async_runtime::spawn_blocking(move || {
+        let praticien: IdentiteCabinet =
+            etat.avec_base(|base| Ok(base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default()))?;
+        osteosphere_core::numerotation::Date::lire(&date).map_err(message)?;
+        facture_svg(&exemple(&date), &praticien, Some(Filigrane::Essai)).map_err(message)
+    })
+    .await
+    .map_err(message)?
 }
 
 /// Ouvre la facture d'essai dans le lecteur PDF de l'ordinateur.

@@ -1,9 +1,10 @@
 import { adresse } from "../lib/navigation";
 
 const RUBRIQUES: { titre: string; detail: string; lien?: string }[] = [
+  { titre: "Cabinet et mentions légales", detail: "Identité, adresse, SIRET, RPPS : l’en-tête de vos factures.", lien: adresse("parametres", "cabinet") },
+  { titre: "Prestations et numérotation", detail: "Vos actes, leurs tarifs, le numéro de vos factures.", lien: adresse("parametres", "facturation") },
   { titre: "Modèles de consultation", detail: "Les champs proposés à chaque séance, selon le patient.", lien: adresse("parametres", "modeles") },
   { titre: "Trames", detail: "Textes réutilisables appelés par un code pendant la saisie.", lien: adresse("trames") },
-  { titre: "Cabinet", detail: "Identité, adresse, SIRET, RPPS, logo et signature." },
   { titre: "Sécurité et mot de passe", detail: "Mot de passe facultatif, verrouillage, clé de secours." },
   { titre: "Sauvegardes", detail: "Fréquence, dossier, restauration." },
   { titre: "Modules", detail: "Agenda, dépenses, schéma corporel, Biokinergie…" },

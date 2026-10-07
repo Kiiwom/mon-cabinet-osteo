@@ -833,7 +833,7 @@ h3 {
 
 /* Impression de la clé de secours : la clé seule, rien d'autre de l'écran. */
 @media print {
-  body * {
+  body:has(.cle-imprimable) * {
     visibility: hidden;
   }
 
@@ -2513,4 +2513,548 @@ a.rubrique-parametre:hover {
 
 .lien-etape {
   color: var(--encre);
+}
+
+.puce[data-facturation="en_attente"] {
+  background: #fbe3df;
+  color: #8c2f25;
+}
+
+.puce[data-facturation="facturee"] {
+  background: var(--succes-fond);
+  color: var(--succes-texte);
+}
+
+.puce[data-facturation="brouillon"] {
+  background: none;
+  border: 1px dashed var(--bordure-champ);
+  color: var(--encre-discrete);
+}
+
+/* Facturation (maquettes 6 et 7) */
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.impression-seule {
+  display: none;
+}
+
+.succes {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--succes-fond);
+  color: var(--succes-texte);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+a.tuile {
+  text-decoration: none;
+}
+
+a.tuile:hover {
+  border-color: var(--accent);
+}
+
+.puce[data-paiement="reglee"] {
+  background: var(--succes-fond);
+  color: var(--succes-texte);
+}
+
+.puce[data-paiement="en_attente"],
+.puce[data-paiement="partielle"] {
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+}
+
+.puce[data-paiement="annulee"] {
+  background: #fbe3df;
+  color: #8c2f25;
+}
+
+.puce[data-paiement="brouillon"] {
+  background: none;
+  border: 1px dashed var(--bordure-champ);
+  color: var(--encre-discrete);
+}
+
+.puce[data-paiement="trop_percu"] {
+  background: #e7e3f6;
+  color: #3e3374;
+}
+
+/* Moyens de paiement : palette catégorielle validée (ordre fixe), toujours accompagnée du libellé. */
+.pastille-moyen {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  vertical-align: baseline;
+  background: var(--moyen, #888888);
+}
+
+[data-moyen="carte"] {
+  --moyen: #2a78d6;
+}
+
+[data-moyen="cheque"] {
+  --moyen: #eb6834;
+}
+
+[data-moyen="especes"] {
+  --moyen: #1baf7a;
+}
+
+[data-moyen="virement"] {
+  --moyen: #eda100;
+}
+
+[data-moyen="autre"] {
+  --moyen: #e87ba4;
+}
+
+.barre-moyens {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+}
+
+.segment-moyen {
+  flex-basis: 0;
+  min-width: 4px;
+  background: var(--moyen);
+}
+
+.segment-moyen:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.segment-moyen:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.segment-moyen:only-child {
+  border-radius: 4px;
+}
+
+.legende-moyens {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legende-moyens li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.legende-moyens strong {
+  font-size: 20px;
+}
+
+.legende-moyen-titre {
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.entete-tableau {
+  padding: 16px 20px;
+}
+
+.journal-recettes .succes,
+.journal-recettes .alerte {
+  margin: 0 20px 12px;
+}
+
+.tableau tr[data-importe="true"] td {
+  color: var(--encre-2);
+}
+
+.ligne-formulaire td {
+  background: var(--fond);
+  cursor: default;
+}
+
+.emission-groupee {
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.segments-moyens {
+  flex-wrap: wrap;
+}
+
+.saisie-euros {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saisie-euros input {
+  width: 120px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.formulaire-reglement {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--fond);
+}
+
+.rangee-champs {
+  align-items: flex-end;
+}
+
+.rangee-champs > .champ {
+  flex: 1 1 140px;
+}
+
+.fin-de-seance .champ select {
+  width: 100%;
+}
+
+/* Dans une colonne étroite, les moyens de paiement en grille de trois. */
+.fin-de-seance .segments-moyens,
+.formulaire-reglement .segments-moyens {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fin-de-seance .segments-moyens button,
+.formulaire-reglement .segments-moyens button {
+  border-top: 1px solid var(--bordure-champ);
+}
+
+.fin-de-seance .segments-moyens button:nth-child(3n + 1),
+.formulaire-reglement .segments-moyens button:nth-child(3n + 1) {
+  border-left: 0;
+}
+
+.fin-de-seance .segments-moyens button:nth-child(-n + 3),
+.formulaire-reglement .segments-moyens button:nth-child(-n + 3) {
+  border-top: 0;
+}
+
+.fin-de-seance .lien-bouton,
+.groupe-champs .lien-bouton {
+  align-self: flex-start;
+}
+
+.carte .champ p {
+  margin: 0;
+}
+
+.entete-tableau .rangee {
+  align-items: center;
+}
+
+.reglement-rapide {
+  padding-top: 10px;
+  border-top: 1px solid var(--bordure);
+}
+
+.colonnes-facture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .colonnes-facture {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.entete-facture {
+  align-items: center;
+}
+
+.apercu-document {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  border-radius: var(--rayon-carte);
+  background: var(--fond-discret);
+}
+
+.page-document {
+  width: 100%;
+  max-width: 640px;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(51, 41, 31, 0.18);
+}
+
+.apercu-message {
+  max-width: 420px;
+  text-align: center;
+}
+
+.reglement {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--rayon);
+  background: var(--fond);
+}
+
+.confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #efc0b8;
+  border-radius: var(--rayon);
+  background: #fdf1ef;
+}
+
+.historique {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
+.historique li {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+}
+
+.liens-facture {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-carte);
+  background: var(--fond-carte);
+  list-style: none;
+}
+
+.editeur-facture {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.groupe-champs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.groupe-champs > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 4px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.groupe-champs > legend + * {
+  clear: both;
+}
+
+.champ-civilite {
+  flex: 0 0 110px !important;
+}
+
+.champ-code-postal {
+  flex: 0 0 130px !important;
+}
+
+.ligne-facture {
+  display: grid;
+  grid-template-columns: 90px minmax(130px, 1fr) minmax(130px, 1fr) minmax(90px, 1fr);
+  gap: 10px 12px;
+  align-items: end;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+}
+
+.ligne-facture > legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-discrete);
+}
+
+.ligne-facture > .champ:first-of-type,
+.ligne-facture-designation {
+  grid-column: span 2;
+}
+
+.ligne-facture .saisie-euros input {
+  width: 100%;
+}
+
+.champ-quantite input {
+  width: 100%;
+}
+
+.ligne-facture-total {
+  min-width: 90px;
+  text-align: right;
+}
+
+.ligne-facture-total strong {
+  min-height: 44px;
+  line-height: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ligne-facture-retirer {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.libelle-champ {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.total-facture {
+  font-size: 18px;
+}
+
+.suggestions-patients {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  list-style: none;
+}
+
+.liste-prestations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ligne-prestation {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+}
+
+.ligne-prestation[data-archivee="true"] {
+  opacity: 0.7;
+}
+
+.ligne-prestation strong .puce {
+  margin-left: 8px;
+}
+
+.pastille-prestation {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--prestation, #888888);
+}
+
+[data-couleur="bleu"] {
+  --prestation: #2a78d6;
+}
+
+[data-couleur="vert"] {
+  --prestation: #1baf7a;
+}
+
+[data-couleur="ocre"] {
+  --prestation: #eda100;
+}
+
+[data-couleur="violet"] {
+  --prestation: #4a3aa7;
+}
+
+[data-couleur="rose"] {
+  --prestation: #e87ba4;
+}
+
+[data-couleur="gris"] {
+  --prestation: #8a8178;
+}
+
+.fiche-prestation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--rayon);
+  background: #fffdf7;
+}
+
+.choix-periode {
+  align-items: flex-end;
+}
+
+/* Impression du journal des recettes : le tableau seul, sans menu ni boutons. */
+@media print {
+  body:has(.journal-recettes) * {
+    visibility: hidden;
+  }
+
+  .journal-recettes,
+  .journal-recettes * {
+    visibility: visible;
+  }
+
+  .journal-recettes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    border: 0;
+  }
+
+  .journal-recettes .sans-impression {
+    display: none;
+  }
+
+  .impression-seule {
+    display: inline;
+  }
 }

@@ -275,6 +275,11 @@ pub fn facture_pdf(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Op
     Ok(monde::pdf(MODELE, vue(facture, praticien, filigrane)?.to_string())?)
 }
 
+/// Les pages de la facture en SVG, pour l'aperçu à l'écran : la même mise en page que le PDF.
+pub fn facture_svg(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>) -> Result<Vec<String>, ErreurDocument> {
+    Ok(monde::svg(MODELE, vue(facture, praticien, filigrane)?.to_string())?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,10 +382,13 @@ mod tests {
     }
 
     #[test]
-    fn produit_un_pdf() {
+    fn produit_un_pdf_et_un_apercu() {
         let pdf = facture_pdf(&facture_fictive(), &praticien(), None).unwrap();
         assert!(pdf.starts_with(b"%PDF-"));
         assert!(pdf.len() > 1000);
+        let pages = facture_svg(&facture_fictive(), &praticien(), None).unwrap();
+        assert_eq!(pages.len(), 1);
+        assert!(pages[0].starts_with("<svg"));
     }
 
     #[test]
