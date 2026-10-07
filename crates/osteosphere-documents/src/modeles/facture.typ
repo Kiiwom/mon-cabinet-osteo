@@ -1,18 +1,18 @@
-// Facture d'après la maquette 6. Toutes les valeurs arrivent déjà mises en forme, en JSON :
+// Facture et avoir d'après la maquette 6. Toutes les valeurs arrivent déjà mises en forme, en JSON :
 // elles s'affichent telles quelles, un nom contenant « * » ou « # » ne change pas la mise en page.
 #let d = json(bytes(sys.inputs.donnees))
 #let discret = rgb("#555555")
 #let filet = rgb("#dddddd")
 
-#set document(title: "Facture " + d.numero, author: d.praticien.nom_complet)
+#set document(title: d.titre + " " + d.numero, author: d.praticien.nom_complet)
 #set text(font: "Figtree", size: 10pt, lang: "fr", fill: rgb("#222222"))
 #set par(leading: 0.55em)
 #set page(
   paper: "a4",
   margin: (x: 2cm, top: 2cm, bottom: 2.4cm),
   // Filigrane centré par Typst ; sa taille le garde sur une seule ligne.
-  background: if d.essai {
-    rotate(-35deg, text(size: 40pt, weight: "bold", fill: rgb("#ece4d6"))[ESSAI — SANS VALEUR])
+  background: if d.filigrane != "" {
+    rotate(-35deg, text(size: 36pt, weight: "bold", fill: rgb("#ece4d6"), d.filigrane))
   },
   footer: [
     #line(length: 100%, stroke: 0.5pt + filet)
@@ -20,29 +20,22 @@
   ],
 )
 
-#grid(
-  columns: (1fr, auto),
-  gutter: 1em,
-  [
-    #text(size: 12.5pt, weight: "bold", d.praticien.nom_complet) \
-    #d.praticien.profession
-    #for ligne in d.praticien.lignes [ \ #ligne ]
-  ],
-  box(
-    width: 2.3cm,
-    height: 2.3cm,
-    stroke: (paint: rgb("#cfc2ae"), dash: "dashed"),
-    radius: 4pt,
-    align(center + horizon, text(size: 8pt, fill: rgb("#6b5b4b"))[Logo]),
-  ),
-)
+#text(size: 12.5pt, weight: "bold", d.praticien.nom_complet) \
+#d.praticien.profession
+#for ligne in d.praticien.lignes [ \ #ligne ]
 
 #v(1.4em)
 #line(length: 100%, stroke: 0.8pt)
 #v(-0.3em)
-#align(center, text(size: 12.5pt, weight: "bold", tracking: 0.02em)[FACTURE N° #d.numero])
+#align(center, text(size: 12.5pt, weight: "bold", tracking: 0.02em, d.titre + " N° " + d.numero))
 #v(-0.3em)
 #line(length: 100%, stroke: 0.8pt)
+#if d.mention != "" [
+  #align(center, text(size: 9pt, fill: discret, d.mention))
+]
+#if d.annulation != "" [
+  #align(center, text(size: 9pt, weight: "semibold", fill: rgb("#9a3a2a"), d.annulation))
+]
 #v(1em)
 
 #grid(
@@ -60,15 +53,27 @@
 )
 
 #v(1.6em)
-#table(
-  columns: (1fr, auto, auto, auto),
-  align: (left, right, right, right),
-  stroke: (x, y) => if y > 0 { (bottom: 0.5pt + filet) },
-  fill: (x, y) => if y == 0 { rgb("#f1f1f1") },
-  inset: (x: 8pt, y: 7pt),
-  table.header([*Désignation*], [*Qté*], [*Prix unitaire*], [*Total*]),
-  ..d.lignes.map(l => (l.designation, l.quantite, l.prix, l.total)).flatten(),
-)
+#if d.remise {
+  table(
+    columns: (1fr, auto, auto, auto, auto),
+    align: (left, right, right, right, right),
+    stroke: (x, y) => if y > 0 { (bottom: 0.5pt + filet) },
+    fill: (x, y) => if y == 0 { rgb("#f1f1f1") },
+    inset: (x: 8pt, y: 7pt),
+    table.header([*Désignation*], [*Qté*], [*Prix unitaire*], [*Remise*], [*Total*]),
+    ..d.lignes.map(l => (l.designation, l.quantite, l.prix, l.remise, l.total)).flatten(),
+  )
+} else {
+  table(
+    columns: (1fr, auto, auto, auto),
+    align: (left, right, right, right),
+    stroke: (x, y) => if y > 0 { (bottom: 0.5pt + filet) },
+    fill: (x, y) => if y == 0 { rgb("#f1f1f1") },
+    inset: (x: 8pt, y: 7pt),
+    table.header([*Désignation*], [*Qté*], [*Prix unitaire*], [*Total*]),
+    ..d.lignes.map(l => (l.designation, l.quantite, l.prix, l.total)).flatten(),
+  )
+}
 
 #v(1em)
 #grid(
@@ -81,9 +86,7 @@
   grid(
     columns: (1fr, auto),
     row-gutter: 0.6em,
-    [Total], text(weight: "bold", d.total),
-    [Réglé], d.regle,
-    [Reste à régler], text(weight: "bold", d.reste),
+    ..d.totaux.map(t => (t.libelle, if t.fort { text(weight: "bold", t.valeur) } else { t.valeur })).flatten(),
   ),
 )
 

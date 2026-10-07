@@ -10,7 +10,7 @@ use osteosphere_core::cabinet::{
     PARAMETRE_TRAMES, PreferencesSauvegarde,
 };
 use osteosphere_core::cle_de_secours::CleDeSecours;
-use osteosphere_core::{modeles, seances, trames};
+use osteosphere_core::{modeles, prestations, seances, trames};
 use osteosphere_core::trousseau::ProtectionSession;
 use osteosphere_session::SessionOrdinateur;
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,8 @@ impl ProtectionSession for Session {
 
 pub struct EtatCabinet {
     cabinet: Cabinet,
+    /// `Documents/Osteosphere` : factures en PDF, exports, sauvegardes proposées.
+    dossier_documents: PathBuf,
     dossier_sauvegardes_propose: PathBuf,
     ouvert: Mutex<Option<CabinetOuvert>>,
     /// Clé de secours affichée par l'assistant, gardée ici jusqu'à la création du cabinet.
@@ -43,10 +45,11 @@ pub struct EtatCabinet {
 }
 
 impl EtatCabinet {
-    pub fn new(dossier: PathBuf, dossier_sauvegardes_propose: PathBuf) -> Arc<Self> {
+    pub fn new(dossier: PathBuf, dossier_documents: PathBuf) -> Arc<Self> {
         Arc::new(Self {
             cabinet: Cabinet::new(dossier),
-            dossier_sauvegardes_propose,
+            dossier_sauvegardes_propose: dossier_documents.join("Sauvegardes"),
+            dossier_documents,
             ouvert: Mutex::new(None),
             cle_en_attente: Mutex::new(None),
         })
@@ -57,10 +60,15 @@ impl EtatCabinet {
         // Une seule fois par cabinet : une trame de départ supprimée ne revient pas.
         trames::installer_bibliotheque_de_depart(&ouvert.base).map_err(message)?;
         modeles::installer_modeles_fournis(&ouvert.base).map_err(message)?;
+        prestations::installer_prestations_de_depart(&ouvert.base).map_err(message)?;
         // Les séances restées plus de 30 jours à la corbeille sont effacées à l'ouverture.
         seances::vider_corbeille_ancienne(&ouvert.base).map_err(message)?;
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
         Ok(identite)
+    }
+
+    pub fn dossier_documents(&self) -> &std::path::Path {
+        &self.dossier_documents
     }
 
     /// Exécute une opération sur la base du cabinet ouvert.

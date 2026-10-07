@@ -1,7 +1,9 @@
 mod antecedents;
 mod demarrage;
 mod documents;
+mod facturation;
 mod modeles;
+mod parametres;
 mod patients;
 mod seances;
 mod trames;
@@ -47,12 +49,12 @@ pub fn run() {
                     .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?;
             }
             let dossier = dossier_du_cabinet(app)?;
-            let sauvegardes = app
+            let documents = app
                 .path()
                 .document_dir()
-                .map(|documents| documents.join("Osteosphere").join("Sauvegardes"))
-                .unwrap_or_else(|_| dossier.join("sauvegardes"));
-            app.manage(demarrage::EtatCabinet::new(dossier, sauvegardes));
+                .map(|documents| documents.join("Osteosphere"))
+                .unwrap_or_else(|_| dossier.join("documents"));
+            app.manage(demarrage::EtatCabinet::new(dossier, documents));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -91,6 +93,38 @@ pub fn run() {
             seances::supprimer_seance,
             seances::restaurer_seance,
             seances::corbeille_seances,
+            parametres::identite_cabinet,
+            parametres::enregistrer_identite_cabinet,
+            facturation::lister_prestations,
+            facturation::enregistrer_prestation,
+            facturation::reglages_numerotation,
+            facturation::enregistrer_reglages_numerotation,
+            facturation::numero_suivant,
+            facturation::lire_facture,
+            facturation::creer_facture,
+            facturation::modifier_facture,
+            facturation::annoter_facture,
+            facturation::supprimer_brouillon,
+            facturation::emettre_facture,
+            facturation::facturer_seance,
+            facturation::facturer_seances,
+            facturation::corriger_facture,
+            facturation::annuler_facture,
+            facturation::ajouter_reglement,
+            facturation::modifier_reglement,
+            facturation::supprimer_reglement,
+            facturation::lister_factures,
+            facturation::factures_en_attente,
+            facturation::factures_patient,
+            facturation::facture_de_seance,
+            facturation::historique_facture,
+            facturation::recettes,
+            facturation::seances_a_facturer,
+            facturation::facture_pdf_apercu,
+            facturation::enregistrer_facture_pdf,
+            facturation::imprimer_facture,
+            facturation::preparer_email_facture,
+            facturation::exporter_fichier,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

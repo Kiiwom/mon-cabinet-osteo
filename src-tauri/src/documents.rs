@@ -1,10 +1,9 @@
-//! Commandes des documents : facture d'essai du prototype.
+//! Commandes des documents : facture d'essai, pour vérifier la mise en page et les mentions.
 
 use std::sync::Arc;
 
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
-use osteosphere_core::numerotation::{Date, EtatAnnee, FormatNumero, prochain_numero};
-use osteosphere_documents::{Destinataire, Facture, LigneFacture, Reglement, facture_pdf};
+use osteosphere_documents::{Filigrane, exemple, facture_pdf};
 use tauri::State;
 use tauri::ipc::Response;
 
@@ -15,31 +14,8 @@ use crate::demarrage::{EtatCabinet, message};
 fn facture_essai(etat: &EtatCabinet, date: &str) -> Result<Vec<u8>, String> {
     let praticien: IdentiteCabinet =
         etat.avec_base(|base| Ok(base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default()))?;
-    let jour = Date::lire(date).map_err(message)?;
-    let numero = prochain_numero(&FormatNumero::default(), jour, &EtatAnnee::default(), 1).map_err(message)?.numero;
-    let facture = Facture {
-        numero,
-        date_emission: date.to_owned(),
-        date_seance: Some(date.to_owned()),
-        praticien,
-        destinataire: Destinataire {
-            civilite: "Mme".into(),
-            prenom: "Camille".into(),
-            nom: "Martin".into(),
-            adresse: "12 rue des Tilleuls".into(),
-            code_postal: "47500".into(),
-            ville: "Fumel".into(),
-        },
-        lignes: vec![LigneFacture {
-            designation: "Consultation d’ostéopathie".into(),
-            quantite: 1,
-            prix_unitaire_centimes: 5500,
-        }],
-        reglements: vec![Reglement { moyen: "carte".into(), date: date.to_owned(), montant_centimes: 5500 }],
-        commentaire: "Facture d’essai : patiente et numéro fictifs.".into(),
-        essai: true,
-    };
-    facture_pdf(&facture).map_err(message)
+    osteosphere_core::numerotation::Date::lire(date).map_err(message)?;
+    facture_pdf(&exemple(date), &praticien, Some(Filigrane::Essai)).map_err(message)
 }
 
 async fn produire(etat: &State<'_, Arc<EtatCabinet>>, date: String) -> Result<Vec<u8>, String> {
