@@ -2,6 +2,7 @@ mod antecedents;
 mod demarrage;
 mod documents;
 mod facturation;
+mod import;
 mod modeles;
 mod parametres;
 mod patients;
@@ -161,6 +162,9 @@ pub fn run() {
             sauvegardes::exporter_tout,
             sauvegardes::journal,
             statistiques::statistiques,
+            import::analyser_import,
+            import::importer_mcl,
+            import::ouvrir_rapport_import,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

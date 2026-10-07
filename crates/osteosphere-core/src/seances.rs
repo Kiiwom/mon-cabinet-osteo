@@ -90,6 +90,9 @@ pub struct Seance {
     pub patient_id: String,
     #[serde(flatten)]
     pub saisie: SaisieSeance,
+    /// Reprise d'un autre logiciel : jamais proposée à facturer.
+    #[serde(default)]
+    pub importee: bool,
     pub supprimee_le: Option<i64>,
     pub cree_le: i64,
     pub modifie_le: i64,
@@ -125,6 +128,7 @@ pub struct ResumeSeance {
     pub supprimee_le: Option<i64>,
     /// Brouillon ou facture émise, ni annulée ni corrigée.
     pub facture: Option<FactureDeSeance>,
+    pub importee: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -284,6 +288,7 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<(Seance, String)> {
                 facturation: if ligne.get::<_, String>("facturation")? == "gratuit" { Facturation::Gratuit } else { Facturation::AFacturer },
                 commentaire_gratuit: ligne.get("commentaire_gratuit")?,
             },
+            importee: ligne.get("importee")?,
             supprimee_le: ligne.get("supprimee_le")?,
             cree_le: ligne.get("cree_le")?,
             modifie_le: ligne.get("modifie_le")?,
@@ -504,6 +509,7 @@ impl<'a> Definitions<'a> {
             commentaire_gratuit: seance.saisie.commentaire_gratuit.clone(),
             supprimee_le: seance.supprimee_le,
             facture,
+            importee: seance.importee,
         }
     }
 }
@@ -545,7 +551,11 @@ pub fn lister_periode(base: &Base, du: &str, au: &str) -> Result<Vec<ResumeSeanc
 
 /// Séances à facturer qui n'ont pas encore de facture, brouillons compris, de la plus récente à la plus ancienne.
 pub fn lister_a_facturer(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance> {
-    lister_ou(base, "s.facturation = 'a_facturer' AND s.supprimee_le IS NULL AND (f.id IS NULL OR f.etat = 'brouillon')", &[])
+    lister_ou(
+        base,
+        "s.facturation = 'a_facturer' AND s.importee = 0 AND s.supprimee_le IS NULL AND (f.id IS NULL OR f.etat = 'brouillon')",
+        &[],
+    )
 }
 
 pub fn corbeille(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance> {

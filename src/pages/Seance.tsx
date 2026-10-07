@@ -454,15 +454,25 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
         </section>
 
         <div className="pile">
-          <FinDeSeance
-            coeur={coeur}
-            seanceId={id}
-            patient={patient}
-            saisie={saisie}
-            changer={changer}
-            manquants={manquants}
-            avantFacturer={envoyer}
-          />
+          {seance.importee ? (
+            <section className="carte" aria-label="Séance importée">
+              <span className="puce puce-discrete">Historique importé</span>
+              <p className="discret">
+                Séance reprise de MonCabinetLibéral. Sa facture, s’il y en avait une, a été reprise avec son numéro d’origine dans
+                Facturation.
+              </p>
+            </section>
+          ) : (
+            <FinDeSeance
+              coeur={coeur}
+              seanceId={id}
+              patient={patient}
+              saisie={saisie}
+              changer={changer}
+              manquants={manquants}
+              avantFacturer={envoyer}
+            />
+          )}
           <Reperes patient={patient} antecedents={antecedents} formulaire={formulaire} />
           <SeancesPrecedentes coeur={coeur} patient={patient} precedentes={precedentes} definition={definition} reprendre={reprendre} />
         </div>

@@ -153,6 +153,7 @@ export function resumer(
     commentaire_gratuit: seance.commentaire_gratuit,
     supprimee_le: seance.supprimee_le,
     facture: null,
+    importee: seance.importee ?? false,
   };
 }
 

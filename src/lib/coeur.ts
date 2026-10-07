@@ -101,6 +101,69 @@ export interface LigneJournal {
   entite: string;
 }
 
+/** Un patient de l'aperçu d'import : les plus suivis d'abord. */
+export interface ApercuPatientImport {
+  nom: string;
+  prenom: string;
+  naissance: string | null;
+  ville: string;
+  seances: number;
+}
+
+/** Ce que contient l'export MonCabinetLibéral, lu sans rien écrire. */
+export interface AnalyseImport {
+  cabinet: string;
+  patients: number;
+  patients_actifs: number;
+  patients_archives: number;
+  seances: number;
+  premiere_seance: string | null;
+  derniere_seance: string | null;
+  antecedents: number;
+  factures: number;
+  avoirs: number;
+  reglements: number;
+  /** Champs des séances, repris dans le modèle « Reprise MonCabinetLibéral ». */
+  champs: string[];
+  /** Éléments déjà importés : ils ne seront pas recopiés. */
+  deja_importes: number;
+  doublons: string[];
+  points: string[];
+  apercu: ApercuPatientImport[];
+  numerotation: string | null;
+}
+
+export interface ChoixImport {
+  patients: boolean;
+  antecedents: boolean;
+  seances: boolean;
+  factures: boolean;
+}
+
+export interface CompteurImport {
+  crees: number;
+  deja: number;
+  ignores: number;
+}
+
+export interface RapportImport {
+  patients: CompteurImport;
+  antecedents: CompteurImport;
+  seances: CompteurImport;
+  factures: CompteurImport;
+  reglements: CompteurImport;
+  modele: string | null;
+  avertissements: string[];
+}
+
+export interface ResultatImport {
+  rapport: RapportImport;
+  /** Sauvegarde faite juste avant l'import. */
+  sauvegarde: string;
+  /** Rapport lisible dans Documents › Osteosphere › Imports, s'il a pu être écrit. */
+  fichier_rapport: string | null;
+}
+
 export interface PreparationPremierDemarrage {
   cle_de_secours: string;
   dossier_sauvegardes_propose: string;
@@ -331,6 +394,8 @@ export interface SaisieSeance {
 export interface Seance extends SaisieSeance {
   id: string;
   patient_id: string;
+  /** Reprise d'un autre logiciel : jamais proposée à facturer. */
+  importee?: boolean;
   supprimee_le: number | null;
   cree_le: number;
   modifie_le: number;
@@ -355,6 +420,8 @@ export interface ResumeSeance {
   supprimee_le: number | null;
   /** Brouillon ou facture émise, ni annulée ni corrigée. */
   facture: FactureDeSeance | null;
+  /** Reprise d'un autre logiciel : sa facture éventuelle a été reprise à part. */
+  importee: boolean;
 }
 
 /** Les champs tels qu'écrits dans un fichier : les réglages absents prennent leur valeur habituelle. */
@@ -472,6 +539,11 @@ export interface Coeur {
   journal(limite: number, avant: number | null): Promise<LigneJournal[]>;
   /** Dates comprises, comparées à la même période un an plus tôt. */
   statistiques(du: string, au: string, base: BaseChiffre): Promise<Statistiques>;
+  /** Lit et vérifie l'export MonCabinetLibéral, sans rien écrire. */
+  analyserImport(chemin: string): Promise<AnalyseImport>;
+  /** Sauvegarde le cabinet, puis importe ce qui est choisi ; tout ou rien. */
+  importerMcl(chemin: string, choix: ChoixImport): Promise<ResultatImport>;
+  ouvrirRapportImport(chemin: string): Promise<void>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -586,6 +658,9 @@ export const coeurTauri: Coeur = {
   exporterTout: () => appeler("exporter_tout"),
   journal: (limite, avant) => appeler("journal", { limite, avant }),
   statistiques: (du, au, base) => appeler("statistiques", { du, au, base }),
+  analyserImport: (chemin) => appeler("analyser_import", { chemin }),
+  importerMcl: (chemin, choix) => appeler("importer_mcl", { chemin, choix }),
+  ouvrirRapportImport: (chemin) => appeler("ouvrir_rapport_import", { chemin }),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -683,6 +758,8 @@ export function creerCoeurDeDemonstration(
   let caractere: CaractereTrames = "@";
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
+  /** Patients créés par l'import de démonstration : un second import ne les recopie pas. */
+  const importDemo: string[] = [];
   let patients: Patient[] = exemples
     ? PATIENTS_FICTIFS.map((fiche, rang) => ({ ...FICHE_VIDE, ...fiche, id: `patient-${rang + 1}`, archive: false, cree_le: 0, modifie_le: 0 }))
     : [];
@@ -801,7 +878,7 @@ export function creerCoeurDeDemonstration(
   const codePropre = (code: string) => code.trim().replace(/^[@/]/, "").toLowerCase();
   const normaliser = (cle: string) => cle.toUpperCase().replace(/[\s-]/g, "");
 
-  return {
+  const coeur: Coeur = {
     reel: false,
     async etatDemarrage() {
       return etat === "ouvert" ? { etat, cabinet: identite } : { etat };
@@ -1132,8 +1209,67 @@ export function creerCoeurDeDemonstration(
       const [recettes, factures] = await Promise.all([facturation.recettes("1900-01-01", "2999-12-31"), facturation.listerFactures("1900-01-01", "2999-12-31")]);
       return calculerStatistiques({ patients, seances: seances.map(resumerDemo), antecedents, recettes, factures }, du, au, base);
     },
+    async analyserImport(chemin) {
+      if (!chemin.toLowerCase().endsWith(".zip")) throw new Error("Ce fichier n’est pas une archive zip lisible.");
+      const deja = importDemo.filter((id) => patients.some((p) => p.id === id)).length;
+      return {
+        ...ANALYSE_FICTIVE,
+        deja_importes: deja,
+        apercu: PATIENTS_IMPORT_FICTIFS.map((p) => ({ nom: p.nom!, prenom: p.prenom!, naissance: p.naissance ?? null, ville: p.ville ?? "", seances: 0 })),
+      };
+    },
+    async importerMcl(chemin, choix) {
+      await coeur.analyserImport(chemin);
+      const vide = { crees: 0, deja: 0, ignores: 0 };
+      const rapport: RapportImport = {
+        patients: { ...vide },
+        antecedents: { ...vide, ignores: ANALYSE_FICTIVE.antecedents },
+        seances: { ...vide, ignores: ANALYSE_FICTIVE.seances },
+        factures: { ...vide, ignores: ANALYSE_FICTIVE.factures + ANALYSE_FICTIVE.avoirs },
+        reglements: { ...vide, ignores: ANALYSE_FICTIVE.reglements },
+        modele: null,
+        avertissements: ["Démonstration : seuls les patients sont repris. L’import complet se fait dans l’application installée."],
+      };
+      if (importDemo.length) rapport.patients.deja = importDemo.length;
+      else if (choix.patients) {
+        for (const fiche of PATIENTS_IMPORT_FICTIFS) importDemo.push((await coeur.creerPatient({ ...FICHE_VIDE, ...fiche })).id);
+        rapport.patients.crees = importDemo.length;
+      } else rapport.patients.ignores = PATIENTS_IMPORT_FICTIFS.length;
+      return { rapport, sauvegarde: (await coeur.sauvegarderMaintenant()).chemin, fichier_rapport: null };
+    },
+    async ouvrirRapportImport() {
+      throw new Error("Pas de rapport écrit dans la démonstration.");
+    },
   };
+  return coeur;
 }
+
+/** Patients fictifs de l'import de démonstration. */
+const PATIENTS_IMPORT_FICTIFS: Partial<FichePatient>[] = [
+  { nom: "Girard", prenom: "Thomas", naissance: "1979-11-02", sexe: "M", ville: "Villeneuve-sur-Lot", code_postal: "47300" },
+  { nom: "Lemaire", prenom: "Hugo", naissance: "2015-06-21", sexe: "M", ville: "Monflanquin", code_postal: "47150" },
+  { nom: "Haddad", prenom: "Nadia", naissance: "1968-08-30", sexe: "F", ville: "Lacapelle-Biron", code_postal: "47150" },
+];
+
+const ANALYSE_FICTIVE: AnalyseImport = {
+  cabinet: "cabinet fictif",
+  patients: 3,
+  patients_actifs: 3,
+  patients_archives: 0,
+  seances: 28,
+  premiere_seance: "2019-01-03",
+  derniere_seance: "2026-10-01",
+  antecedents: 9,
+  factures: 27,
+  avoirs: 1,
+  reglements: 26,
+  champs: ["Motif de consultation", "Anamnèse", "Tests", "Traitements", "Conseils"],
+  deja_importes: 0,
+  doublons: [],
+  points: ["1 ligne(s) de paiement non reprise(s) : compensations par avoir, déjà comptées dans l’avoir, ou opérations sans facture."],
+  apercu: [],
+  numerotation: "La numérotation reprendra après la facture 2026-10-1771.",
+};
 
 const SANS_PDF = "Les factures PDF sont mises en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour les voir.";
 

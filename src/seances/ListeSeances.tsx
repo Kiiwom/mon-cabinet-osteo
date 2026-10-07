@@ -4,8 +4,15 @@ import { adresse } from "../lib/navigation";
 import { evolutionDouleur, libelleFacturation, libelleType } from "../lib/seances";
 
 /** Pastille d'état d'une séance dans les listes : à facturer, brouillon, facturée, réglée ou non, acte gratuit. */
-export function EtatFacturation({ seance }: { seance: Pick<ResumeSeance, "facturation" | "commentaire_gratuit" | "facture"> }) {
+export function EtatFacturation({ seance }: { seance: Pick<ResumeSeance, "facturation" | "commentaire_gratuit" | "facture" | "importee"> }) {
   const f = seance.facture;
+  if (seance.importee && !f) {
+    return (
+      <span className="puce puce-discrete" title="Séance reprise d’un autre logiciel : sa facture a été reprise à part.">
+        Historique importé
+      </span>
+    );
+  }
   if (seance.facturation === "a_facturer" && f) {
     const etat = f.numero === null ? "brouillon" : f.reste_centimes > 0 ? "en_attente" : "facturee";
     const libelle = etat === "brouillon" ? "Brouillon de facture" : etat === "en_attente" ? "En attente de règlement" : "Facturée";

@@ -3531,3 +3531,100 @@ kbd {
   margin: 8px 0 0;
   font-size: 15px;
 }
+
+/* Import MonCabinetLibéral (maquette 12) */
+.import-entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.import-entete h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.etapes-import {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.etapes-import li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--encre-discrete);
+}
+
+.etapes-import li[data-etat="en-cours"] {
+  color: var(--encre);
+  font-weight: 700;
+}
+
+.etapes-import .numero {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--fond-barre);
+  border: 1px solid var(--bordure-champ);
+  color: var(--encre-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.etapes-import li[data-etat="fait"] .numero {
+  background: var(--succes-fond);
+  border-color: var(--succes-fond);
+  color: var(--succes-texte);
+}
+
+.etapes-import li[data-etat="en-cours"] .numero {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--encre);
+}
+
+.points-import {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.points-import li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--bordure-champ);
+  border-radius: 10px;
+  background: var(--fond-barre);
+  color: var(--encre-2);
+  font-size: 14px;
+}
+
+.points-import li[data-nature="alerte"] {
+  border-left-color: #d08a2e;
+  background: var(--alerte-fond);
+  color: #5e2f08;
+}
+
+.points-import strong {
+  color: var(--encre);
+}
+
+.defilement-horizontal {
+  max-width: 100%;
+  overflow-x: auto;
+}

@@ -16,6 +16,7 @@
 //! - [`sauvegardes`] : sauvegardes chiffrées, automatiques si quelque chose a changé, restauration.
 //! - [`export`] : export complet en CSV et JSON, journal consultable.
 //! - [`statistiques`] : chiffre d'affaires, activité et patientèle, comparés à l'année précédente.
+//! - [`import_mcl`] : reprise des données de MonCabinetLibéral.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -30,6 +31,7 @@ mod fichier;
 mod hexa;
 pub mod horloge;
 pub mod identifiant;
+pub mod import_mcl;
 pub mod modeles;
 pub mod numerotation;
 pub mod patients;

@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 
 import { CarteChoix, FREQUENCES, INTERVALLES } from "../demarrage/PremierDemarrage";
 import type { Coeur, EtatSauvegardes, FichierSauvegarde, IdentiteCabinet, LigneJournal, PreferencesSauvegarde, Securite } from "../lib/coeur";
+import { ImportMcl } from "../import/ImportMcl";
 import { adresse } from "../lib/navigation";
 import { momentEnLettres, RestaurationSauvegarde } from "../sauvegardes/Restauration";
 
@@ -462,7 +463,7 @@ export function PageJournal({ coeur }: { coeur: Coeur }) {
 }
 
 /** Export complet et import depuis un autre logiciel. */
-export function PageParametresImportExport({ coeur, children }: { coeur: Coeur; children?: React.ReactNode }) {
+export function PageParametresImportExport({ coeur }: { coeur: Coeur }) {
   const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -473,7 +474,7 @@ export function PageParametresImportExport({ coeur, children }: { coeur: Coeur; 
         <h1 className="page-titre">Import et export</h1>
         <p className="page-sous-titre">Reprendre vos données d’un autre logiciel, ou les emporter</p>
       </div>
-      {children}
+      <ImportMcl coeur={coeur} />
       <section className="carte" aria-labelledby="titre-export">
         <h2 id="titre-export">Export complet</h2>
         <p>
