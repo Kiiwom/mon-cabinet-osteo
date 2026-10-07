@@ -22,9 +22,20 @@ const ETAPES = [
 
 const FREQUENCES: { valeur: FrequenceSauvegarde; libelle: string; detail: string }[] = [
   { valeur: "fermeture", libelle: "À chaque fermeture du logiciel", detail: "Conseillé : rien n’est perdu d’une journée à l’autre." },
+  { valeur: "intervalle", libelle: "Régulièrement, pendant l’utilisation", detail: "" },
   { valeur: "jour", libelle: "Une fois par jour", detail: "À la première ouverture de la journée." },
   { valeur: "semaine", libelle: "Une fois par semaine", detail: "Le lundi, à la première ouverture." },
   { valeur: "manuelle", libelle: "Seulement quand je le demande", detail: "Depuis Paramètres › Sauvegardes." },
+];
+
+/** Intervalles proposés pour la sauvegarde régulière, en minutes (les mêmes que le cœur). */
+const INTERVALLES: { minutes: number; libelle: string }[] = [
+  { minutes: 10, libelle: "Toutes les 10 minutes" },
+  { minutes: 15, libelle: "Toutes les 15 minutes" },
+  { minutes: 30, libelle: "Toutes les 30 minutes" },
+  { minutes: 60, libelle: "Toutes les heures" },
+  { minutes: 120, libelle: "Toutes les 2 heures" },
+  { minutes: 240, libelle: "Toutes les 4 heures" },
 ];
 
 interface Props {
@@ -43,6 +54,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
   const [cleNotee, setCleNotee] = useState(false);
   const [cleCopiee, setCleCopiee] = useState(false);
   const [frequence, setFrequence] = useState<FrequenceSauvegarde>("fermeture");
+  const [intervalle, setIntervalle] = useState(60);
   const [dossier, setDossier] = useState("");
   const [caractere, setCaractere] = useState<CaractereTrames>("@");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -106,7 +118,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
         mot_de_passe: avecMotDePasse ? motDePasse : null,
         cle_notee: cleNotee,
         caractere_trames: caractere,
-        sauvegardes: { frequence, dossier: dossier.trim() },
+        sauvegardes: { frequence, intervalle_minutes: intervalle, dossier: dossier.trim() },
       });
       surOuverture(cabinet);
     } catch (e) {
@@ -197,7 +209,14 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
             />
           )}
           {etape === 3 && (
-            <EtapeSauvegardes frequence={frequence} setFrequence={setFrequence} dossier={dossier} setDossier={setDossier} />
+            <EtapeSauvegardes
+              frequence={frequence}
+              setFrequence={setFrequence}
+              intervalle={intervalle}
+              setIntervalle={setIntervalle}
+              dossier={dossier}
+              setDossier={setDossier}
+            />
           )}
           {etape === 4 && <EtapePratique caractere={caractere} setCaractere={setCaractere} />}
           {etape === 5 && <EtapeReprise />}
@@ -455,6 +474,8 @@ function EtapeProtection(props: {
 function EtapeSauvegardes(props: {
   frequence: FrequenceSauvegarde;
   setFrequence: (f: FrequenceSauvegarde) => void;
+  intervalle: number;
+  setIntervalle: (minutes: number) => void;
   dossier: string;
   setDossier: (d: string) => void;
 }) {
@@ -468,7 +489,27 @@ function EtapeSauvegardes(props: {
         <div className="choix-liste">
           {FREQUENCES.map((f) => (
             <CarteChoix key={f.valeur} nom="frequence" coche={props.frequence === f.valeur} choisir={() => props.setFrequence(f.valeur)} titre={f.libelle}>
-              {f.detail}
+              {f.valeur === "intervalle" ? (
+                <span className="choix-intervalle">
+                  <select
+                    aria-label="Intervalle entre deux sauvegardes"
+                    value={props.intervalle}
+                    onChange={(e) => {
+                      props.setIntervalle(Number(e.target.value));
+                      props.setFrequence("intervalle");
+                    }}
+                  >
+                    {INTERVALLES.map((i) => (
+                      <option key={i.minutes} value={i.minutes}>
+                        {i.libelle}
+                      </option>
+                    ))}
+                  </select>
+                  <span>et à la fermeture, seulement si quelque chose a changé.</span>
+                </span>
+              ) : (
+                f.detail
+              )}
             </CarteChoix>
           ))}
         </div>

@@ -97,22 +97,52 @@ pub enum CaractereTrames {
 pub enum FrequenceSauvegarde {
     #[default]
     Fermeture,
+    /// Pendant l'utilisation, toutes les `intervalle_minutes`, et à la fermeture ;
+    /// seulement si quelque chose a changé depuis la sauvegarde précédente.
+    Intervalle,
     Jour,
     Semaine,
     Manuelle,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// Intervalles proposés, en minutes : de 10 minutes à 4 heures.
+pub const INTERVALLES_SAUVEGARDE: [u32; 6] = [10, 15, 30, 60, 120, 240];
+
+fn intervalle_par_defaut() -> u32 {
+    60
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PreferencesSauvegarde {
     pub frequence: FrequenceSauvegarde,
+    /// Pour la fréquence « intervalle » ; gardé tel quel pour les autres, si le praticien y revient.
+    #[serde(default = "intervalle_par_defaut")]
+    pub intervalle_minutes: u32,
     /// Dossier choisi par le praticien ; vide = dossier proposé par l'application.
     pub dossier: String,
+}
+
+impl Default for PreferencesSauvegarde {
+    fn default() -> Self {
+        Self { frequence: FrequenceSauvegarde::default(), intervalle_minutes: intervalle_par_defaut(), dossier: String::new() }
+    }
+}
+
+impl PreferencesSauvegarde {
+    pub fn verifier(self) -> Result<Self, ErreurCabinet> {
+        if !INTERVALLES_SAUVEGARDE.contains(&self.intervalle_minutes) {
+            return Err(ErreurCabinet::IntervalleSauvegarde(self.intervalle_minutes));
+        }
+        Ok(self)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ErreurCabinet {
     #[error("un cabinet existe déjà dans ce dossier : il ne sera jamais remplacé")]
     DejaCree,
+    #[error("intervalle de sauvegarde non proposé : {0} minutes")]
+    IntervalleSauvegarde(u32),
     #[error("mot de passe incorrect")]
     MotDePasseIncorrect,
     #[error("clé de secours incorrecte")]
@@ -427,5 +457,16 @@ mod tests {
         assert_eq!(serde_json::to_string(&CaractereTrames::Arobase).unwrap(), "\"@\"");
         assert_eq!(serde_json::from_str::<CaractereTrames>("\"/\"").unwrap(), CaractereTrames::Barre);
         assert_eq!(serde_json::to_string(&FrequenceSauvegarde::Fermeture).unwrap(), "\"fermeture\"");
+    }
+
+    #[test]
+    fn sauvegarde_a_intervalle() {
+        let lire = |json: &str| serde_json::from_str::<PreferencesSauvegarde>(json).unwrap();
+        let toutes_les_heures = lire(r#"{"frequence":"intervalle","intervalle_minutes":60,"dossier":""}"#);
+        assert_eq!(toutes_les_heures.frequence, FrequenceSauvegarde::Intervalle);
+        assert!(toutes_les_heures.verifier().is_ok());
+        assert!(lire(r#"{"frequence":"intervalle","intervalle_minutes":7,"dossier":""}"#).verifier().is_err());
+        // Préférences enregistrées avant l'option : une heure par défaut.
+        assert_eq!(lire(r#"{"frequence":"jour","dossier":"/media/cle-usb"}"#).intervalle_minutes, 60);
     }
 }

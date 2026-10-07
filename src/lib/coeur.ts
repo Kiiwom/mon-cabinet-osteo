@@ -16,14 +16,15 @@ export interface IdentiteCabinet {
 }
 
 export type CaractereTrames = "@" | "/";
-export type FrequenceSauvegarde = "fermeture" | "jour" | "semaine" | "manuelle";
+export type FrequenceSauvegarde = "fermeture" | "intervalle" | "jour" | "semaine" | "manuelle";
 
 export interface ChoixPremierDemarrage {
   identite: IdentiteCabinet;
   mot_de_passe: string | null;
   cle_notee: boolean;
   caractere_trames: CaractereTrames;
-  sauvegardes: { frequence: FrequenceSauvegarde; dossier: string };
+  /** `intervalle_minutes` sert à la fréquence « intervalle » : 10, 15, 30, 60, 120 ou 240. */
+  sauvegardes: { frequence: FrequenceSauvegarde; intervalle_minutes: number; dossier: string };
 }
 
 export interface PreparationPremierDemarrage {

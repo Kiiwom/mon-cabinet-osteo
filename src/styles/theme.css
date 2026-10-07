@@ -616,6 +616,11 @@ h3 {
   gap: 8px;
 }
 
+/* En colonne, la base de 260 px des cartes deviendrait leur hauteur. */
+.choix-liste .carte-choix {
+  flex: none;
+}
+
 .carte-choix {
   flex: 1 1 260px;
   display: flex;
@@ -639,6 +644,26 @@ h3 {
   border-style: dashed;
   background: var(--fond);
   cursor: not-allowed;
+}
+
+.choix-intervalle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 4px;
+}
+
+.choix-intervalle select {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 8px;
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
 }
 
 .carte-choix-titre {

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { App } from "./App";
-import { creerCoeurDeDemonstration } from "./lib/coeur";
+import { creerCoeurDeDemonstration, type ChoixPremierDemarrage } from "./lib/coeur";
 import { ecranDepuisAdresse } from "./lib/navigation";
 
 const continuer = () => fireEvent.click(screen.getByRole("button", { name: /Continuer/ }));
@@ -68,6 +68,34 @@ describe("premier démarrage", () => {
     saisir("Confirmation", "un mot de passe");
     continuer();
     expect(await screen.findByRole("heading", { name: "Vos sauvegardes" })).toBeInTheDocument();
+  });
+});
+
+describe("sauvegardes", () => {
+  it("propose une sauvegarde régulière, à l’intervalle choisi", async () => {
+    const demonstration = creerCoeurDeDemonstration("premier_demarrage");
+    const choix: ChoixPremierDemarrage[] = [];
+    await allerALaProtection({
+      ...demonstration,
+      terminerPremierDemarrage: (c) => {
+        choix.push(c);
+        return demonstration.terminerPremierDemarrage(c);
+      },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /J’ai imprimé ou noté/ }));
+    continuer();
+    await screen.findByRole("heading", { name: "Vos sauvegardes" });
+    const intervalle = screen.getByRole("combobox", { name: "Intervalle entre deux sauvegardes" });
+    expect(intervalle).toHaveValue("60");
+    fireEvent.change(intervalle, { target: { value: "30" } });
+    expect(screen.getByRole("radio", { name: /Régulièrement, pendant l’utilisation/ })).toBeChecked();
+    continuer();
+    await screen.findByRole("heading", { name: "Votre pratique" });
+    continuer();
+    await screen.findByRole("heading", { name: "Reprendre vos données ?" });
+    fireEvent.click(screen.getByRole("button", { name: "Créer mon cabinet" }));
+    await screen.findByRole("heading", { name: "Bienvenue, Alexandre" });
+    expect(choix[0].sauvegardes).toMatchObject({ frequence: "intervalle", intervalle_minutes: 30 });
   });
 });
 

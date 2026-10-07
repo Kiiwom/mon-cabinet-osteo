@@ -168,6 +168,7 @@ pub async fn terminer_premier_demarrage(
             return Err("Cochez la case qui confirme que la clé de secours est notée ou imprimée.".into());
         }
         let identite = choix.identite.verifier().map_err(message)?;
+        let sauvegardes = choix.sauvegardes.verifier().map_err(message)?;
         let mot_de_passe = choix.mot_de_passe.map(Zeroizing::new);
         if mot_de_passe.as_ref().is_some_and(|m| m.is_empty()) {
             return Err("Choisissez un mot de passe, ou gardez l'ouverture directe.".into());
@@ -185,7 +186,7 @@ pub async fn terminer_premier_demarrage(
             .map_err(message)?;
         ouvert.base.ecrire_parametre(PARAMETRE_IDENTITE, &identite).map_err(message)?;
         ouvert.base.ecrire_parametre(PARAMETRE_TRAMES, &choix.caractere_trames).map_err(message)?;
-        ouvert.base.ecrire_parametre(PARAMETRE_SAUVEGARDES, &choix.sauvegardes).map_err(message)?;
+        ouvert.base.ecrire_parametre(PARAMETRE_SAUVEGARDES, &sauvegardes).map_err(message)?;
         *etat.cle_en_attente.lock().map_err(message)? = None;
         etat.garder_ouvert(ouvert)
     })
