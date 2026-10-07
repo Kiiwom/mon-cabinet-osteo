@@ -3,6 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
 import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
 import modelesFournis from "../../crates/osteosphere-core/src/modeles_fournis.json";
+import { document, resumer } from "./seances";
 
 export interface IdentiteCabinet {
   prenom: string;
@@ -239,6 +240,50 @@ export interface Modele extends SaisieModele {
   version_le: number;
 }
 
+export type TypeSeance = "premiere" | "suivi" | "urgence";
+export type Facturation = "a_facturer" | "gratuit";
+
+export interface SaisieSeance {
+  /** `AAAA-MM-JJTHH:MM`, heure du cabinet. */
+  debut: string;
+  modele_id: string;
+  modele_version: number;
+  type: TypeSeance;
+  titre: string;
+  importante: boolean;
+  /** Clé du champ → valeur : texte, nombre, document de l'éditeur, cases, mesures… */
+  valeurs: Record<string, unknown>;
+  facturation: Facturation;
+  commentaire_gratuit: string;
+}
+
+export interface Seance extends SaisieSeance {
+  id: string;
+  patient_id: string;
+  supprimee_le: number | null;
+  cree_le: number;
+  modifie_le: number;
+}
+
+/** Une ligne des listes de séances : motif et douleurs tirés du rôle des champs. */
+export interface ResumeSeance {
+  id: string;
+  patient_id: string;
+  patient_nom: string;
+  patient_prenom: string;
+  debut: string;
+  modele_nom: string;
+  type: TypeSeance;
+  titre: string;
+  importante: boolean;
+  motif: string;
+  douleur_avant: number | null;
+  douleur_apres: number | null;
+  facturation: Facturation;
+  commentaire_gratuit: string;
+  supprimee_le: number | null;
+}
+
 /** Les champs tels qu'écrits dans un fichier : les réglages absents prennent leur valeur habituelle. */
 export function completerChamp(champ: Partial<Champ> & Pick<Champ, "id" | "type" | "libelle">): Champ {
   const complet: Champ = { visible: true, obligatoire: false, imprimer: true, role: "", ...champ };
@@ -283,6 +328,16 @@ export interface Coeur {
   lireVersionModele(id: string, version: number): Promise<Definition>;
   enregistrerModele(id: string | null, saisie: SaisieModele): Promise<Modele>;
   definirModeleParDefaut(id: string): Promise<Modele>;
+  creerSeance(patientId: string, saisie: SaisieSeance): Promise<Seance>;
+  lireSeance(id: string): Promise<Seance>;
+  /** Appelé au fil de la saisie : enregistre la séance telle qu'elle est à l'écran. */
+  enregistrerSeance(id: string, saisie: SaisieSeance): Promise<Seance>;
+  listerSeancesPatient(patientId: string): Promise<ResumeSeance[]>;
+  /** Dates comprises, `AAAA-MM-JJ`. */
+  listerSeancesPeriode(du: string, au: string): Promise<ResumeSeance[]>;
+  supprimerSeance(id: string): Promise<void>;
+  restaurerSeance(id: string): Promise<Seance>;
+  corbeilleSeances(): Promise<ResumeSeance[]>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -341,6 +396,14 @@ export const coeurTauri: Coeur = {
   lireVersionModele: (id, version) => appeler("lire_version_modele", { id, version }),
   enregistrerModele: (id, saisie) => appeler("enregistrer_modele", { id, saisie }),
   definirModeleParDefaut: (id) => appeler("definir_modele_par_defaut", { id }),
+  creerSeance: (patientId, saisie) => appeler("creer_seance", { patientId, saisie }),
+  lireSeance: (id) => appeler("lire_seance", { id }),
+  enregistrerSeance: (id, saisie) => appeler("enregistrer_seance", { id, saisie }),
+  listerSeancesPatient: (patientId) => appeler("lister_seances_patient", { patientId }),
+  listerSeancesPeriode: (du, au) => appeler("lister_seances_periode", { du, au }),
+  supprimerSeance: (id) => appeler("supprimer_seance", { id }),
+  restaurerSeance: (id) => appeler("restaurer_seance", { id }),
+  corbeilleSeances: () => appeler("corbeille_seances"),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -380,6 +443,24 @@ const ANTECEDENTS_FICTIFS: Partial<SaisieAntecedent>[] = [
   { categorie: "chirurgicaux", rubrique: "Orthopédique", precision: "prothèse hanche D", debut: "2024", important: true },
   { categorie: "chirurgicaux", rubrique: "Gynéco / Uro", precision: "césarienne", debut: "2017" },
   { categorie: "traumatiques", rubrique: "Fracture", precision: "poignet G", debut: "2009" },
+];
+
+/** Séances fictives : celles des maquettes du dossier et de la liste des séances. */
+const SEANCES_FICTIVES: { patient: string; debut: string; motif: string; avant: number; apres: number; traitements?: string; gratuit?: string; type?: TypeSeance }[] = [
+  { patient: "patient-1", debut: "2026-02-18T17:15", motif: "Bilan de prévention annuel", avant: 2, apres: 1, gratuit: "Bilan offert" },
+  { patient: "patient-1", debut: "2026-07-03T18:00", motif: "Cervicalgie, céphalées de tension", avant: 5, apres: 2, traitements: "Techniques fonctionnelles cervicales." },
+  {
+    patient: "patient-1",
+    debut: "2026-09-12T16:30",
+    motif: "Lombalgie aiguë après port de charge",
+    avant: 7,
+    apres: 3,
+    traitements: "Techniques fonctionnelles sacro-iliaques, travail tissulaire du carré des lombes.",
+    type: "premiere",
+  },
+  { patient: "patient-7", debut: "2026-10-06T16:00", motif: "Entorse de cheville, reprise du sport", avant: 4, apres: 2 },
+  { patient: "patient-8", debut: "2026-10-03T11:40", motif: "Bilan postural, scoliose à surveiller", avant: 1, apres: 1 },
+  { patient: "patient-4", debut: "2025-03-05T10:30", motif: "Gonalgie droite", avant: 5, apres: 3 },
 ];
 
 const SAISIE_ANTECEDENT_VIDE: SaisieAntecedent = {
@@ -426,6 +507,49 @@ export function creerCoeurDeDemonstration(
     const modele = modeles.find((m) => m.id === id);
     if (!modele) throw new Error("Ce modèle n’existe plus");
     return modele;
+  };
+  let seances: Seance[] = exemples
+    ? SEANCES_FICTIVES.map((s, rang) => ({
+        id: `seance-${rang + 1}`,
+        patient_id: s.patient,
+        debut: s.debut,
+        modele_id: "modele-1",
+        modele_version: 1,
+        type: s.type ?? "suivi",
+        titre: "",
+        importante: false,
+        valeurs: {
+          motif: document(s.motif),
+          douleur_avant: s.avant,
+          douleur_apres: s.apres,
+          ...(s.traitements ? { traitements: document(s.traitements) } : {}),
+        },
+        facturation: s.gratuit ? "gratuit" : "a_facturer",
+        commentaire_gratuit: s.gratuit ?? "",
+        supprimee_le: null,
+        cree_le: 0,
+        modifie_le: 0,
+      }))
+    : [];
+  const trouverSeance = (id: string) => {
+    const seance = seances.find((s) => s.id === id);
+    if (!seance) throw new Error("Cette séance n’existe plus");
+    return seance;
+  };
+  const resumerDemo = (s: Seance) => {
+    const patient = patients.find((p) => p.id === s.patient_id) ?? { nom: "", prenom: "" };
+    const modele = modeles.find((m) => m.id === s.modele_id);
+    return resumer(s, patient, versions.get(`${s.modele_id}@${s.modele_version}`) ?? null, modele?.nom ?? "");
+  };
+  const listerDemo = (garder: (s: Seance) => boolean) =>
+    seances
+      .filter(garder)
+      .sort((a, b) => b.debut.localeCompare(a.debut))
+      .map(resumerDemo);
+  const verifierSeance = (saisie: SaisieSeance) => {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(saisie.debut)) throw new Error("Date ou heure de séance invalide");
+    if (!versions.has(`${saisie.modele_id}@${saisie.modele_version}`)) throw new Error("Ce modèle n’existe plus");
+    return { ...saisie, titre: saisie.titre.trim().replace(/\s+/g, " ") };
   };
   const trouverPatient = (id: string) => {
     const patient = patients.find((p) => p.id === id);
@@ -512,7 +636,12 @@ export function creerCoeurDeDemonstration(
       throw new Error("La facture PDF est mise en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour l’essayer.");
     },
     async listerPatients() {
-      return patients.map(resumeDe).sort((a, b) => a.nom.localeCompare(b.nom, "fr") || a.prenom.localeCompare(b.prenom, "fr"));
+      return patients
+        .map((p) => {
+          const siennes = seances.filter((s) => s.patient_id === p.id && s.supprimee_le === null).map((s) => s.debut).sort();
+          return { ...resumeDe(p), seances: siennes.length, derniere_seance: siennes.length ? siennes[siennes.length - 1].slice(0, 10) : null };
+        })
+        .sort((a, b) => a.nom.localeCompare(b.nom, "fr") || a.prenom.localeCompare(b.prenom, "fr"));
     },
     async lirePatient(id) {
       return trouverPatient(id);
@@ -580,6 +709,47 @@ export function creerCoeurDeDemonstration(
       versions.set(`${modele.id}@${modele.version}`, modele.definition);
       modeles = avant ? modeles.map((m) => (m.id === modele.id ? modele : m)) : [...modeles, modele];
       return modele;
+    },
+    async creerSeance(patientId, saisie) {
+      trouverPatient(patientId);
+      const seance: Seance = {
+        ...verifierSeance(saisie),
+        id: `seance-${(compteur += 1)}-${Date.now()}`,
+        patient_id: patientId,
+        supprimee_le: null,
+        cree_le: 0,
+        modifie_le: 0,
+      };
+      seances = [...seances, seance];
+      return seance;
+    },
+    async lireSeance(id) {
+      return structuredClone(trouverSeance(id));
+    },
+    async enregistrerSeance(id, saisie) {
+      const avant = trouverSeance(id);
+      if (avant.supprimee_le !== null) throw new Error("Cette séance est à la corbeille : restaurez-la pour la modifier");
+      const apres: Seance = { ...avant, ...verifierSeance(saisie) };
+      seances = seances.map((s) => (s.id === id ? apres : s));
+      return structuredClone(apres);
+    },
+    async listerSeancesPatient(patientId) {
+      return listerDemo((s) => s.patient_id === patientId && s.supprimee_le === null);
+    },
+    async listerSeancesPeriode(du, au) {
+      return listerDemo((s) => s.supprimee_le === null && s.debut.slice(0, 10) >= du && s.debut.slice(0, 10) <= au);
+    },
+    async supprimerSeance(id) {
+      trouverSeance(id);
+      seances = seances.map((s) => (s.id === id ? { ...s, supprimee_le: Math.floor(Date.now() / 1000) } : s));
+    },
+    async restaurerSeance(id) {
+      trouverSeance(id);
+      seances = seances.map((s) => (s.id === id ? { ...s, supprimee_le: null } : s));
+      return trouverSeance(id);
+    },
+    async corbeilleSeances() {
+      return listerDemo((s) => s.supprimee_le !== null);
     },
     async definirModeleParDefaut(id) {
       if (!trouverModele(id).actif) throw new Error("Un modèle désactivé ne peut pas être le modèle par défaut");

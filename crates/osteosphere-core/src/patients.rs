@@ -375,8 +375,11 @@ pub fn archiver(base: &Base, id: &str, archive: bool) -> Result<Patient, ErreurP
 pub fn lister(base: &Base) -> Result<Vec<ResumePatient>, ErreurPatient> {
     let mut requete = base.connexion().prepare(
         "SELECT id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut,
-                notes_importantes, decede, archive_le
-         FROM patients ORDER BY nom COLLATE NOCASE, prenom COLLATE NOCASE",
+                notes_importantes, decede, archive_le,
+                (SELECT COUNT(*) FROM seances s WHERE s.patient_id = p.id AND s.supprimee_le IS NULL) AS nombre_seances,
+                (SELECT substr(MAX(s.debut), 1, 10) FROM seances s WHERE s.patient_id = p.id AND s.supprimee_le IS NULL)
+                  AS derniere_seance
+         FROM patients p ORDER BY nom COLLATE NOCASE, prenom COLLATE NOCASE",
     )?;
     let lignes = requete.query_map([], |l| {
         Ok(ResumePatient {
@@ -395,8 +398,8 @@ pub fn lister(base: &Base) -> Result<Vec<ResumePatient>, ErreurPatient> {
             notes_importantes: l.get("notes_importantes")?,
             decede: l.get("decede")?,
             archive: l.get::<_, Option<i64>>("archive_le")?.is_some(),
-            seances: 0,
-            derniere_seance: None,
+            seances: l.get("nombre_seances")?,
+            derniere_seance: l.get("derniere_seance")?,
         })
     })?;
     Ok(lignes.collect::<Result<_, _>>()?)

@@ -104,3 +104,12 @@ export function joindreChoix(retenus: string[]): string {
   if (retenus.length <= 1) return retenus[0] ?? "";
   return `${retenus.slice(0, -1).join(", ")} et ${retenus[retenus.length - 1]}`;
 }
+
+/** Espaces doublés et ponctuation orpheline laissés par un choix ou un blanc retirés. */
+export function nettoyer(texte: string): string {
+  return texte
+    .replace(/ {2,}/g, " ")
+    .replace(/ +([,.])/g, "$1")
+    .replace(/,(\s*,)+/g, ",")
+    .replace(/,\s*\./g, ".");
+}

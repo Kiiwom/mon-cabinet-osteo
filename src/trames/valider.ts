@@ -3,7 +3,9 @@ import type { Node as NoeudPM } from "@tiptap/pm/model";
 
 import type { AttributsBlanc, AttributsChoix } from "./noeuds";
 import { allerAuSuivant } from "./noeuds";
-import { analyserModele, joindreChoix, type Segment } from "./syntaxe";
+import { analyserModele, joindreChoix, nettoyer, type Segment } from "./syntaxe";
+
+export { nettoyer };
 
 export interface TrameResume {
   id: string;
@@ -54,14 +56,6 @@ export function compterACompleter(doc: NoeudPM): { restants: number; total: numb
   return { restants, total };
 }
 
-/** Espaces doublés et ponctuation orpheline laissés par un choix ou un blanc retirés. */
-export function nettoyer(texte: string): string {
-  return texte
-    .replace(/ {2,}/g, " ")
-    .replace(/ +([,.])/g, "$1")
-    .replace(/,(\s*,)+/g, ",")
-    .replace(/,\s*\./g, ".");
-}
 
 /**
  * « Valider » : chaque groupe devient le texte des choix retenus, chaque blanc sa valeur.

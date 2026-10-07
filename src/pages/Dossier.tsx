@@ -3,11 +3,14 @@ import { useEffect, useId, useState, type FormEvent, type ReactNode } from "reac
 import { intitule } from "../antecedents/apparence";
 import { FriseDeVie } from "../antecedents/FriseDeVie";
 import { CarteAntecedents, OngletAntecedents } from "../antecedents/OngletAntecedents";
-import type { Antecedent, CategorieAntecedents, Coeur, Patient } from "../lib/coeur";
+import type { Antecedent, CategorieAntecedents, Coeur, Patient, ResumeSeance } from "../lib/coeur";
 import { accorder, ageEnClair, neLe } from "../lib/dates";
-import { adresse } from "../lib/navigation";
+import { modelePropose } from "../lib/modeles";
+import { adresse, aller } from "../lib/navigation";
+import { debutMaintenant } from "../lib/seances";
 import { Avatar } from "../patients/Avatar";
 import { depuisBrouillon, FormulaireFiche, versBrouillon, type BrouillonFiche, type ErreursFiche } from "../patients/FormulaireFiche";
+import { ListeSeancesPatient } from "../seances/ListeSeances";
 
 export type Onglet = "synthese" | "seances" | "antecedents" | "identite";
 
@@ -109,25 +112,44 @@ function Ligne({ libelle, children }: { libelle: string; children: ReactNode }) 
   );
 }
 
-function Synthese({ patient, antecedents, formulaire }: { patient: Patient; antecedents: Antecedent[]; formulaire: CategorieAntecedents[] }) {
+function Synthese({
+  patient,
+  antecedents,
+  formulaire,
+  seances,
+}: {
+  patient: Patient;
+  antecedents: Antecedent[];
+  formulaire: CategorieAntecedents[];
+  seances: ResumeSeance[];
+}) {
   const adressePostale = [patient.adresse, patient.complement_adresse, [patient.code_postal, patient.ville].filter(Boolean).join(" "), patient.pays]
     .filter(Boolean)
     .join("\n");
   return (
     <div className="pile">
       <section className="carte">
-        <FriseDeVie naissance={patient.naissance} antecedents={antecedents} formulaire={formulaire} />
+        <FriseDeVie naissance={patient.naissance} antecedents={antecedents} formulaire={formulaire} seances={seances.map((s) => s.debut.slice(0, 10))} />
       </section>
       <div className="colonnes-synthese">
-        <section className="carte" aria-labelledby="titre-remarques">
-          <div className="entete-carte">
-            <h2 id="titre-remarques">Remarques générales</h2>
-            <a className="bouton bouton-petit" href={adresse("patients", patient.id, "identite")}>
-              Modifier
-            </a>
-          </div>
-          {patient.remarques ? <p className="texte-multiligne">{patient.remarques}</p> : <p className="discret">Aucune remarque.</p>}
-        </section>
+        <div className="pile">
+          <section className="carte" aria-labelledby="titre-dernieres">
+            <div className="entete-carte">
+              <h2 id="titre-dernieres">Dernières séances</h2>
+              {seances.length > 4 && <a href={adresse("patients", patient.id, "seances")}>Toutes les séances</a>}
+            </div>
+            <ListeSeancesPatient seances={seances} limite={4} />
+          </section>
+          <section className="carte" aria-labelledby="titre-remarques">
+            <div className="entete-carte">
+              <h2 id="titre-remarques">Remarques générales</h2>
+              <a className="bouton bouton-petit" href={adresse("patients", patient.id, "identite")}>
+                Modifier
+              </a>
+            </div>
+            {patient.remarques ? <p className="texte-multiligne">{patient.remarques}</p> : <p className="discret">Aucune remarque.</p>}
+          </section>
+        </div>
         <div className="pile">
           <CarteAntecedents patient={patient} antecedents={antecedents} formulaire={formulaire} />
           <section className="carte" aria-labelledby="titre-coordonnees">
@@ -216,15 +238,18 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
   const [patient, setPatient] = useState<Patient | null>(null);
   const [antecedents, setAntecedents] = useState<Antecedent[]>([]);
   const [formulaire, setFormulaire] = useState<CategorieAntecedents[]>([]);
+  const [seances, setSeances] = useState<ResumeSeance[]>([]);
+  const [creation, setCreation] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   useEffect(() => {
     setPatient(null);
     setErreur(null);
-    Promise.all([coeur.lirePatient(id), coeur.listerAntecedents(id), coeur.formulaireAntecedents()]).then(
-      ([p, a, f]) => {
+    Promise.all([coeur.lirePatient(id), coeur.listerAntecedents(id), coeur.formulaireAntecedents(), coeur.listerSeancesPatient(id)]).then(
+      ([p, a, f, s]) => {
         setAntecedents(a);
         setFormulaire(f);
+        setSeances(s);
         setPatient(p);
       },
       (e: Error) => setErreur(e.message),
@@ -244,6 +269,31 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
     );
   }
   if (!patient) return <p className="page discret">Ouverture du dossier…</p>;
+
+  /** Nouvelle séance, maintenant, avec le modèle proposé pour l'âge du patient. */
+  async function nouvelleSeance() {
+    if (!patient) return;
+    setCreation(true);
+    try {
+      const modele = modelePropose(await coeur.listerModeles(), patient.naissance);
+      if (!modele) throw new Error("Aucun modèle de consultation actif : activez-en un dans Paramètres.");
+      const seance = await coeur.creerSeance(patient.id, {
+        debut: debutMaintenant(),
+        modele_id: modele.id,
+        modele_version: modele.version,
+        type: seances.length === 0 ? "premiere" : "suivi",
+        titre: "",
+        importante: false,
+        valeurs: {},
+        facturation: "a_facturer",
+        commentaire_gratuit: "",
+      });
+      aller("seances", seance.id);
+    } catch (e) {
+      setErreur((e as Error).message);
+      setCreation(false);
+    }
+  }
 
   const archiver = (archive: boolean) => {
     coeur.archiverPatient(patient.id, archive).then(setPatient, (e: Error) => setErreur(e.message));
@@ -265,7 +315,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
             <PucesPatient patient={patient} antecedents={antecedents} />
           </div>
           <div className="rangee entete-dossier-actions">
-            <button type="button" className="bouton bouton-principal" disabled title="Les séances arrivent à l’étape 3.4 de la phase 3">
+            <button type="button" className="bouton bouton-principal" disabled={creation || patient.decede} onClick={() => void nouvelleSeance()}>
               <span aria-hidden="true">+</span> Nouvelle séance
             </button>
             <MenuDossier patient={patient} archiver={archiver} />
@@ -279,6 +329,8 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
               aria-current={onglet === o.onglet ? "page" : undefined}
             >
               {o.libelle}
+              {o.onglet === "seances" && seances.length > 0 && <span className="compte-onglet"> {seances.length}</span>}
+              {o.onglet === "antecedents" && antecedents.length > 0 && <span className="compte-onglet"> {antecedents.length}</span>}
             </a>
           ))}
         </nav>
@@ -287,7 +339,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
       {onglet === "identite" ? (
         <OngletIdentite key={patient.id} patient={patient} coeur={coeur} misAJour={setPatient} />
       ) : onglet === "synthese" ? (
-        <Synthese patient={patient} antecedents={antecedents} formulaire={formulaire} />
+        <Synthese patient={patient} antecedents={antecedents} formulaire={formulaire} seances={seances} />
       ) : onglet === "antecedents" ? (
         <OngletAntecedents
           patient={patient}
@@ -298,8 +350,8 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
           misAJour={setPatient}
         />
       ) : (
-        <section className="carte">
-          <p className="discret">Les séances arrivent à l’étape 3.4 de la phase 3.</p>
+        <section className="carte" aria-label="Séances du dossier">
+          <ListeSeancesPatient seances={seances} />
         </section>
       )}
     </main>

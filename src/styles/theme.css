@@ -2087,3 +2087,426 @@ a.rubrique-parametre:hover {
   margin: 0;
   padding: 0;
 }
+
+/* Séances (maquettes 1 et 4) */
+.etat-seance {
+  margin: 0;
+  font-size: 14px;
+  color: var(--encre-discrete);
+}
+
+.etat-seance[data-etat="enregistre"] {
+  color: var(--succes);
+}
+
+.entete-seance {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 16px 20px;
+}
+
+.nom-seance {
+  font-size: 22px;
+}
+
+.colonnes-seance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .colonnes-seance {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.saisie-seance {
+  gap: 20px;
+}
+
+.entete-saisie {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.titre-seance {
+  font-size: 22px;
+}
+
+.reglages-seance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.reglages-seance .champ {
+  min-width: 160px;
+}
+
+.horaire-seance {
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+
+.horaire-seance .champ {
+  width: 140px;
+}
+
+.horaire-seance .titre-libre {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+.libelle-seance {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.champ-court {
+  max-width: 320px;
+}
+
+.intertitre-seance {
+  margin-top: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--bordure);
+  font-size: 17px;
+}
+
+.groupe-seance {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.case-precision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.case-precision input:not([type]) {
+  flex: 1 1 240px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.curseur-seance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+}
+
+.curseur-ligne {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.curseur-seance input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent-fonce);
+}
+
+.curseur-seance[data-vide="true"] input[type="range"] {
+  opacity: 0.45;
+}
+
+.mesures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 160px));
+  gap: 12px 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--fond-barre);
+}
+
+.mesures input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  background: var(--fond-carte);
+  font: inherit;
+}
+
+.imc {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 44px;
+}
+
+.nombre-unite {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.nombre-unite input,
+.champ-court input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.resume-precedent p {
+  margin: 4px 0 0;
+}
+
+.champ-trame-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.barre-outils {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.barre-outils button {
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: var(--encre-2);
+  cursor: pointer;
+}
+
+.barre-outils button:hover {
+  background: var(--fond-barre);
+}
+
+.barre-outils button[aria-pressed="true"] {
+  border-color: var(--bordure-champ);
+  background: var(--fond-barre);
+  color: var(--encre);
+}
+
+.champ-trame-saisie ul {
+  margin: 4px 0;
+  padding-left: 22px;
+}
+
+.alerte-repere {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fbe3df;
+  color: #6f1f16;
+  font-size: 14px;
+}
+
+.liste-reperes {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.liste-reperes > div {
+  display: flex;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.liste-reperes dt {
+  flex: none;
+  width: 64px;
+  font-weight: 700;
+}
+
+.liste-reperes dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.liste-reperes .discret {
+  font-size: 13px;
+}
+
+.seance-precedente {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.seance-precedente p {
+  margin: 0;
+}
+
+.seance-precedente .bouton-petit {
+  align-self: flex-start;
+}
+
+.entre {
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.reprise {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 10px;
+}
+
+.reprise legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reprise .case-simple {
+  min-height: 34px;
+  font-size: 14px;
+}
+
+.liste-seances {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ligne-seance {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  color: var(--encre);
+  text-decoration: none;
+}
+
+.ligne-seance:hover {
+  background: var(--fond-barre);
+}
+
+.ligne-seance-texte {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ligne-seance-motif {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ligne-seance-texte .discret,
+.ligne-seance-douleur {
+  font-size: 13px;
+}
+
+.puce[data-facturation="a_facturer"] {
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+}
+
+.compte-onglet {
+  color: var(--encre-discrete);
+  font-weight: 500;
+}
+
+.navigation-periode {
+  align-items: center;
+}
+
+.libelle-periode {
+  min-width: 180px;
+  text-align: center;
+  font-size: 17px;
+}
+
+.tuiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.tuile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-carte);
+  background: var(--fond-carte);
+  font-size: 14px;
+  color: var(--encre-2);
+}
+
+.tuile strong {
+  font-size: 28px;
+  color: var(--encre);
+}
+
+.tuile[data-accent="true"] {
+  border-color: #efc79d;
+  background: #fdf3e7;
+}
+
+.filtre-puce {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 999px;
+  background: var(--fond-carte);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.filtre-puce[aria-pressed="true"] {
+  border: 2px solid var(--accent-fonce);
+  font-weight: 700;
+}
+
+.recherche-seances {
+  margin-left: auto;
+  min-width: 260px;
+}
+
+.ligne-jour th {
+  background: var(--fond);
+  font-size: 13px;
+  color: var(--encre-2);
+}
+
+.ligne-corbeille {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bordure);
+}

@@ -3,6 +3,7 @@ mod demarrage;
 mod documents;
 mod modeles;
 mod patients;
+mod seances;
 mod trames;
 
 use std::path::PathBuf;
@@ -82,6 +83,14 @@ pub fn run() {
             modeles::lire_version_modele,
             modeles::enregistrer_modele,
             modeles::definir_modele_par_defaut,
+            seances::creer_seance,
+            seances::lire_seance,
+            seances::enregistrer_seance,
+            seances::lister_seances_patient,
+            seances::lister_seances_periode,
+            seances::supprimer_seance,
+            seances::restaurer_seance,
+            seances::corbeille_seances,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

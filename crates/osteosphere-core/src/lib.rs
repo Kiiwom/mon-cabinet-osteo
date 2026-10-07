@@ -10,6 +10,7 @@
 //! - [`patients`] : dossiers patients, identité, profil, remarques, archives.
 //! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
 //! - [`modeles`] : modèles de consultation versionnés, modèles fournis.
+//! - [`seances`] : séances enregistrées au fil de la saisie, corbeille de 30 jours.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -24,6 +25,7 @@ pub mod identifiant;
 pub mod modeles;
 pub mod numerotation;
 pub mod patients;
+pub mod seances;
 pub mod trames;
 pub mod trousseau;
 

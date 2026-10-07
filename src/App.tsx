@@ -12,10 +12,12 @@ import { PageFacturation } from "./pages/Facturation";
 import { PageModeles } from "./pages/Modeles";
 import { NouveauPatient } from "./pages/NouveauPatient";
 import { PageParametres } from "./pages/Parametres";
+import { PageCorbeille, PageSeances } from "./pages/Seances";
 import { PagePatients } from "./pages/Patients";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
 const PageTrames = lazy(() => import("./pages/Trames").then((module) => ({ default: module.PageTrames })));
+const PageSeance = lazy(() => import("./pages/Seance").then((module) => ({ default: module.PageSeance })));
 
 const TITRES: Record<Exclude<Ecran, "accueil">, string> = {
   patients: "Patients",
@@ -117,6 +119,16 @@ function CabinetOuvert({ cabinet, coeur }: { cabinet: IdentiteCabinet; coeur: Co
           <Accueil cabinet={cabinet} />
         ) : ecran === "patients" ? (
           <EcranPatients coeur={coeur} segments={segments} />
+        ) : ecran === "seances" ? (
+          segments[1] === "corbeille" ? (
+            <PageCorbeille coeur={coeur} />
+          ) : segments[1] ? (
+            <Suspense fallback={<p className="page discret">Ouverture de la séance…</p>}>
+              <PageSeance key={segments[1]} coeur={coeur} id={segments[1]} />
+            </Suspense>
+          ) : (
+            <PageSeances coeur={coeur} />
+          )
         ) : ecran === "parametres" ? (
           segments[1] === "modeles" ? <PageModeles coeur={coeur} /> : <PageParametres />
         ) : ecran === "facturation" ? (

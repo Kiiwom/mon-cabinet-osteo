@@ -151,7 +151,7 @@ impl Champ {
         match champ.type_champ {
             TypeChamp::Curseur => {
                 let (min, max, pas) = (champ.min.unwrap_or(0.0), champ.max.unwrap_or(10.0), champ.pas.unwrap_or(1.0));
-                if !(min < max) || pas <= 0.0 || (max - min) / pas > 1000.0 {
+                if ![min, max, pas].iter().all(|v| v.is_finite()) || min >= max || pas <= 0.0 || (max - min) / pas > 1000.0 {
                     return Err(invalide(format!("{nom} : le minimum doit être sous le maximum, avec un pas positif")));
                 }
                 (champ.min, champ.max, champ.pas) = (Some(min), Some(max), Some(pas));

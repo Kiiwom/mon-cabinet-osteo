@@ -10,7 +10,7 @@ use osteosphere_core::cabinet::{
     PARAMETRE_TRAMES, PreferencesSauvegarde,
 };
 use osteosphere_core::cle_de_secours::CleDeSecours;
-use osteosphere_core::{modeles, trames};
+use osteosphere_core::{modeles, seances, trames};
 use osteosphere_core::trousseau::ProtectionSession;
 use osteosphere_session::SessionOrdinateur;
 use serde::{Deserialize, Serialize};
@@ -57,6 +57,8 @@ impl EtatCabinet {
         // Une seule fois par cabinet : une trame de départ supprimée ne revient pas.
         trames::installer_bibliotheque_de_depart(&ouvert.base).map_err(message)?;
         modeles::installer_modeles_fournis(&ouvert.base).map_err(message)?;
+        // Les séances restées plus de 30 jours à la corbeille sont effacées à l'ouverture.
+        seances::vider_corbeille_ancienne(&ouvert.base).map_err(message)?;
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
         Ok(identite)
     }
