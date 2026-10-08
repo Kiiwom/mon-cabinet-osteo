@@ -15,7 +15,7 @@ use crate::base::{Base, ErreurBase};
 use crate::facturation::{self, Facture};
 use crate::modeles::{self, Definition};
 use crate::seances::{self, Seance};
-use crate::{antecedents, fichier, horloge, patients, prestations, trames};
+use crate::{antecedents, documents, fichier, horloge, patients, prestations, trames};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct LigneJournal {
@@ -238,6 +238,39 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
             .collect::<Vec<_>>(),
     );
 
+    // Pièces jointes : un dossier par patient, le fichier tel qu'il a été ajouté.
+    let mut tous_documents = Vec::new();
+    let mut lignes_documents = Vec::new();
+    for r in &resumes {
+        let liste = documents::lister(base, &r.id).map_err(donnees)?;
+        if liste.is_empty() {
+            continue;
+        }
+        let court: String = r.id.chars().take(6).collect();
+        let sous_dossier = documents::nom_propre(&format!("{} {} ({court})", r.nom, r.prenom));
+        let dossier_patient = cible.join("documents").join(&sous_dossier);
+        fs::create_dir_all(&dossier_patient)?;
+        let mut pris = std::collections::HashSet::new();
+        for document in liste {
+            let (_, octets) = documents::contenu(base, &document.id).map_err(donnees)?;
+            let (debut, extension) = match document.nom.rsplit_once('.') {
+                Some((d, e)) => (d.to_owned(), format!(".{e}")),
+                None => (document.nom.clone(), String::new()),
+            };
+            let nom_fichier = (1..).map(|rang| if rang == 1 { document.nom.clone() } else { format!("{debut} ({rang}){extension}") }).find(|n| pris.insert(n.to_lowercase())).unwrap_or_default();
+            fichier::ecrire_atomiquement(&dossier_patient.join(&nom_fichier), &octets)?;
+            lignes_documents.push(vec![
+                format!("{} {}", r.prenom, r.nom),
+                document.nom.clone(),
+                format!("documents/{sous_dossier}/{nom_fichier}"),
+                document.seance_id.clone().unwrap_or_default(),
+                document.taille.to_string(),
+            ]);
+            tous_documents.push(document);
+        }
+    }
+    let csv_documents = csv(&["Patient", "Document", "Fichier", "Séance", "Taille (octets)"], &lignes_documents);
+
     let parametres: Vec<(String, String)> =
         base.connexion().prepare("SELECT cle, valeur FROM parametres ORDER BY cle")?.query_map([], |l| Ok((l.get(0)?, l.get(1)?)))?.collect::<Result<_, _>>()?;
     let complet = json!({
@@ -252,6 +285,7 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
         "prestations": prestations::lister(base).map_err(donnees)?,
         "factures": toutes_factures,
         "trames": trames::lister(base).map_err(donnees)?,
+        "documents": tous_documents,
     });
 
     for (nom_fichier, contenu) in [
@@ -260,6 +294,7 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
         ("seances.csv", csv_seances.into_bytes()),
         ("factures.csv", csv_factures.into_bytes()),
         ("reglements.csv", csv_reglements.into_bytes()),
+        ("documents.csv", csv_documents.into_bytes()),
         ("osteosphere.json", serde_json::to_vec_pretty(&complet).map_err(donnees)?),
     ] {
         fichier::ecrire_atomiquement(&cible.join(nom_fichier), &contenu)?;
@@ -284,6 +319,8 @@ mod tests {
         saisie.valeurs.insert("motif".into(), json!("Lombalgie basse"));
         saisie.valeurs.insert("douleur_avant".into(), json!(6));
         seances::creer(&base, &p.id, &saisie).unwrap();
+        documents::ajouter(&base, &p.id, None, "Radio.pdf", b"%PDF radio").unwrap();
+        documents::ajouter(&base, &p.id, None, "radio.PDF", b"%PDF autre").unwrap();
 
         let cible = exporter_tout(&base, dossier.path(), 1_791_397_800).unwrap();
         assert!(cible.ends_with("Export Osteosphere 2026-10-07 20h30"));
@@ -296,10 +333,18 @@ mod tests {
         let complet: Value = serde_json::from_slice(&fs::read(cible.join("osteosphere.json")).unwrap()).unwrap();
         assert_eq!(complet["patients"][0]["nom"], "Martin");
         assert_eq!(complet["seances"][0]["valeurs"]["douleur_avant"], 6);
+        // Les pièces jointes, telles qu'ajoutées ; deux noms qui se confondent ne s'écrasent pas.
+        let documents_csv = fs::read_to_string(cible.join("documents.csv")).unwrap();
+        assert_eq!(documents_csv.lines().count(), 3);
+        let dossier_patient = fs::read_dir(cible.join("documents")).unwrap().next().unwrap().unwrap().path();
+        let mut noms: Vec<String> = fs::read_dir(&dossier_patient).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        noms.sort();
+        assert_eq!(noms.len(), 2);
+        assert_eq!(complet["documents"].as_array().unwrap().len(), 2);
 
         let lignes = journal(&base, 2, None).unwrap();
         assert_eq!(lignes.len(), 2);
-        assert_eq!(lignes[0].action, "seance.creee");
+        assert_eq!((lignes[0].action.as_str(), lignes[1].action.as_str()), ("document.ajoute", "document.ajoute"));
         let suite = journal(&base, 10, Some(lignes[1].id)).unwrap();
         assert!(suite.iter().all(|l| l.id < lignes[1].id));
     }

@@ -13,6 +13,7 @@ use osteosphere_core::facturation::{
 use osteosphere_core::numerotation::Date;
 use serde_json::{Value, json};
 
+use crate::entete::entete_praticien;
 use crate::format::euros;
 use crate::monde::{self, ErreurMiseEnPage};
 
@@ -153,24 +154,7 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
         ]
     };
 
-    let ou_a_completer = |valeur: &str, mention: &str| {
-        if valeur.is_empty() { format!("{mention} à compléter") } else { valeur.to_owned() }
-    };
     let ville_cp = |cp: &str, ville: &str| format!("{cp} {ville}").trim().to_owned();
-    let contact = [praticien.telephone.as_str(), praticien.email.as_str()]
-        .into_iter()
-        .filter(|v| !v.is_empty())
-        .collect::<Vec<_>>()
-        .join(" · ");
-    let lignes_praticien: Vec<String> = [
-        ou_a_completer(&praticien.adresse, "Adresse"),
-        ou_a_completer(&ville_cp(&praticien.code_postal, &praticien.ville), "Code postal et ville"),
-        contact,
-    ]
-    .into_iter()
-    .filter(|v| !v.is_empty())
-    .collect();
-
     let d = &facture.saisie.destinataire;
     let nom_destinataire = [d.civilite.trim(), d.prenom.trim(), d.nom.trim()]
         .into_iter()
@@ -191,7 +175,6 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
     };
     let siret = if praticien.siret.is_empty() { "à compléter".to_owned() } else { siret_lisible(&praticien.siret) };
     let rpps = if praticien.rpps.is_empty() { "à compléter".to_owned() } else { praticien.rpps.clone() };
-    let profession = if praticien.profession.is_empty() { "Ostéopathe".to_owned() } else { praticien.profession.clone() };
     let titre = if avoir { "AVOIR" } else { "FACTURE" };
 
     Ok(json!({
@@ -202,11 +185,7 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
         "annulation": annulation,
         "emission": emission,
         "seance": seance,
-        "praticien": {
-            "nom_complet": format!("{} {} EI", praticien.prenom, praticien.nom),
-            "profession": profession,
-            "lignes": lignes_praticien,
-        },
+        "praticien": entete_praticien(&praticien, true),
         "destinataire": { "nom": nom_destinataire, "lignes": lignes_destinataire },
         "remise": remise,
         "lignes": lignes,

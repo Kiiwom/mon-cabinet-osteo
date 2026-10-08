@@ -128,7 +128,7 @@ function Apercu({ coeur, document: doc, fermer, ouvrir }: { coeur: Coeur; docume
   return (
     <div className="voile" role="presentation" onClick={fermer} onKeyDown={(e) => e.key === "Escape" && fermer()}>
       <section
-        className="carte apercu-document"
+        className="carte apercu-piece"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-titre`}

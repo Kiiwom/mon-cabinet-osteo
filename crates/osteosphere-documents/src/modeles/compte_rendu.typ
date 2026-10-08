@@ -1,0 +1,90 @@
+// Compte rendu de séance. Les valeurs arrivent en JSON et s'affichent telles quelles : un texte
+// contenant « * » ou « # » ne change pas la mise en page. Le texte mis en forme arrive sous forme de
+// document de l'éditeur (paragraphes, intertitres, listes ; gras, italique, souligné).
+#let d = json(bytes(sys.inputs.donnees))
+#let discret = rgb("#555555")
+#let filet = rgb("#dddddd")
+#let accent = rgb("#6e5212")
+
+#set document(title: d.titre, author: d.praticien.nom_complet)
+#set text(font: "Figtree", size: 10.5pt, lang: "fr", fill: rgb("#222222"))
+#set par(leading: 0.6em, spacing: 0.75em)
+#set list(indent: 0.4em, body-indent: 0.5em)
+#set enum(indent: 0.4em, body-indent: 0.5em)
+#set page(
+  paper: "a4",
+  margin: (x: 2cm, top: 2cm, bottom: 2.4cm),
+  footer: context [
+    #line(length: 100%, stroke: 0.5pt + filet)
+    #text(size: 8pt, fill: discret)[#d.pied #h(1fr) Page #counter(page).display() sur #counter(page).final().first()]
+  ],
+)
+
+#let enfants(n) = n.at("content", default: ())
+
+#let en_ligne(n) = {
+  let c = if n.type == "text" { n.text } else if n.type == "hardBreak" { linebreak() } else { [] }
+  for m in n.at("marks", default: ()) {
+    if m.type == "bold" { c = strong(c) } else if m.type == "italic" { c = emph(c) } else if m.type == "underline" { c = underline(c) }
+  }
+  c
+}
+
+#let bloc(n) = {
+  if n.type == "paragraph" {
+    enfants(n).map(en_ligne).join()
+    parbreak()
+  } else if n.type == "heading" {
+    text(weight: "bold", enfants(n).map(en_ligne).join())
+    parbreak()
+  } else if n.type == "bulletList" {
+    list(..enfants(n).map(i => enfants(i).map(bloc).join()))
+  } else if n.type == "orderedList" {
+    enum(..enfants(n).map(i => enfants(i).map(bloc).join()))
+  }
+}
+
+#grid(
+  columns: (1fr, auto),
+  gutter: 1em,
+  [
+    #text(size: 12.5pt, weight: "bold", d.praticien.nom_complet) \
+    #d.praticien.profession
+    #for ligne in d.praticien.lignes [ \ #ligne ]
+  ],
+  align(right + bottom, text(fill: discret, d.lieu_date)),
+)
+
+#v(1.2em)
+#line(length: 100%, stroke: 0.8pt)
+#v(-0.3em)
+#align(center, text(size: 13pt, weight: "bold", tracking: 0.02em, d.titre))
+#v(-0.5em)
+#align(center, text(fill: discret, d.sous_titre))
+#v(-0.3em)
+#line(length: 100%, stroke: 0.8pt)
+#v(0.6em)
+
+#text(fill: discret)[Patient] #h(0.4em) #text(weight: "semibold", d.patient)
+#if d.naissance != "" [ #h(0.4em) #text(fill: discret, d.naissance) ]
+
+#for s in d.sections {
+  if s.genre == "intertitre" {
+    v(0.8em)
+    text(size: 11.5pt, weight: "bold", fill: accent, s.libelle)
+    v(-0.2em)
+    line(length: 100%, stroke: 0.5pt + filet)
+  } else {
+    block(above: 1em, breakable: true, width: 100%)[
+      #text(weight: "bold", s.libelle)
+      #v(-0.35em)
+      #if s.genre == "riche" { for b in s.blocs { bloc(b) } } else { s.texte }
+    ]
+  }
+}
+
+#v(2em)
+#align(right)[
+  #text(weight: "semibold", d.signataire) \
+  #text(fill: discret, d.profession)
+]

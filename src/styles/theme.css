@@ -3937,7 +3937,7 @@ kbd {
   background: rgba(30, 24, 18, 0.55);
 }
 
-.apercu-document {
+.apercu-piece {
   width: min(960px, 100%);
   max-height: calc(100vh - 48px);
   overflow: auto;
@@ -3961,4 +3961,28 @@ kbd {
   max-width: 100%;
   border: 1px solid var(--bordure);
   box-shadow: var(--ombre-legere);
+}
+
+/* Compte rendu de séance */
+.compte-rendu {
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.compte-rendu-colonnes {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .compte-rendu-colonnes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.case-simple[data-vide] {
+  color: var(--encre-discrete);
 }

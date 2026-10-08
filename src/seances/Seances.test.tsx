@@ -89,6 +89,27 @@ describe("séances", () => {
     expect(await within(corbeille).findByText("La corbeille est vide.")).toBeInTheDocument();
   });
 
+  it("prépare le compte rendu PDF avec les sections remplies", async () => {
+    await demarrer();
+    await aller("#/seances/seance-5");
+    await screen.findByRole("heading", { name: "Séance du samedi 3 octobre 2026" });
+    fireEvent.click(screen.getByRole("button", { name: "Compte rendu PDF" }));
+    const dialogue = await screen.findByRole("dialog", { name: "Compte rendu de la séance" });
+    const motif = await within(dialogue).findByRole("checkbox", { name: /^Motif de consultation/ });
+    const cases = within(dialogue).getAllByRole("checkbox");
+    expect(motif).toBeChecked();
+    // Les champs vides ne se cochent pas.
+    const vides = cases.filter((c) => (c.closest("label")?.textContent ?? "").includes("(vide)"));
+    expect(vides.length).toBeGreaterThan(0);
+    vides.forEach((c) => expect(c).toBeDisabled());
+    // Sans le cœur, la mise en page n'est pas disponible : la démonstration le dit.
+    expect(await within(dialogue).findByText(/mis en page par le cœur/)).toBeInTheDocument();
+    fireEvent.click(within(dialogue).getByRole("button", { name: "Enregistrer le PDF" }));
+    expect(await within(dialogue).findByRole("alert")).toHaveTextContent("mis en page par le cœur");
+    fireEvent.click(within(dialogue).getByRole("button", { name: "Fermer" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("garde une séance facturée hors de la corbeille", async () => {
     await demarrer();
     await aller("#/seances/seance-2");

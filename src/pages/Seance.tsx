@@ -11,6 +11,7 @@ import { ChampSeance, type ContexteSaisie } from "../seances/ChampSeance";
 import type { TrameResume } from "../trames/valider";
 import { descriptionPatient, PucesPatient } from "./Dossier";
 import { Documents } from "../documents/Documents";
+import { CompteRendu } from "../seances/CompteRendu";
 
 type EtatEnregistrement = { type: "enregistre"; a: Date } | { type: "en_cours" } | { type: "erreur"; message: string } | { type: "aucun" };
 
@@ -232,6 +233,8 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
   const [heure, setHeure] = useState("");
   const [menu, setMenu] = useState(false);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
+  const [compteRendu, setCompteRendu] = useState(false);
+  const [versionDocuments, setVersionDocuments] = useState(0);
   const { etat, planifier, envoyer } = useEnregistrementAuto(coeur, id);
 
   useEffect(() => {
@@ -361,6 +364,9 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
           <a className="bouton" href={adresse("patients", patient.id)}>
             Ouvrir le dossier
           </a>
+          <button type="button" className="bouton" onClick={() => void envoyer().finally(() => setCompteRendu(true))}>
+            Compte rendu PDF
+          </button>
           <div className="menu-dossier">
             <button type="button" className="bouton bouton-icone" aria-label="Autres actions" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               <span aria-hidden="true">⋯</span>
@@ -475,10 +481,11 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
             />
           )}
           <Reperes patient={patient} antecedents={antecedents} formulaire={formulaire} />
-          <Documents coeur={coeur} patientId={patient.id} seanceId={id} titre="Documents de la séance" />
+          <Documents key={versionDocuments} coeur={coeur} patientId={patient.id} seanceId={id} titre="Documents de la séance" />
           <SeancesPrecedentes coeur={coeur} patient={patient} precedentes={precedentes} definition={definition} reprendre={reprendre} />
         </div>
       </div>
+      {compteRendu && <CompteRendu coeur={coeur} seanceId={id} fermer={() => setCompteRendu(false)} surAjout={() => setVersionDocuments((v) => v + 1)} />}
     </main>
   );
 }

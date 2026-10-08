@@ -7,6 +7,7 @@ use osteosphere_core::base::maintenant;
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_SAUVEGARDES, PreferencesSauvegarde};
 use osteosphere_core::cle_de_secours::CleDeSecours;
 use osteosphere_core::export::{self, LigneJournal};
+use osteosphere_core::facturation;
 use osteosphere_core::sauvegardes::{self, Apercu, DerniereSauvegarde, EXTENSION, FichierSauvegarde};
 use osteosphere_session::SessionOrdinateur;
 use serde::Serialize;
@@ -191,6 +192,20 @@ pub async fn exporter_tout(etat: State<'_, Arc<EtatCabinet>>) -> Result<String, 
     en_arriere_plan(move || {
         let dossier = etat.dossier_documents().join("Exports");
         let cible = etat.avec_base(|base| export::exporter_tout(base, &dossier, maintenant()).map_err(message))?;
+        // Les PDF des factures et des avoirs émis, rangés comme dans Documents › Osteosphere › Factures.
+        let emises = etat.avec_base(|base| facturation::lister(base, "1900-01-01", "2999-12-31").map_err(message))?;
+        for resume in emises.iter().filter(|f| f.numero.is_some() && !f.importee) {
+            match crate::facturation::pdf_de(&etat, &resume.id) {
+                Ok((facture, pdf)) => {
+                    let chemin = crate::facturation::chemin_pdf(&cible, &facture);
+                    if let Some(parent) = chemin.parent() {
+                        std::fs::create_dir_all(parent).map_err(message)?;
+                    }
+                    std::fs::write(&chemin, pdf).map_err(message)?;
+                }
+                Err(erreur) => log::warn!("PDF de la facture {:?} non exporté : {erreur}", resume.numero),
+            }
+        }
         if let Err(erreur) = tauri_plugin_opener::open_path(&cible, None::<&str>) {
             log::warn!("impossible d'ouvrir {} : {erreur}", cible.display());
         }

@@ -1,4 +1,5 @@
 mod antecedents;
+mod comptes_rendus;
 mod demarrage;
 mod documents;
 mod facturation;
@@ -179,6 +180,10 @@ pub fn run() {
             pieces::corbeille_documents,
             pieces::ouvrir_document,
             pieces::enregistrer_copie_document,
+            comptes_rendus::champs_compte_rendu,
+            comptes_rendus::apercu_compte_rendu,
+            comptes_rendus::enregistrer_compte_rendu,
+            comptes_rendus::imprimer_compte_rendu,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

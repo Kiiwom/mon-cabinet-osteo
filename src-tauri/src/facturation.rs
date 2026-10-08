@@ -190,7 +190,7 @@ fn a_imprimer(etat: &EtatCabinet, id: &str) -> Result<(Facture, IdentiteCabinet,
     Ok((facture, praticien, filigrane))
 }
 
-fn pdf_de(etat: &EtatCabinet, id: &str) -> Result<(Facture, Vec<u8>), String> {
+pub(crate) fn pdf_de(etat: &EtatCabinet, id: &str) -> Result<(Facture, Vec<u8>), String> {
     let (facture, praticien, filigrane) = a_imprimer(etat, id)?;
     let pdf = facture_pdf(&facture, &praticien, filigrane).map_err(message)?;
     Ok((facture, pdf))
@@ -213,14 +213,14 @@ pub async fn apercu_facture(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Re
 
 /// Montre le fichier dans le gestionnaire de fichiers. Sans gestionnaire de fichiers disponible,
 /// le fichier reste écrit et son chemin s'affiche : ce n'est pas une erreur.
-fn montrer(chemin: &Path) {
+pub(crate) fn montrer(chemin: &Path) {
     if let Err(erreur) = tauri_plugin_opener::reveal_item_in_dir(chemin) {
         log::warn!("impossible de montrer {} : {erreur}", chemin.display());
     }
 }
 
 /// Retire d'un nom de fichier les caractères refusés par Windows.
-fn nom_de_fichier(texte: &str) -> String {
+pub(crate) fn nom_de_fichier(texte: &str) -> String {
     texte
         .chars()
         .map(|c| if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control() { '-' } else { c })
@@ -231,7 +231,7 @@ fn nom_de_fichier(texte: &str) -> String {
 }
 
 /// `Documents/Osteosphere/Factures/2026/Facture 2026-10-1772 - Camille Martin.pdf`
-fn chemin_pdf(dossier: &Path, facture: &Facture) -> PathBuf {
+pub(crate) fn chemin_pdf(dossier: &Path, facture: &Facture) -> PathBuf {
     let annee = facture.date_emission.as_deref().and_then(|d| d.get(..4)).unwrap_or("Brouillons");
     let nature = if facture.nature == Nature::Avoir { "Avoir" } else { "Facture" };
     let numero = facture.numero.clone().unwrap_or_else(|| "brouillon".into());

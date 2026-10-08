@@ -486,7 +486,8 @@ export function PageParametresImportExport({ coeur }: { coeur: Coeur }) {
         <h2 id="titre-export">Export complet</h2>
         <p>
           Tout le cabinet en fichiers lisibles par un tableur (CSV) et en un fichier JSON complet&nbsp;: patients, antécédents,
-          séances, factures, règlements, modèles, trames, réglages.
+          séances, factures, règlements, modèles, trames, réglages. Les pièces jointes et les PDF des factures émises sont
+          joints, rangés par dossier.
         </p>
         <p className="avertissement">
           L’export n’est pas chiffré&nbsp;: rangez-le en lieu sûr, et effacez-le quand vous n’en avez plus besoin. Pour une copie de

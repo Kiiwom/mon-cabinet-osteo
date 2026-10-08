@@ -18,7 +18,7 @@ import type {
   SaisiePrestation,
   SaisieReglement,
 } from "./facturation";
-import { document, resumer } from "./seances";
+import { document, estVide, resumer } from "./seances";
 import { calculerStatistiques, type BaseChiffre, type Statistiques } from "./statistiques";
 
 export interface IdentiteCabinet {
@@ -100,6 +100,16 @@ export interface LigneJournal {
   le: number;
   action: string;
   entite: string;
+}
+
+/** Un champ de la séance proposé à l'impression du compte rendu. */
+export interface ChampImprimable {
+  id: string;
+  libelle: string;
+  /** Le champ a quelque chose à imprimer dans cette séance. */
+  rempli: boolean;
+  /** Coché d'office : le modèle le marque « imprimé » et il est rempli. */
+  par_defaut: boolean;
 }
 
 /** Une pièce jointe du dossier, sans son contenu. */
@@ -584,6 +594,12 @@ export interface Coeur {
   /** Sauvegarde le cabinet, puis importe ce qui est choisi ; tout ou rien. */
   importerMcl(chemin: string, choix: ChoixImport): Promise<ResultatImport>;
   ouvrirRapportImport(chemin: string): Promise<void>;
+  champsCompteRendu(seanceId: string): Promise<ChampImprimable[]>;
+  /** Pages SVG du compte rendu avec les champs choisis. */
+  apercuCompteRendu(seanceId: string, champs: string[]): Promise<string[]>;
+  /** Range le PDF dans Documents › Osteosphere › Comptes rendus ; `joindre` l'ajoute aux documents de la séance. */
+  enregistrerCompteRendu(seanceId: string, champs: string[], joindre: boolean): Promise<string>;
+  imprimerCompteRendu(seanceId: string, champs: string[]): Promise<void>;
   listerDocuments(patientId: string): Promise<PieceJointe[]>;
   /** Fichiers du disque (choisis ou déposés) ajoutés au dossier, et à la séance si elle est donnée. */
   ajouterDocuments(patientId: string, seanceId: string | null, chemins: string[]): Promise<AjoutDocuments>;
@@ -718,6 +734,10 @@ export const coeurTauri: Coeur = {
   analyserImport: (chemin) => appeler("analyser_import", { chemin }),
   importerMcl: (chemin, choix) => appeler("importer_mcl", { chemin, choix }),
   ouvrirRapportImport: (chemin) => appeler("ouvrir_rapport_import", { chemin }),
+  champsCompteRendu: (seanceId) => appeler("champs_compte_rendu", { seanceId }),
+  apercuCompteRendu: (seanceId, champs) => appeler("apercu_compte_rendu", { seanceId, champs }),
+  enregistrerCompteRendu: (seanceId, champs, joindre) => appeler("enregistrer_compte_rendu", { seanceId, champs, joindre }),
+  imprimerCompteRendu: (seanceId, champs) => appeler("imprimer_compte_rendu", { seanceId, champs }),
   listerDocuments: (patientId) => appeler("lister_documents", { patientId }),
   ajouterDocuments: (patientId, seanceId, chemins) => appeler("ajouter_documents", { patientId, seanceId, chemins }),
   choisirDocuments: () => appeler("choisir_documents"),
@@ -1337,6 +1357,26 @@ export function creerCoeurDeDemonstration(
     async ouvrirRapportImport() {
       throw new Error("Pas de rapport écrit dans la démonstration.");
     },
+    async champsCompteRendu(seanceId) {
+      const seance = seances.find((s) => s.id === seanceId);
+      if (!seance) throw new Error("Cette séance n’existe plus");
+      const definition = versions.get(`${seance.modele_id}@${seance.modele_version}`) ?? { champs: [] };
+      return definition.champs
+        .filter((c) => !["intertitre", "resume_precedent", "dessin"].includes(c.type))
+        .map((c) => {
+          const rempli = !estVide(seance.valeurs[c.id]);
+          return { id: c.id, libelle: c.libelle, rempli, par_defaut: rempli && c.imprimer !== false };
+        });
+    },
+    async apercuCompteRendu() {
+      throw new Error(SANS_COMPTE_RENDU);
+    },
+    async enregistrerCompteRendu() {
+      throw new Error(SANS_COMPTE_RENDU);
+    },
+    async imprimerCompteRendu() {
+      throw new Error(SANS_COMPTE_RENDU);
+    },
     async listerDocuments(patientId) {
       trouverPatient(patientId);
       return documentsDemo.filter((d) => d.patient_id === patientId && d.supprime_le === null).sort((a, b) => b.ajoute_le - a.ajoute_le);
@@ -1448,6 +1488,7 @@ const ANALYSE_FICTIVE: AnalyseImport = {
 };
 
 const SANS_PDF = "Les factures PDF sont mises en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour les voir.";
+const SANS_COMPTE_RENDU = "Les comptes rendus PDF sont mis en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour les voir.";
 
 export function coeurParDefaut(): Coeur {
   return isTauri() ? coeurTauri : creerCoeurDeDemonstration();
