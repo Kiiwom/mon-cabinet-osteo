@@ -1,10 +1,11 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ChampsIdentite } from "../demarrage/PremierDemarrage";
 import { ChampMontant, PagesApercu } from "../facturation/composants";
 import { ErreurFacturation } from "../facturation/FinDeSeance";
 import { ReglagesMiseEnPage } from "../documents/MiseEnPage";
-import { dateDuJour, MENTION_TVA, type ChampTexteIdentite, type Coeur, type IdentiteCabinet } from "../lib/coeur";
+import { dateDuJour, MENTION_TVA, type ChampTexteIdentite, type Coeur, type IdentiteCabinet, type ModeleEmail } from "../lib/coeur";
+import { MODELE_EMAIL_DEFAUT, remplirModele, VARIABLES_EMAIL } from "../lib/emails";
 import { COULEURS_PRESTATION, euros, type Prestation, type ReglagesNumerotation, type SaisiePrestation } from "../lib/facturation";
 import { verifierIdentite, type ErreursIdentite } from "../lib/identite";
 import { adresse } from "../lib/navigation";
@@ -323,6 +324,111 @@ function Numerotation({ coeur }: { coeur: Coeur }) {
   );
 }
 
+const EXEMPLE_EMAIL = Object.fromEntries(VARIABLES_EMAIL.map((v) => [v.nom, v.exemple]));
+
+/** Objet et message de l'email qui accompagne une facture, avec un aperçu sur un exemple fictif. */
+function ModeleEmailFactures({ coeur }: { coeur: Coeur }) {
+  const id = useId();
+  const [modele, setModele] = useState<ModeleEmail | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const objet = useRef<HTMLInputElement>(null);
+  const corps = useRef<HTMLTextAreaElement>(null);
+  const dernier = useRef<"objet" | "message">("message");
+
+  useEffect(() => {
+    coeur.modeleEmail().then(setModele, (e: Error) => setErreur(e.message));
+  }, [coeur]);
+
+  if (!modele) return erreur ? <ErreurFacturation message={erreur} /> : null;
+
+  const changer = (champs: Partial<ModeleEmail>) => {
+    setModele({ ...modele, ...champs });
+    setMessage(null);
+  };
+
+  /** Insère la variable là où se trouve le curseur, dans l'objet ou le message. */
+  function inserer(nom: string) {
+    const cible = dernier.current;
+    const champ = cible === "objet" ? objet.current : corps.current;
+    const texte = modele![cible];
+    const debut = champ?.selectionStart ?? texte.length;
+    const fin = champ?.selectionEnd ?? texte.length;
+    const variable = `{${nom}}`;
+    changer({ [cible]: texte.slice(0, debut) + variable + texte.slice(fin) });
+    requestAnimationFrame(() => {
+      champ?.focus();
+      champ?.setSelectionRange(debut + variable.length, debut + variable.length);
+    });
+  }
+
+  async function enregistrer(e: React.FormEvent) {
+    e.preventDefault();
+    setErreur(null);
+    try {
+      setModele(await coeur.enregistrerModeleEmail(modele!));
+      setMessage("Modèle d’email enregistré.");
+    } catch (err) {
+      setErreur((err as Error).message);
+    }
+  }
+
+  return (
+    <form className="carte pile" aria-labelledby={`${id}-titre`} onSubmit={(e) => void enregistrer(e)}>
+      <div>
+        <h2 id={`${id}-titre`}>Email d’envoi des factures</h2>
+        <p className="discret">
+          « Préparer l’email », sur une facture, ouvre votre messagerie avec ce message et le PDF joint. Vous relisez, puis vous envoyez :
+          rien ne part sans vous.
+        </p>
+      </div>
+      <div className="champ champ-large">
+        <label htmlFor={`${id}-objet`}>Objet</label>
+        <input id={`${id}-objet`} ref={objet} value={modele.objet} maxLength={200} onFocus={() => (dernier.current = "objet")} onChange={(e) => changer({ objet: e.target.value })} />
+      </div>
+      <div className="champ champ-large">
+        <label htmlFor={`${id}-message`}>Message</label>
+        <textarea
+          id={`${id}-message`}
+          ref={corps}
+          rows={8}
+          value={modele.message}
+          maxLength={4000}
+          onFocus={() => (dernier.current = "message")}
+          onChange={(e) => changer({ message: e.target.value })}
+        />
+      </div>
+      <div className="rangee rangee-centree variables-email" role="group" aria-label="Insérer une variable">
+        <span className="discret">Insérer :</span>
+        {VARIABLES_EMAIL.map((v) => (
+          <button key={v.nom} type="button" className="filtre-puce" title={`${v.nom}, ${v.detail}`} onMouseDown={(e) => e.preventDefault()} onClick={() => inserer(v.nom)}>
+            {`{${v.nom}}`}
+          </button>
+        ))}
+      </div>
+      <div className="apercu-email" aria-label="Aperçu sur un exemple fictif" role="group">
+        <span className="discret">Aperçu sur un exemple fictif</span>
+        <strong>{remplirModele(modele.objet, EXEMPLE_EMAIL)}</strong>
+        <p>{remplirModele(modele.message, EXEMPLE_EMAIL)}</p>
+      </div>
+      {erreur && <ErreurFacturation message={erreur} />}
+      {message && (
+        <p className="succes" role="status">
+          {message}
+        </p>
+      )}
+      <div className="rangee">
+        <button type="submit" className="bouton bouton-principal">
+          Enregistrer le modèle
+        </button>
+        <button type="button" className="lien-bouton" onClick={() => changer(MODELE_EMAIL_DEFAUT)}>
+          Rétablir le texte d’origine
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /** Prestations (libellé, tarif, couleur, libellé imprimé) et numérotation des factures. */
 export function PageParametresFacturation({ coeur }: { coeur: Coeur }) {
   const [prestations, setPrestations] = useState<Prestation[] | null>(null);
@@ -345,7 +451,7 @@ export function PageParametresFacturation({ coeur }: { coeur: Coeur }) {
       <Fil titre="Prestations et numérotation" />
       <div>
         <h1 className="page-titre">Prestations et numérotation</h1>
-        <p className="page-sous-titre">Vos actes et leurs tarifs, le numéro de vos factures</p>
+        <p className="page-sous-titre">Vos actes et leurs tarifs, le numéro de vos factures, l’email qui les accompagne</p>
       </div>
       <section className="carte" aria-labelledby="titre-prestations">
         <div className="entete-carte">
@@ -386,6 +492,7 @@ export function PageParametresFacturation({ coeur }: { coeur: Coeur }) {
         </ul>
       </section>
       <Numerotation coeur={coeur} />
+      <ModeleEmailFactures coeur={coeur} />
     </main>
   );
 }

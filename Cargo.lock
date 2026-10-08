@@ -3633,6 +3633,7 @@ version = "0.7.0"
 dependencies = [
  "log",
  "osteosphere-core",
+ "osteosphere-courriel",
  "osteosphere-documents",
  "osteosphere-session",
  "serde",
@@ -3663,10 +3664,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "osteosphere-courriel"
+version = "0.7.0"
+dependencies = [
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "osteosphere-documents"
 version = "0.7.0"
 dependencies = [
  "osteosphere-core",
+ "rust_xlsxwriter",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4444,6 +4453,15 @@ checksum = "7653272e75dcac41dc199fbea6f5797633994fafd339943c06c9af16bf29cd3a"
 dependencies = [
  "arrayvec",
  "num-traits",
+]
+
+[[package]]
+name = "rust_xlsxwriter"
+version = "0.99.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34f2d2cda7223168a14fb86bc7411dbc3379bd7d49749ecc53b91ed98585b6b0"
+dependencies = [
+ "zip",
 ]
 
 [[package]]
@@ -7496,6 +7514,7 @@ dependencies = [
  "indexmap 2.14.2",
  "memchr",
  "typed-path",
+ "zopfli",
 ]
 
 [[package]]
@@ -7509,6 +7528,18 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zopfli"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249"
+dependencies = [
+ "bumpalo",
+ "crc32fast",
+ "log",
+ "simd-adler32",
+]
 
 [[package]]
 name = "zune-core"

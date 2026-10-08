@@ -18,6 +18,8 @@ import type {
   SaisiePrestation,
   SaisieReglement,
 } from "./facturation";
+import { MODELE_EMAIL_DEFAUT } from "./emails";
+import { feuilleVersCsv, type Feuille } from "./tableur";
 import { document, estVide, resumer } from "./seances";
 import { calculerStatistiques, type BaseChiffre, type Statistiques } from "./statistiques";
 
@@ -71,6 +73,20 @@ export const COULEURS_DOCUMENTS: { nom: string; valeur: string }[] = [
 ];
 
 export const MISE_EN_PAGE_DEFAUT: MiseEnPage = { couleur: "#6e5212", position_logo: "gauche", logo: true, signature: true };
+
+/** Email qui accompagne une facture ; les variables entre accolades sont remplacées à l'envoi. */
+export interface ModeleEmail {
+  objet: string;
+  message: string;
+}
+
+export interface EmailPrepare {
+  chemin: string;
+  /** Le PDF est déjà joint ; sinon, la messagerie s'est ouverte sans lui et le PDF est montré dans son dossier. */
+  piece_jointe: boolean;
+  /** La fenêtre de rédaction a été refermée sans envoi. */
+  abandonne: boolean;
+}
 
 export type CaractereTrames = "@" | "/";
 export type FrequenceSauvegarde = "fermeture" | "intervalle" | "jour" | "semaine" | "manuelle";
@@ -610,9 +626,14 @@ export interface Coeur {
   /** Range le PDF dans Documents › Osteosphere › Factures ; rend son chemin. */
   enregistrerFacturePdf(id: string): Promise<string>;
   imprimerFacture(id: string): Promise<void>;
-  preparerEmailFacture(id: string, email: string): Promise<string>;
+  preparerEmailFacture(id: string, email: string): Promise<EmailPrepare>;
+  modeleEmail(): Promise<ModeleEmail>;
+  /** Un objet ou un message vide reprend le texte d'origine. */
+  enregistrerModeleEmail(modele: ModeleEmail): Promise<ModeleEmail>;
   /** Écrit un fichier dans Documents › Osteosphere › Exports ; rend son chemin. */
   exporterFichier(nom: string, contenu: string): Promise<string>;
+  /** Classeur Excel (.xlsx) rangé dans Documents › Osteosphere › Exports ; rend son chemin. */
+  exporterClasseur(nom: string, feuilles: Feuille[]): Promise<string>;
   etatDesSauvegardes(): Promise<EtatSauvegardes>;
   enregistrerPreferencesSauvegarde(preferences: PreferencesSauvegarde): Promise<EtatSauvegardes>;
   sauvegarderMaintenant(): Promise<FichierSauvegarde>;
@@ -767,7 +788,10 @@ export const coeurTauri: Coeur = {
   enregistrerFacturePdf: (id) => appeler("enregistrer_facture_pdf", { id }),
   imprimerFacture: (id) => appeler("imprimer_facture", { id }),
   preparerEmailFacture: (id, email) => appeler("preparer_email_facture", { id, email }),
+  modeleEmail: () => appeler("modele_email"),
+  enregistrerModeleEmail: (modele) => appeler("enregistrer_modele_email", { modele }),
   exporterFichier: (nom, contenu) => appeler("exporter_fichier", { nom, contenu }),
+  exporterClasseur: (nom, feuilles) => appeler("exporter_classeur", { nom, feuilles }),
   etatDesSauvegardes: () => appeler("etat_des_sauvegardes"),
   enregistrerPreferencesSauvegarde: (preferences) => appeler("enregistrer_preferences_sauvegarde", { preferences }),
   sauvegarderMaintenant: () => appeler("sauvegarder_maintenant"),
@@ -899,6 +923,7 @@ export function creerCoeurDeDemonstration(
     : { ...IDENTITE_VIDE, prenom: "Alexandre", nom: "Roux" };
   let caractere: CaractereTrames = "@";
   let miseEnPage: MiseEnPage = { ...MISE_EN_PAGE_DEFAUT };
+  let modeleEmail: ModeleEmail = { ...MODELE_EMAIL_DEFAUT };
   const images: Record<QuelleImage, boolean> = { logo: false, signature: false };
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, contenu: null, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
@@ -1312,6 +1337,16 @@ export function creerCoeurDeDemonstration(
     async preparerEmailFacture() {
       throw new Error(SANS_PDF);
     },
+    async modeleEmail() {
+      return { ...modeleEmail };
+    },
+    async enregistrerModeleEmail(saisie) {
+      const objet = saisie.objet.trim();
+      const message = saisie.message.trim();
+      if (objet.length > 200 || message.length > 4000) throw new Error("L’objet tient en 200 caractères, le message en 4 000");
+      modeleEmail = { objet: objet || MODELE_EMAIL_DEFAUT.objet, message: message || MODELE_EMAIL_DEFAUT.message };
+      return { ...modeleEmail };
+    },
     async exporterFichier(nom, contenu) {
       // Dans un navigateur, l'export devient un téléchargement.
       if (typeof URL.createObjectURL === "function") {
@@ -1322,6 +1357,11 @@ export function creerCoeurDeDemonstration(
         URL.revokeObjectURL(lien.href);
       }
       return `Téléchargements/${nom}`;
+    },
+    async exporterClasseur(nom, feuilles) {
+      // Pas de classeur Excel dans un navigateur : la première feuille part en CSV.
+      if (!feuilles.length) throw new Error("classeur sans feuille");
+      return coeur.exporterFichier(nom.replace(/\.xlsx$/, ".csv"), feuilleVersCsv(feuilles[0]));
     },
     async etatDesSauvegardes() {
       return etatSauvegardesDemo();

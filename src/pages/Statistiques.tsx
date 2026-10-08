@@ -6,6 +6,7 @@ import { euros, libelleMoyen, versCsv } from "../lib/facturation";
 import { adresse } from "../lib/navigation";
 import { bornesPeriode, type Periode } from "../lib/periodes";
 import { evolution, type BaseChiffre, type Comparaison, type Statistiques } from "../lib/statistiques";
+import { colonne, type Feuille } from "../lib/tableur";
 import { BarresHorizontales, ColonnesGroupees, MOIS_COURTS, MOIS_LONGS, PetitesColonnes, Repartition } from "../statistiques/Graphiques";
 import { ChoixPeriode } from "./Facturation";
 
@@ -147,6 +148,47 @@ function Classement({ titre, lignes, vide, lien }: { titre: string; lignes: { li
   );
 }
 
+/** Le classeur Excel : une feuille par tableau, comparée à l'année précédente quand elle l'est à l'écran. */
+function feuillesStatistiques(s: Statistiques): Feuille[] {
+  const compte = (nom: string, titre: string, lignes: { libelle: string; nombre: number }[]): Feuille => ({
+    nom,
+    colonnes: [colonne(titre), colonne("Patients actifs", "nombre")],
+    lignes: lignes.map((l) => [l.libelle, l.nombre]),
+  });
+  return [
+    {
+      nom: "Indicateurs",
+      colonnes: [colonne("Indicateur"), colonne(`Du ${s.du} au ${s.au}`, "nombre"), colonne(`Du ${s.du_precedent} au ${s.au_precedent}`, "nombre")],
+      lignes: [
+        [`Chiffre d’affaires (€, selon ${s.base === "encaissement" ? "la date d’encaissement" : "la date de facture"})`, s.chiffre.valeur / 100, s.chiffre.precedent / 100],
+        ["Séances", s.seances.valeur, s.seances.precedent],
+        ["Panier moyen (€)", s.panier_moyen.valeur / 100, s.panier_moyen.precedent / 100],
+        ["Nouveaux patients", s.nouveaux_patients.valeur, s.nouveaux_patients.precedent],
+      ],
+    },
+    {
+      nom: "Par mois",
+      colonnes: [
+        colonne("Mois"),
+        colonne("Chiffre d’affaires", "montant"),
+        colonne("Année précédente", "montant"),
+        colonne("Séances", "nombre"),
+        colonne("Séances année précédente", "nombre"),
+      ],
+      lignes: s.par_mois.map((m) => [m.mois, m.chiffre / 100, m.chiffre_precedent / 100, m.seances, m.seances_precedent]),
+    },
+    {
+      nom: "Moyens de paiement",
+      colonnes: [colonne("Moyen"), colonne("Montant", "montant"), colonne("Règlements", "nombre")],
+      lignes: s.moyens.map((m) => [libelleMoyen(m.moyen), m.montant / 100, m.nombre]),
+    },
+    compte("Âges", "Tranche d’âge", s.ages),
+    compte("Villes", "Ville", s.villes),
+    compte("Antécédents", "Antécédent", s.antecedents),
+    { nom: "Jours", colonnes: [colonne("Jour"), colonne("Séances", "nombre")], lignes: s.jours.map((j) => [j.libelle, j.nombre]) },
+  ];
+}
+
 function csvStatistiques(s: Statistiques): string {
   const lignes: (string | number)[][] = [
     ["Période", `${s.du} au ${s.au}`, `comparée au ${s.du_precedent} au ${s.au_precedent}`],
@@ -201,10 +243,13 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
       .finally(() => setChargement(false));
   }, [coeur, du, au, base]);
 
-  async function exporter() {
+  async function exporter(format: "xlsx" | "csv") {
     if (!stats) return;
+    const nom = `Statistiques ${stats.du} au ${stats.au}`;
     try {
-      setMessage(`Export enregistré : ${await coeur.exporterFichier(`Statistiques ${stats.du} au ${stats.au}.csv`, csvStatistiques(stats))}`);
+      const chemin =
+        format === "xlsx" ? await coeur.exporterClasseur(`${nom}.xlsx`, feuillesStatistiques(stats)) : await coeur.exporterFichier(`${nom}.csv`, csvStatistiques(stats));
+      setMessage(`Export enregistré : ${chemin}`);
     } catch (e) {
       setErreur((e as Error).message);
     }
@@ -223,9 +268,14 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
             {libelleDuree(du, au, today).replace(/^./, (c) => c.toUpperCase())}, comparé à la même période de {Number(au.slice(0, 4)) - 1}
           </p>
         </div>
-        <button type="button" className="bouton" disabled={!stats} onClick={() => void exporter()}>
-          Exporter (CSV)
-        </button>
+        <div className="rangee">
+          <button type="button" className="bouton" disabled={!stats} onClick={() => void exporter("xlsx")}>
+            Exporter (Excel)
+          </button>
+          <button type="button" className="bouton bouton-discret" disabled={!stats} onClick={() => void exporter("csv")}>
+            CSV
+          </button>
+        </div>
       </div>
       <div className="filtres-statistiques">
         <ChoixPeriode periode={periode} changer={setPeriode} aujourdhui={jour} />

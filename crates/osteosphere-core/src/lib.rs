@@ -30,6 +30,7 @@ pub mod cabinet;
 pub mod chiffrement;
 pub mod cle_de_secours;
 pub mod documents;
+pub mod emails;
 pub mod export;
 pub mod facturation;
 mod fichier;

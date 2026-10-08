@@ -3991,6 +3991,7 @@ kbd {
 .images-documents {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 24px;
 }
 
@@ -4034,11 +4035,26 @@ kbd {
 }
 
 .teinte {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 32px;
   cursor: pointer;
+}
+
+/* La pastille tient lieu de bouton radio, qui reste lisible par les lecteurs d'écran. */
+.teinte input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.teinte input:focus-visible + .echantillon {
+  outline: 3px solid var(--accent-fonce);
+  outline-offset: 2px;
 }
 
 .echantillon {
@@ -4051,4 +4067,50 @@ kbd {
 
 .teinte input:checked + .echantillon {
   box-shadow: 0 0 0 2px var(--encre);
+}
+
+/* Paramètres › Facturation : modèle d'email */
+.variables-email {
+  gap: 6px;
+}
+
+.apercu-email {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background: var(--fond);
+}
+
+.apercu-email p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* Facturation : filtre par moyen, exports et recettes par jour */
+.choix-filtre {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  font: inherit;
+  color: var(--encre);
+}
+
+.rangee-exports {
+  justify-content: space-between;
+}
+
+.tableau tfoot th,
+.tableau tfoot td {
+  border-top: 2px solid var(--bordure);
+  background: var(--fond-barre);
+  font-weight: 700;
+}
+
+.rangee-centree {
+  align-items: center;
 }

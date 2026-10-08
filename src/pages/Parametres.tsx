@@ -1,8 +1,8 @@
 import { adresse } from "../lib/navigation";
 
 const RUBRIQUES: { titre: string; detail: string; lien?: string }[] = [
-  { titre: "Cabinet et mentions légales", detail: "Identité, adresse, SIRET, RPPS : l’en-tête de vos factures.", lien: adresse("parametres", "cabinet") },
-  { titre: "Prestations et numérotation", detail: "Vos actes, leurs tarifs, le numéro de vos factures.", lien: adresse("parametres", "facturation") },
+  { titre: "Cabinet et mentions légales", detail: "Identité, mentions, logo, signature : l’en-tête et le pied de vos documents.", lien: adresse("parametres", "cabinet") },
+  { titre: "Prestations et numérotation", detail: "Vos actes, leurs tarifs, le numéro de vos factures, l’email d’envoi.", lien: adresse("parametres", "facturation") },
   { titre: "Modèles de consultation", detail: "Les champs proposés à chaque séance, selon le patient.", lien: adresse("parametres", "modeles") },
   { titre: "Trames", detail: "Textes réutilisables appelés par un code pendant la saisie.", lien: adresse("trames") },
   { titre: "Sauvegardes", detail: "Fréquence, dossier, sauvegarde à la demande, restauration.", lien: adresse("parametres", "sauvegardes") },

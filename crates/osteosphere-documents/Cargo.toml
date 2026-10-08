@@ -10,6 +10,8 @@ repository.workspace = true
 
 [dependencies]
 osteosphere-core = { path = "../osteosphere-core" }
+# Classeurs Excel (.xlsx) des exports : recettes, factures, statistiques, patients.
+rust_xlsxwriter = "0.99"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

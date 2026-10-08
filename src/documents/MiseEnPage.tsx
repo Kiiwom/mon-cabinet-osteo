@@ -122,7 +122,7 @@ export function ReglagesMiseEnPage({ coeur, surChangement }: { coeur: Coeur; sur
         })}
       </div>
       {images.logo && miseEnPage.logo && (
-        <div className="rangee">
+        <div className="rangee rangee-centree">
           <span id={`${id}-place`}>Place du logo</span>
           <div className="segments" role="group" aria-labelledby={`${id}-place`}>
             {(["gauche", "droite"] as const).map((place) => (

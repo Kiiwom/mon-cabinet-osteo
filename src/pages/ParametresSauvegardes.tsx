@@ -397,6 +397,7 @@ const ACTIONS: Record<string, string> = {
   "document.efface": "Document effacé de la corbeille",
   "documents.mise_en_page": "Présentation des documents modifiée",
   "documents.image": "Logo ou signature changé",
+  "emails.modele": "Modèle d’email des factures modifié",
 };
 
 /** Lien vers ce que concerne la ligne du journal, quand c'est possible. */

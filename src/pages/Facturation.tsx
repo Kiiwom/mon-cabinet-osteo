@@ -6,20 +6,22 @@ import { dateDuJour, type Coeur, type ResumeSeance } from "../lib/coeur";
 import { dateCourte, ecrireDateFr, lireDateFr } from "../lib/dates";
 import {
   euros,
+  etatPaiement,
   intituleFacture,
+  LIBELLES_ETAT,
   libelleMoyen,
   MOYENS,
   prestationParDefaut,
   signalerFacturation,
-  versCsv,
   type LigneRecette,
   type Moyen,
   type Prestation,
   type ResumeFacture,
 } from "../lib/facturation";
 import { adresse, aller } from "../lib/navigation";
-import { bornesPeriode, decalerPeriode, libellePeriode, surLaPeriode, type Periode, type TypePeriode } from "../lib/periodes";
+import { bornesPeriode, decalerPeriode, isoDe, libellePeriode, surLaPeriode, type Periode, type TypePeriode } from "../lib/periodes";
 import { normaliser } from "../lib/recherche";
+import { colonne, feuilleVersCsv, type Feuille } from "../lib/tableur";
 
 export type OngletFacturation = "recettes" | "factures" | "a-facturer" | "en-attente";
 
@@ -28,16 +30,36 @@ export function ongletFacturation(segment: string | undefined): OngletFacturatio
 }
 
 const TYPES_PERIODE: { valeur: TypePeriode; libelle: string }[] = [
+  { valeur: "jour", libelle: "Jour" },
   { valeur: "mois", libelle: "Mois" },
   { valeur: "trimestre", libelle: "Trimestre" },
   { valeur: "annee", libelle: "Année" },
   { valeur: "periode", libelle: "Période" },
 ];
 
-/** Choix de la période : précédente, suivante, durée, ou dates libres. */
-export function ChoixPeriode({ periode, changer, aujourdhui }: { periode: Periode; changer: (p: Periode) => void; aujourdhui: Date }) {
+const dateLocale = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+
+/** Choix de la période : précédente, suivante, durée, ou dates libres ; le jour seulement avec `avecJour`. */
+export function ChoixPeriode({
+  periode,
+  changer,
+  aujourdhui,
+  avecJour = false,
+}: {
+  periode: Periode;
+  changer: (p: Periode) => void;
+  aujourdhui: Date;
+  avecJour?: boolean;
+}) {
   const id = useId();
   const [bornes, setBornes] = useState(() => bornesPeriode(periode).map(ecrireDateFr));
+  const types = TYPES_PERIODE.filter((t) => avecJour || t.valeur !== "jour");
+  /** Le jour choisi : aujourd'hui s'il est dans la période affichée, sinon son premier jour. */
+  const jourDansLaPeriode = () => {
+    const [du, au] = bornesPeriode(periode);
+    const iso = isoDe(aujourdhui);
+    return iso >= du && iso <= au ? aujourdhui : dateLocale(du);
+  };
   return (
     <div className="pile-serree choix-periode">
       <div className="rangee navigation-periode">
@@ -54,14 +76,20 @@ export function ChoixPeriode({ periode, changer, aujourdhui }: { periode: Period
             ›
           </button>
         )}
+        {periode.type === "jour" && isoDe(periode.reference) !== isoDe(aujourdhui) && (
+          <button type="button" className="bouton bouton-petit" onClick={() => changer({ type: "jour", reference: aujourdhui })}>
+            Aujourd’hui
+          </button>
+        )}
         <div className="segments" role="group" aria-label="Durée affichée">
-          {TYPES_PERIODE.map((t) => (
+          {types.map((t) => (
             <button
               key={t.valeur}
               type="button"
               aria-pressed={periode.type === t.valeur}
               onClick={() => {
-                if (t.valeur === "periode") {
+                if (t.valeur === "jour") changer({ type: "jour", reference: jourDansLaPeriode() });
+                else if (t.valeur === "periode") {
                   const [du, au] = bornesPeriode(periode);
                   setBornes([ecrireDateFr(du), ecrireDateFr(au)]);
                   changer({ ...periode, type: "periode", du, au });
@@ -201,37 +229,156 @@ function ParMoyen({ recettes }: { recettes: LigneRecette[] }) {
   );
 }
 
-function csvRecettes(recettes: LigneRecette[]): string {
-  return versCsv(
-    ["Encaissé le", "Patient", "Facture", "Date de la facture", "Moyen", "Référence", "Payé par", "Montant (€)"],
-    recettes.map((r) => [
-      ecrireDateFr(r.encaisse_le),
-      r.nom,
-      r.facture_numero ?? "",
-      ecrireDateFr(r.facture_date),
-      libelleMoyen(r.moyen),
-      r.reference,
-      r.payeur,
-      r.montant_centimes / 100,
-    ]),
+interface RecetteDuJour {
+  jour: string;
+  nombre: number;
+  parMoyen: Partial<Record<Moyen, number>>;
+  total: number;
+}
+
+/** Les règlements regroupés par jour d'encaissement, du plus récent au plus ancien. */
+export function recettesParJour(recettes: LigneRecette[]): RecetteDuJour[] {
+  const jours = new Map<string, RecetteDuJour>();
+  for (const r of recettes) {
+    const jour = jours.get(r.encaisse_le) ?? { jour: r.encaisse_le, nombre: 0, parMoyen: {}, total: 0 };
+    jour.nombre += 1;
+    jour.parMoyen[r.moyen] = (jour.parMoyen[r.moyen] ?? 0) + r.montant_centimes;
+    jour.total += r.montant_centimes;
+    jours.set(r.encaisse_le, jour);
+  }
+  return [...jours.values()].sort((a, b) => b.jour.localeCompare(a.jour));
+}
+
+const moyensPresents = (recettes: LigneRecette[]) => MOYENS.map((m) => m.valeur).filter((m) => recettes.some((r) => r.moyen === m));
+
+function feuillesRecettes(recettes: LigneRecette[]): Feuille[] {
+  const moyens = moyensPresents(recettes);
+  return [
+    {
+      nom: "Journal des recettes",
+      colonnes: [
+        colonne("Encaissé le", "date"),
+        colonne("Patient"),
+        colonne("Facture"),
+        colonne("Date de la facture", "date"),
+        colonne("Moyen"),
+        colonne("Référence"),
+        colonne("Payé par"),
+        colonne("Montant", "montant"),
+      ],
+      lignes: recettes.map((r) => [r.encaisse_le, r.nom, r.facture_numero ?? "", r.facture_date, libelleMoyen(r.moyen), r.reference, r.payeur, r.montant_centimes / 100]),
+    },
+    {
+      nom: "Recettes par jour",
+      colonnes: [colonne("Jour", "date"), colonne("Règlements", "nombre"), ...moyens.map((m) => colonne(libelleMoyen(m), "montant")), colonne("Total", "montant")],
+      lignes: recettesParJour(recettes).map((j) => [j.jour, j.nombre, ...moyens.map((m) => (j.parMoyen[m] ?? 0) / 100), j.total / 100]),
+    },
+  ];
+}
+
+const JOURS_COURTS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+const jourCourt = (iso: string) => `${JOURS_COURTS[dateLocale(iso).getDay()]} ${dateCourte(iso)}`;
+
+/** Recettes par jour : nombre de règlements, montant par moyen et total ; un jour s'ouvre en détail. */
+function ParJour({ recettes, periode, voirJour }: { recettes: LigneRecette[]; periode: Periode; voirJour: (jour: string) => void }) {
+  const jours = recettesParJour(recettes);
+  const moyens = moyensPresents(recettes);
+  const somme = (m: Moyen) => recettes.filter((r) => r.moyen === m).reduce((t, r) => t + r.montant_centimes, 0);
+  return (
+    <table className="tableau">
+      <thead>
+        <tr>
+          <th scope="col">Jour</th>
+          <th scope="col" className="nombre">
+            Règlements
+          </th>
+          {moyens.map((m) => (
+            <th key={m} scope="col" className="nombre">
+              <PastilleMoyen moyen={m} /> {libelleMoyen(m)}
+            </th>
+          ))}
+          <th scope="col" className="nombre">
+            Total
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {jours.map((j) => (
+          <tr key={j.jour}>
+            <th scope="row">
+              <button type="button" className="lien-bouton" aria-label={`Détail du ${jourCourt(j.jour)}`} onClick={() => voirJour(j.jour)}>
+                {jourCourt(j.jour)}
+              </button>
+            </th>
+            <td className="nombre">{j.nombre}</td>
+            {moyens.map((m) => (
+              <td key={m} className="nombre">
+                {j.parMoyen[m] ? euros(j.parMoyen[m]) : <span className="discret">—</span>}
+              </td>
+            ))}
+            <td className="nombre">
+              <strong>{euros(j.total)}</strong>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">Total {surLaPeriode(periode)}</th>
+          <td className="nombre">{recettes.length}</td>
+          {moyens.map((m) => (
+            <td key={m} className="nombre">
+              {euros(somme(m))}
+            </td>
+          ))}
+          <td className="nombre">
+            <strong>{euros(recettes.reduce((t, r) => t + r.montant_centimes, 0))}</strong>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  );
+}
+
+/** Excel, CSV ou impression : les boutons d'export communs aux tableaux de la facturation. */
+function Exports({ desactive, excel, csv, imprimer }: { desactive: boolean; excel: () => void; csv: () => void; imprimer?: () => void }) {
+  return (
+    <div className="rangee rangee-centree sans-impression">
+      <span className="discret">Exporter</span>
+      <button type="button" className="bouton bouton-petit" disabled={desactive} onClick={excel}>
+        Excel
+      </button>
+      <button type="button" className="bouton bouton-petit" disabled={desactive} onClick={csv}>
+        CSV
+      </button>
+      {imprimer && (
+        <button type="button" className="bouton bouton-petit" disabled={desactive} onClick={imprimer}>
+          Imprimer ou PDF
+        </button>
+      )}
+    </div>
   );
 }
 
 function Recettes({
   coeur,
   periode,
+  changerPeriode,
   aFacturer,
   enAttente,
   tarif,
 }: {
   coeur: Coeur;
   periode: Periode;
+  changerPeriode: (p: Periode) => void;
   aFacturer: ResumeSeance[];
   enAttente: ResumeFacture[];
   tarif: number;
 }) {
   const [recettes, setRecettes] = useState<LigneRecette[] | null>(null);
   const [tout, setTout] = useState(false);
+  const [vue, setVue] = useState<"detail" | "jour">("detail");
+  const parJour = vue === "jour" && periode.type !== "jour";
   const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [du, au] = bornesPeriode(periode);
@@ -244,10 +391,13 @@ function Recettes({
   const total = (recettes ?? []).reduce((t, r) => t + r.montant_centimes, 0);
   const visibles = tout ? (recettes ?? []) : (recettes ?? []).slice(0, 8);
 
-  async function exporter() {
+  async function exporter(format: "xlsx" | "csv") {
     setErreur(null);
     try {
-      const chemin = await coeur.exporterFichier(`Recettes ${du} au ${au}.csv`, csvRecettes(recettes ?? []));
+      const nom = du === au ? `Recettes du ${du}` : `Recettes ${du} au ${au}`;
+      const feuilles = feuillesRecettes(recettes ?? []);
+      const chemin =
+        format === "xlsx" ? await coeur.exporterClasseur(`${nom}.xlsx`, feuilles) : await coeur.exporterFichier(`${nom}.csv`, feuilleVersCsv(feuilles[parJour ? 1 : 0]));
       setMessage(`Export enregistré : ${chemin}`);
     } catch (e) {
       setErreur((e as Error).message);
@@ -285,16 +435,21 @@ function Recettes({
       <section className="carte carte-tableau journal-recettes" aria-labelledby="titre-journal">
         <div className="entete-carte entete-tableau">
           <h2 id="titre-journal">
-            Journal des recettes<span className="impression-seule"> · {libellePeriode(periode)}</span>
+            {parJour ? "Recettes par jour" : "Journal des recettes"}
+            <span className="impression-seule"> · {libellePeriode(periode)}</span>
           </h2>
-          <div className="rangee sans-impression">
-            <span className="discret">Exporter</span>
-            <button type="button" className="bouton bouton-petit" disabled={!recettes?.length} onClick={() => void exporter()}>
-              CSV (Excel)
-            </button>
-            <button type="button" className="bouton bouton-petit" disabled={!recettes?.length} onClick={() => window.print()}>
-              Imprimer ou PDF
-            </button>
+          <div className="rangee">
+            {periode.type !== "jour" && (
+              <div className="segments sans-impression" role="group" aria-label="Présentation du journal">
+                <button type="button" aria-pressed={!parJour} onClick={() => setVue("detail")}>
+                  Détail
+                </button>
+                <button type="button" aria-pressed={parJour} onClick={() => setVue("jour")}>
+                  Par jour
+                </button>
+              </div>
+            )}
+            <Exports desactive={!recettes?.length} excel={() => void exporter("xlsx")} csv={() => void exporter("csv")} imprimer={() => window.print()} />
           </div>
         </div>
         {message && (
@@ -307,6 +462,8 @@ function Recettes({
           <p className="vide discret">Chargement…</p>
         ) : recettes.length === 0 ? (
           <p className="vide discret">Aucun règlement encaissé {surLaPeriode(periode)}.</p>
+        ) : parJour ? (
+          <ParJour recettes={recettes} periode={periode} voirJour={(jour) => changerPeriode({ type: "jour", reference: dateLocale(jour) })} />
         ) : (
           <>
             <table className="tableau">
@@ -370,11 +527,47 @@ function Recettes({
 
 type FiltreFactures = "toutes" | "factures" | "avoirs" | "brouillons" | "annulees";
 
+/** Les factures visibles, en tableau : une ligne par facture ou avoir. */
+function feuilleFactures(factures: ResumeFacture[]): Feuille {
+  return {
+    nom: "Factures et avoirs",
+    colonnes: [
+      colonne("N°"),
+      colonne("Nature"),
+      colonne("Émise le", "date"),
+      colonne("Patient"),
+      colonne("Destinataire"),
+      colonne("Désignation"),
+      colonne("Montant", "montant"),
+      colonne("Réglé", "montant"),
+      colonne("Reste", "montant"),
+      colonne("Moyens"),
+      colonne("État"),
+    ],
+    lignes: factures.map((f) => [
+      f.numero ?? "",
+      f.nature === "avoir" ? "Avoir" : "Facture",
+      f.date_emission,
+      [f.patient_prenom, f.patient_nom].filter(Boolean).join(" "),
+      f.destinataire,
+      f.designation,
+      f.total_centimes / 100,
+      f.regle_centimes / 100,
+      f.etat === "emise" && f.nature === "facture" ? f.reste_centimes / 100 : null,
+      f.moyens.map(libelleMoyen).join(", "),
+      LIBELLES_ETAT[etatPaiement(f)],
+    ]),
+  };
+}
+
 function Factures({ coeur, periode }: { coeur: Coeur; periode: Periode }) {
+  const id = useId();
   const [factures, setFactures] = useState<ResumeFacture[] | null>(null);
   const [filtre, setFiltre] = useState<FiltreFactures>("toutes");
+  const [moyen, setMoyen] = useState<Moyen | "aucun" | "">("");
   const [texte, setTexte] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [du, au] = bornesPeriode(periode);
 
   useEffect(() => {
@@ -390,10 +583,24 @@ function Factures({ coeur, periode }: { coeur: Coeur; periode: Periode }) {
     annulees: (f) => f.etat === "annulee",
   };
   const t = normaliser(texte);
+  const parMoyen = (f: ResumeFacture) => !moyen || (moyen === "aucun" ? f.moyens.length === 0 : f.moyens.includes(moyen));
   const visibles = (factures ?? [])
     .filter(garder[filtre])
+    .filter(parMoyen)
     .filter((f) => !t || normaliser(`${f.numero ?? ""} ${f.destinataire} ${f.patient_prenom} ${f.patient_nom} ${f.designation}`).includes(t));
-  const compte = (cle: FiltreFactures) => (factures ?? []).filter(garder[cle]).length;
+  const compte = (cle: FiltreFactures) => (factures ?? []).filter(garder[cle]).filter(parMoyen).length;
+
+  async function exporter(format: "xlsx" | "csv") {
+    setErreur(null);
+    try {
+      const nom = du === au ? `Factures du ${du}` : `Factures ${du} au ${au}`;
+      const feuille = feuilleFactures(visibles);
+      const chemin = format === "xlsx" ? await coeur.exporterClasseur(`${nom}.xlsx`, [feuille]) : await coeur.exporterFichier(`${nom}.csv`, feuilleVersCsv(feuille));
+      setMessage(`Export enregistré : ${chemin}`);
+    } catch (e) {
+      setErreur((e as Error).message);
+    }
+  }
   const FILTRES: { cle: FiltreFactures; libelle: string }[] = [
     { cle: "toutes", libelle: "Toutes" },
     { cle: "factures", libelle: "Factures" },
@@ -412,15 +619,40 @@ function Factures({ coeur, periode }: { coeur: Coeur; periode: Periode }) {
             </button>
           ))}
         </div>
-        <input
-          type="search"
-          className="recherche recherche-seances"
-          aria-label="Rechercher une facture"
-          placeholder="N°, patient, désignation…"
-          value={texte}
-          onChange={(e) => setTexte(e.target.value)}
-        />
+        <div className="rangee">
+          <label htmlFor={`${id}-moyen`} className="visuellement-cache">
+            Moyen de paiement
+          </label>
+          <select id={`${id}-moyen`} className="choix-filtre" value={moyen} onChange={(e) => setMoyen(e.target.value as Moyen | "aucun" | "")}>
+            <option value="">Tous les moyens de paiement</option>
+            {MOYENS.map((m) => (
+              <option key={m.valeur} value={m.valeur}>
+                Réglées par {m.libelle.toLowerCase()}
+              </option>
+            ))}
+            <option value="aucun">Sans règlement</option>
+          </select>
+          <input
+            type="search"
+            className="recherche recherche-seances"
+            aria-label="Rechercher une facture"
+            placeholder="N°, patient, désignation…"
+            value={texte}
+            onChange={(e) => setTexte(e.target.value)}
+          />
+        </div>
       </div>
+      <div className="rangee rangee-centree rangee-exports">
+        <span className="discret">
+          {visibles.length} document{visibles.length > 1 ? "s" : ""} · total {euros(visibles.filter((f) => f.etat !== "brouillon").reduce((t, f) => t + f.total_centimes, 0))}
+        </span>
+        <Exports desactive={!visibles.length} excel={() => void exporter("xlsx")} csv={() => void exporter("csv")} />
+      </div>
+      {message && (
+        <p className="succes" role="status">
+          {message}
+        </p>
+      )}
       {erreur && <ErreurFacturation message={erreur} />}
       <section className="carte carte-tableau" aria-label="Factures et avoirs de la période">
         {factures === null ? (
@@ -692,14 +924,16 @@ export function PageFacturation({ coeur, onglet, aujourdhui }: { coeur: Coeur; o
           <p className="page-sous-titre">Recettes, factures et règlements du cabinet</p>
         </div>
         <div className="rangee">
-          {(onglet === "recettes" || onglet === "factures") && <ChoixPeriode periode={periode} changer={setPeriode} aujourdhui={jour} />}
+          {(onglet === "recettes" || onglet === "factures") && <ChoixPeriode periode={periode} changer={setPeriode} aujourdhui={jour} avecJour />}
           <a className="bouton sans-impression" href={adresse("facturation", "nouvelle")}>
             Nouvelle facture
           </a>
         </div>
       </div>
       <Onglets courant={onglet} aFacturer={aFacturer.filter((s) => !s.facture).length} enAttente={enAttente.length} />
-      {onglet === "recettes" && <Recettes key={version} coeur={coeur} periode={periode} aFacturer={aFacturer} enAttente={enAttente} tarif={prestation?.tarif_centimes ?? 0} />}
+      {onglet === "recettes" && (
+        <Recettes key={version} coeur={coeur} periode={periode} changerPeriode={setPeriode} aFacturer={aFacturer} enAttente={enAttente} tarif={prestation?.tarif_centimes ?? 0} />
+      )}
       {onglet === "factures" && <Factures coeur={coeur} periode={periode} />}
       {onglet === "a-facturer" && <AFacturer coeur={coeur} seances={aFacturer} prestation={prestation} recharger={recharger} />}
       {onglet === "en-attente" && <EnAttente coeur={coeur} factures={enAttente} recharger={recharger} />}

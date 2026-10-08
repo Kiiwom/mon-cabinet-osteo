@@ -397,8 +397,14 @@ export function PageFacture({ coeur, id, mode }: { coeur: Coeur; id: string; mod
   const email = () =>
     agir(async () => {
       const patient = facture.patient_id ? await coeur.lirePatient(facture.patient_id) : null;
-      const chemin = await coeur.preparerEmailFacture(facture.id, patient?.email ?? "");
-      setMessage(`Email préparé dans votre messagerie : joignez le PDF ${chemin}`);
+      const email = await coeur.preparerEmailFacture(facture.id, patient?.email ?? "");
+      setMessage(
+        email.abandonne
+          ? `Email abandonné. Le PDF reste rangé : ${email.chemin}`
+          : email.piece_jointe
+            ? "Email prêt dans votre messagerie, PDF joint : relisez-le puis envoyez-le."
+            : `Email préparé dans votre messagerie : joignez le PDF ${email.chemin}, montré dans son dossier.`,
+      );
     });
   const imprimer = () => agir(() => coeur.imprimerFacture(facture.id));
 

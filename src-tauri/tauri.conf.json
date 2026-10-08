@@ -42,6 +42,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "deb": {
+        "depends": ["xdg-utils"]
+      }
+    },
     "windows": {
       "nsis": {
         "installMode": "currentUser",

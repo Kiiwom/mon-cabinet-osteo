@@ -4,13 +4,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
+use osteosphere_core::emails::{self, ModeleEmail};
 use osteosphere_core::facturation::{
     self, EtatFacture, EvenementFacture, Facture, LigneFacture, LigneRecette, Nature, ReglagesNumerotation, ResumeFacture,
     SaisieFacture, SaisieReglement,
 };
+use osteosphere_core::numerotation::Date;
 use osteosphere_core::prestations::{self, Prestation, SaisiePrestation};
 use osteosphere_core::seances::{self, ResumeSeance};
-use osteosphere_documents::{Filigrane, Habillage, facture_pdf, facture_svg};
+use osteosphere_courriel::{Brouillon, Preparation};
+use osteosphere_documents::{Feuille, Filigrane, Habillage, classeur, euros, facture_pdf, facture_svg};
+use serde::Serialize;
 use tauri::State;
 
 use crate::demarrage::{EtatCabinet, message};
@@ -283,29 +287,68 @@ fn encoder_url(texte: &str) -> String {
         .collect()
 }
 
-/// Prépare un email au patient dans la messagerie de l'ordinateur et montre le PDF à joindre :
-/// une adresse « mailto » ne peut pas porter de pièce jointe.
+#[derive(Serialize)]
+pub struct EmailPrepare {
+    /// Le PDF rangé dans Documents › Osteosphere › Factures.
+    chemin: String,
+    /// Le PDF est déjà joint ; sinon, une adresse « mailto » a ouvert la messagerie et le PDF est montré.
+    piece_jointe: bool,
+    /// La fenêtre de rédaction a été refermée sans envoi.
+    abandonne: bool,
+}
+
+fn valeurs_email(facture: &Facture) -> Vec<(&'static str, String)> {
+    let praticien = facture.praticien.clone().unwrap_or_default();
+    let destinataire = &facture.saisie.destinataire;
+    let date = facture.date_emission.as_deref().and_then(|d| Date::lire(d).ok()).map(|d| d.en_toutes_lettres()).unwrap_or_default();
+    vec![
+        ("prénom", destinataire.prenom.trim().to_owned()),
+        ("nom", destinataire.nom.trim().to_owned()),
+        ("document", if facture.nature == Nature::Avoir { "avoir" } else { "facture" }.to_owned()),
+        ("numéro", facture.numero.clone().unwrap_or_default()),
+        ("date", date),
+        ("montant", euros(facture.total_centimes.abs()).replace('\u{a0}', " ")),
+        ("praticien", format!("{} {}", praticien.prenom.trim(), praticien.nom.trim()).trim().to_owned()),
+        ("téléphone", praticien.telephone.trim().to_owned()),
+    ]
+}
+
+/// Prépare l'email au patient dans la messagerie de l'ordinateur, PDF joint, d'après le modèle
+/// de Paramètres › Facturation. Sans messagerie qui accepte une pièce jointe, une adresse
+/// « mailto » ouvre la messagerie et le PDF est montré dans son dossier, à joindre.
 #[tauri::command]
-pub async fn preparer_email_facture(etat: State<'_, Arc<EtatCabinet>>, id: String, email: String) -> Result<String, String> {
+pub async fn preparer_email_facture(etat: State<'_, Arc<EtatCabinet>>, id: String, email: String) -> Result<EmailPrepare, String> {
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
         let (facture, chemin) = enregistrer(&etat, &id)?;
-        let praticien = facture.praticien.clone().unwrap_or_default();
-        let nature = if facture.nature == Nature::Avoir { "Avoir" } else { "Facture" };
-        let numero = facture.numero.clone().unwrap_or_default();
-        let sujet = format!("{nature} n° {numero}");
-        let corps = format!(
-            "Bonjour,\n\nVeuillez trouver ci-joint votre {} n° {numero}.\n\nBien cordialement,\n{} {}\n",
-            nature.to_lowercase(),
-            praticien.prenom,
-            praticien.nom
-        );
-        let adresse = format!("mailto:{}?subject={}&body={}", encoder_url(email.trim()), encoder_url(&sujet), encoder_url(&corps));
-        montrer(&chemin);
-        tauri_plugin_opener::open_url(adresse, None::<&str>).map_err(message)?;
-        Ok(chemin.display().to_string())
+        let modele = etat.avec_base(|base| emails::lire(base).map_err(message))?;
+        let valeurs = valeurs_email(&facture);
+        let (objet, corps) = (emails::remplir(&modele.objet, &valeurs), emails::remplir(&modele.message, &valeurs));
+        let nom = facture.saisie.destinataire.nom_complet();
+        let brouillon = Brouillon { adresse: email.trim(), nom: &nom, objet: &objet, message: &corps, piece_jointe: &chemin };
+        let affiche = chemin.display().to_string();
+        match osteosphere_courriel::preparer(&brouillon) {
+            Ok(preparation) => Ok(EmailPrepare { chemin: affiche, piece_jointe: true, abandonne: preparation == Preparation::Abandonnee }),
+            Err(erreur) => {
+                log::warn!("{erreur} : repli sur une adresse mailto");
+                let adresse = format!("mailto:{}?subject={}&body={}", encoder_url(email.trim()), encoder_url(&objet), encoder_url(&corps));
+                montrer(&chemin);
+                tauri_plugin_opener::open_url(adresse, None::<&str>).map_err(message)?;
+                Ok(EmailPrepare { chemin: affiche, piece_jointe: false, abandonne: false })
+            }
+        }
     })
     .await
+}
+
+#[tauri::command]
+pub fn modele_email(etat: State<'_, Arc<EtatCabinet>>) -> Result<ModeleEmail, String> {
+    etat.avec_base(|base| emails::lire(base).map_err(message))
+}
+
+#[tauri::command]
+pub fn enregistrer_modele_email(etat: State<'_, Arc<EtatCabinet>>, modele: ModeleEmail) -> Result<ModeleEmail, String> {
+    etat.avec_base(|base| emails::enregistrer(base, &modele).map_err(message))
 }
 
 /// Écrit un export (CSV, texte) dans Documents › Osteosphere › Exports et le montre.
@@ -317,6 +360,22 @@ pub async fn exporter_fichier(etat: State<'_, Arc<EtatCabinet>>, nom: String, co
         std::fs::create_dir_all(&dossier).map_err(message)?;
         let chemin = dossier.join(nom_de_fichier(&nom));
         std::fs::write(&chemin, contenu).map_err(message)?;
+        montrer(&chemin);
+        Ok(chemin.display().to_string())
+    })
+    .await
+}
+
+/// Écrit un classeur Excel dans Documents › Osteosphere › Exports et le montre.
+#[tauri::command]
+pub async fn exporter_classeur(etat: State<'_, Arc<EtatCabinet>>, nom: String, feuilles: Vec<Feuille>) -> Result<String, String> {
+    let etat = Arc::clone(&etat);
+    en_arriere_plan(move || {
+        let octets = classeur(&feuilles).map_err(message)?;
+        let dossier = etat.dossier_documents().join("Exports");
+        std::fs::create_dir_all(&dossier).map_err(message)?;
+        let chemin = dossier.join(nom_de_fichier(&nom));
+        std::fs::write(&chemin, octets).map_err(message)?;
         montrer(&chemin);
         Ok(chemin.display().to_string())
     })

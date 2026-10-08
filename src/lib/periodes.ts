@@ -1,7 +1,7 @@
 import { dateCourte } from "./dates";
 
-/** Périodes de la facturation et des statistiques : mois, trimestre, année ou dates choisies. */
-export type TypePeriode = "mois" | "trimestre" | "annee" | "periode";
+/** Périodes de la facturation et des statistiques : jour, mois, trimestre, année ou dates choisies. */
+export type TypePeriode = "jour" | "mois" | "trimestre" | "annee" | "periode";
 
 export interface Periode {
   type: TypePeriode;
@@ -14,6 +14,12 @@ export interface Periode {
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const MOIS_MINUSCULES = MOIS.map((m) => m.toLowerCase());
+const JOURS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+/** « 8 octobre », « 1er mars ». */
+function jourEtMois(d: Date): string {
+  return `${d.getDate() === 1 ? "1er" : d.getDate()} ${MOIS_MINUSCULES[d.getMonth()]}`;
+}
 
 export function isoDe(d: Date): string {
   const deux = (n: number) => String(n).padStart(2, "0");
@@ -24,6 +30,8 @@ export function isoDe(d: Date): string {
 export function bornesPeriode(p: Periode): [string, string] {
   const r = p.reference;
   switch (p.type) {
+    case "jour":
+      return [isoDe(r), isoDe(r)];
     case "mois":
       return [isoDe(new Date(r.getFullYear(), r.getMonth(), 1)), isoDe(new Date(r.getFullYear(), r.getMonth() + 1, 0))];
     case "trimestre": {
@@ -38,6 +46,7 @@ export function bornesPeriode(p: Periode): [string, string] {
 }
 
 export function decalerPeriode(p: Periode, sens: 1 | -1): Periode {
+  if (p.type === "jour") return { ...p, reference: new Date(p.reference.getFullYear(), p.reference.getMonth(), p.reference.getDate() + sens) };
   const r = new Date(p.reference.getFullYear(), p.reference.getMonth(), 1);
   if (p.type === "mois") r.setMonth(r.getMonth() + sens);
   else if (p.type === "trimestre") r.setMonth(r.getMonth() + 3 * sens);
@@ -45,10 +54,12 @@ export function decalerPeriode(p: Periode, sens: 1 | -1): Periode {
   return { ...p, reference: r };
 }
 
-/** « Octobre 2026 », « 4e trimestre 2026 », « 2026 », « du 1er oct. 2026 au 6 oct. 2026 ». */
+/** « Jeudi 8 octobre 2026 », « Octobre 2026 », « 4e trimestre 2026 », « 2026 », « du 1er oct. 2026 au 6 oct. 2026 ». */
 export function libellePeriode(p: Periode): string {
   const r = p.reference;
   switch (p.type) {
+    case "jour":
+      return `${JOURS[r.getDay()]} ${jourEtMois(r)} ${r.getFullYear()}`;
     case "mois":
       return `${MOIS[r.getMonth()]} ${r.getFullYear()}`;
     case "trimestre": {
@@ -64,9 +75,11 @@ export function libellePeriode(p: Periode): string {
   }
 }
 
-/** « en octobre », « au 4e trimestre », « en 2026 », « sur la période ». */
+/** « le 8 octobre », « en octobre », « au 4e trimestre », « en 2026 », « sur la période ». */
 export function surLaPeriode(p: Periode): string {
   switch (p.type) {
+    case "jour":
+      return `le ${jourEtMois(p.reference)}`;
     case "mois":
       return `en ${MOIS_MINUSCULES[p.reference.getMonth()]}`;
     case "trimestre":

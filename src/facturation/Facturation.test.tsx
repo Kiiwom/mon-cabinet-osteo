@@ -2,8 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 
 import { App } from "../App";
 import { creerCoeurDeDemonstration, type Coeur } from "../lib/coeur";
+import { MODELE_EMAIL_DEFAUT, remplirModele } from "../lib/emails";
 import { euros, lireMontant, versCsv } from "../lib/facturation";
-import { bornesPeriode, libellePeriode, surLaPeriode } from "../lib/periodes";
+import { bornesPeriode, decalerPeriode, libellePeriode, surLaPeriode } from "../lib/periodes";
+import { colonne, feuilleVersCsv } from "../lib/tableur";
 import { PageFacturation } from "../pages/Facturation";
 
 async function aller(adresse: string) {
@@ -52,6 +54,29 @@ describe("montants, CSV et périodes", () => {
     expect(libellePeriode({ type: "trimestre", reference: octobre })).toBe("4e trimestre 2026");
     expect(surLaPeriode({ type: "mois", reference: octobre })).toBe("en octobre");
     expect(bornesPeriode({ type: "periode", reference: octobre, du: "2026-09-15", au: "2026-10-06" })).toEqual(["2026-09-15", "2026-10-06"]);
+    const jour = { type: "jour" as const, reference: octobre };
+    expect(bornesPeriode(jour)).toEqual(["2026-10-07", "2026-10-07"]);
+    expect(libellePeriode(jour)).toBe("Mercredi 7 octobre 2026");
+    expect(surLaPeriode({ ...jour, reference: new Date(2026, 10, 1) })).toBe("le 1er novembre");
+    expect(bornesPeriode(decalerPeriode({ ...jour, reference: new Date(2026, 9, 31) }, 1))).toEqual(["2026-11-01", "2026-11-01"]);
+  });
+
+  it("écrit une feuille en CSV, dates à la française et montants en euros", () => {
+    const csv = feuilleVersCsv({
+      nom: "Essai",
+      colonnes: [colonne("Encaissé le", "date"), colonne("Patient"), colonne("Montant", "montant")],
+      lignes: [["2026-10-06", "Camille Martin", 55.5], [null, "Paul Morel", 50]],
+    });
+    expect(csv).toBe("\ufeffEncaissé le;Patient;Montant (€)\r\n06/10/2026;Camille Martin;55,5\r\n;Paul Morel;50\r\n");
+  });
+
+  it("remplit le modèle d'email comme le cœur", () => {
+    const valeurs = { prénom: "Camille", nom: "Martin", document: "facture", numéro: "2026-10-1772", date: "6 octobre 2026", montant: "55,00 €", praticien: "Alexandre Roux", téléphone: "" };
+    expect(remplirModele(MODELE_EMAIL_DEFAUT.objet, valeurs)).toBe("Votre facture n° 2026-10-1772");
+    expect(remplirModele(MODELE_EMAIL_DEFAUT.message, valeurs)).toBe(
+      "Bonjour Camille Martin,\n\nVeuillez trouver ci-joint votre facture n° 2026-10-1772 du 6 octobre 2026, d'un montant de 55,00 €.\n\nBien cordialement,\nAlexandre Roux",
+    );
+    expect(remplirModele("{PRENOM} {Inconnue} {nom", valeurs)).toBe("Camille {Inconnue} {nom");
   });
 });
 
@@ -100,6 +125,62 @@ describe("facturation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Période précédente" }));
     expect(await screen.findByText("Septembre 2026")).toBeInTheDocument();
     expect(await within(screen.getByRole("region", { name: /Journal des recettes/ })).findByText("Aucun règlement encaissé en septembre.")).toBeInTheDocument();
+  });
+
+  it("montre les recettes par jour, ouvre un jour et exporte en Excel", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    const classeurs: { nom: string; feuilles: string[] }[] = [];
+    coeur.exporterClasseur = async (nom, feuilles) => {
+      classeurs.push({ nom, feuilles: feuilles.map((f) => f.nom) });
+      return `Exports/${nom}`;
+    };
+    render(<PageFacturation coeur={coeur} onglet="recettes" aujourdhui={new Date(2026, 9, 7)} />);
+    const journal = await screen.findByRole("region", { name: /Journal des recettes/ });
+    await within(journal).findByText("Thomas Girard");
+    fireEvent.click(within(journal).getByRole("button", { name: "Par jour" }));
+    const parJour = screen.getByRole("region", { name: /Recettes par jour/ });
+    const lignes = within(parJour).getAllByRole("row");
+    expect(lignes).toHaveLength(4);
+    expect(lignes[0]).toHaveTextContent("Chèque");
+    expect(lignes[0]).toHaveTextContent("Virement");
+    expect(lignes[1]).toHaveTextContent("mar. 6 oct. 2026");
+    expect(lignes[3]).toHaveTextContent("Total en octobre255,00 €50,00 €105,00 €");
+
+    fireEvent.click(within(parJour).getByRole("button", { name: "Excel" }));
+    expect(await screen.findByText("Export enregistré : Exports/Recettes 2026-10-01 au 2026-10-31.xlsx")).toBeInTheDocument();
+    expect(classeurs[0].feuilles).toEqual(["Journal des recettes", "Recettes par jour"]);
+
+    fireEvent.click(within(parJour).getByRole("button", { name: "Détail du lun. 5 oct. 2026" }));
+    expect(await screen.findByText("Lundi 5 octobre 2026")).toBeInTheDocument();
+    const duJour = await screen.findByRole("region", { name: /Journal des recettes/ });
+    expect(within(duJour).queryByRole("button", { name: "Par jour" })).not.toBeInTheDocument();
+    expect(await within(duJour).findByText("Total le 5 octobre : 50,00 €")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aujourd’hui" }));
+    expect(await screen.findByText("Mercredi 7 octobre 2026")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mois" }));
+    expect(await screen.findByText("Octobre 2026")).toBeInTheDocument();
+  });
+
+  it("filtre les factures par moyen de paiement et les exporte", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    const exports: string[] = [];
+    coeur.exporterFichier = async (nom, contenu) => {
+      exports.push(contenu);
+      return `Exports/${nom}`;
+    };
+    render(<PageFacturation coeur={coeur} onglet="factures" aujourdhui={new Date(2026, 9, 7)} />);
+    const liste = await screen.findByRole("region", { name: "Factures et avoirs de la période" });
+    await waitFor(() => expect(within(liste).getAllByRole("row").length).toBeGreaterThan(2));
+    fireEvent.change(screen.getByLabelText("Moyen de paiement"), { target: { value: "cheque" } });
+    expect(within(liste).getAllByRole("row")).toHaveLength(2);
+    expect(within(liste).getByText("Thomas Girard")).toBeInTheDocument();
+    expect(screen.getByText("1 document · total 55,00 €")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "CSV" }));
+    expect(await screen.findByText(/^Export enregistré : Exports\/Factures 2026-10-01 au 2026-10-31\.csv$/)).toBeInTheDocument();
+    expect(exports[0]).toContain("Chèque");
+    expect(exports[0].trim().split("\r\n")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Moyen de paiement"), { target: { value: "aucun" } });
+    await waitFor(() => expect(within(liste).queryByText("Thomas Girard")).not.toBeInTheDocument());
   });
 
   it("corrige une facture réglée : avoir, facture rectificative et règlement reporté", async () => {
@@ -210,6 +291,27 @@ describe("facturation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer la numérotation" }));
     expect(await screen.findByText("Numérotation enregistrée.")).toBeInTheDocument();
     expect(await screen.findByText(/^F\d{2}-\d{5}$/)).toBeInTheDocument();
+  });
+
+  it("règle le modèle d'email des factures, avec un aperçu fictif", async () => {
+    const coeur = await demarrer();
+    await aller("#/parametres/facturation");
+    const carte = await screen.findByRole("form", { name: "Email d’envoi des factures" });
+    expect(within(carte).getByLabelText("Objet")).toHaveValue("Votre {document} n° {numéro}");
+    const apercu = within(carte).getByRole("group", { name: "Aperçu sur un exemple fictif" });
+    expect(apercu).toHaveTextContent("Votre facture n° 2026-10-1772");
+    const message = within(carte).getByLabelText("Message");
+    fireEvent.change(message, { target: { value: "Bonjour, " } });
+    fireEvent.focus(message);
+    (message as HTMLTextAreaElement).setSelectionRange(9, 9);
+    fireEvent.click(within(carte).getByRole("button", { name: "{prénom}" }));
+    expect(message).toHaveValue("Bonjour, {prénom}");
+    expect(apercu).toHaveTextContent("Bonjour, Camille");
+    fireEvent.click(within(carte).getByRole("button", { name: "Enregistrer le modèle" }));
+    expect(await within(carte).findByText("Modèle d’email enregistré.")).toBeInTheDocument();
+    expect((await coeur.modeleEmail()).message).toBe("Bonjour, {prénom}");
+    fireEvent.click(within(carte).getByRole("button", { name: "Rétablir le texte d’origine" }));
+    expect(message).toHaveValue(MODELE_EMAIL_DEFAUT.message);
   });
 
   it("émet une facture sans séance pour un patient choisi", async () => {

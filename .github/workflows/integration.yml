@@ -35,7 +35,7 @@ jobs:
       - run: |
           dbus-run-session -- sh -c '
             printf essai | gnome-keyring-daemon --unlock --components=secrets --daemonize >/dev/null &&
-            cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session'
+            cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session -p osteosphere-courriel'
 
   linux:
     name: Paquet Linux
@@ -74,7 +74,7 @@ jobs:
       # OpenSSL, compilé avec SQLCipher, a besoin de NASM sous Windows.
       - uses: ilammy/setup-nasm@v1
       - run: npm ci
-      - run: cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session
+      - run: cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session -p osteosphere-courriel
       - run: npm run tauri build
       - uses: actions/upload-artifact@v4
         with:
