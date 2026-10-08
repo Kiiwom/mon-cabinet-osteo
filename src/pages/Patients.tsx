@@ -228,7 +228,7 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
       {voirDoublons && doublons.length > 0 && (
         <section className="carte" aria-labelledby={`${id}-doublons`}>
           <h2 id={`${id}-doublons`}>Doublons probables</h2>
-          <p className="discret">Même nom et prénom, ou presque, avec la même date de naissance. La fusion guidée arrive avec la suite de la phase 3.</p>
+          <p className="discret">Même nom et prénom, ou presque, avec la même date de naissance. La fusion réunit les deux dossiers, après un aperçu.</p>
           <ul className="liste-doublons">
             {doublons.map(([a, b]) => (
               <li key={`${a.id}-${b.id}`}>
@@ -240,6 +240,9 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
                   {b.nom} {b.prenom}
                 </a>
                 {a.naissance && <span className="discret">{neLe(a.sexe, a.naissance)}</span>}
+                <a className="bouton bouton-petit" href={adresse("patients", a.id, "fusion", b.id)}>
+                  Fusionner…
+                </a>
               </li>
             ))}
           </ul>

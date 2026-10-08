@@ -138,6 +138,8 @@ pub struct Destinataire {
     pub adresse: String,
     pub code_postal: String,
     pub ville: String,
+    /// Le patient soigné, quand la facture est adressée à un autre que lui (un parent) : « Lucas Martin ».
+    pub patient: String,
 }
 
 impl Destinataire {
@@ -156,7 +158,22 @@ impl Destinataire {
             adresse: [f.adresse.trim(), f.complement_adresse.trim()].into_iter().filter(|t| !t.is_empty()).collect::<Vec<_>>().join("\n"),
             code_postal: f.code_postal.clone(),
             ville: f.ville.clone(),
+            patient: String::new(),
         }
+    }
+
+    /// Le proche qui reçoit les factures du patient (un parent), avec le nom du patient ; sinon le patient.
+    pub fn pour(patient: &Patient, payeur: Option<&Patient>) -> Self {
+        match payeur {
+            Some(payeur) => Self { patient: format!("{} {}", patient.fiche.prenom, patient.fiche.nom).trim().to_owned(), ..Self::du_patient(payeur) },
+            None => Self::du_patient(patient),
+        }
+    }
+
+    /// Le destinataire des factures du patient, d'après sa fiche et ses proches.
+    pub fn des_factures(base: &Base, patient: &Patient) -> Self {
+        let payeur = patient.factures_a.as_deref().and_then(|id| patients::lire(base, id).ok());
+        Self::pour(patient, payeur.as_ref())
     }
 
     /// « Camille Martin »
@@ -172,11 +189,12 @@ impl Destinataire {
             adresse: self.adresse.lines().map(propre).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n"),
             code_postal: propre(&self.code_postal),
             ville: propre(&self.ville),
+            patient: propre(&self.patient),
         };
         if d.nom.is_empty() {
             return Err(ErreurFacture::Invalide("indiquez le nom du destinataire de la facture"));
         }
-        if [&d.civilite, &d.prenom, &d.nom, &d.code_postal, &d.ville].iter().any(|t| t.chars().count() > 120) || d.adresse.chars().count() > 300 {
+        if [&d.civilite, &d.prenom, &d.nom, &d.code_postal, &d.ville, &d.patient].iter().any(|t| t.chars().count() > 120) || d.adresse.chars().count() > 300 {
             return Err(ErreurFacture::Invalide("le destinataire est trop long"));
         }
         Ok(d)
@@ -861,7 +879,7 @@ pub fn facturer_seance(
                 let saisie = SaisieFacture {
                     patient_id: Some(patient.id.clone()),
                     seance_id: Some(seance_id.to_owned()),
-                    destinataire: Destinataire::du_patient(&patient),
+                    destinataire: Destinataire::des_factures(base, &patient),
                     lignes: lignes.to_vec(),
                     ..Default::default()
                 };
@@ -1196,6 +1214,20 @@ mod tests {
 
     fn carte(montant: i64, le: &str) -> SaisieReglement {
         SaisieReglement { moyen: Moyen::Carte, montant_centimes: montant, encaisse_le: le.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn la_facture_d_un_enfant_va_au_parent_qui_la_recoit() {
+        let c = cabinet();
+        let lucas = patients::creer(&c.base, &FichePatient { nom: "Martin".into(), prenom: "Lucas".into(), ..Default::default() }).unwrap();
+        crate::familles::lier(&c.base, &lucas.id, &c.patient, "parent").unwrap();
+        crate::familles::definir_payeur(&c.base, &lucas.id, Some(&c.patient)).unwrap();
+        let lucas = patients::lire(&c.base, &lucas.id).unwrap();
+        let d = Destinataire::des_factures(&c.base, &lucas);
+        assert_eq!((d.civilite.as_str(), d.prenom.as_str(), d.patient.as_str()), ("Mme", "Camille", "Lucas Martin"));
+        assert_eq!(d.adresse, "12 rue des Tilleuls\nBâtiment B");
+        let camille = patients::lire(&c.base, &c.patient).unwrap();
+        assert_eq!(Destinataire::des_factures(&c.base, &camille).patient, "");
     }
 
     #[test]

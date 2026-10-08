@@ -354,11 +354,16 @@ export function PageParametresSecurite({ coeur, surVerrouillage }: { coeur: Coeu
   );
 }
 
-const ACTIONS: Record<string, string> = {
+export const ACTIONS: Record<string, string> = {
   "patient.cree": "Dossier patient créé",
   "patient.modifie": "Dossier patient modifié",
   "patient.archive": "Dossier patient archivé",
   "patient.desarchive": "Dossier patient sorti des archives",
+  "patient.fusionne": "Deux dossiers fusionnés",
+  "patient.efface": "Dossier patient effacé à la demande du patient",
+  "patient.payeur": "Destinataire des factures changé",
+  "famille.lien": "Lien familial ajouté ou changé",
+  "famille.delie": "Lien familial retiré",
   "antecedent.cree": "Antécédent ajouté",
   "antecedent.modifie": "Antécédent modifié",
   "antecedent.supprime": "Antécédent supprimé",
@@ -406,7 +411,9 @@ const ACTIONS: Record<string, string> = {
 
 /** Lien vers ce que concerne la ligne du journal, quand c'est possible. */
 function lienJournal(l: LigneJournal): string | null {
-  if (l.action.startsWith("patient.") || l.action.startsWith("antecedent.")) return l.action.startsWith("patient.") ? adresse("patients", l.entite) : null;
+  if (l.action === "patient.efface") return null;
+  if (l.action.startsWith("patient.") || l.action.startsWith("famille.")) return adresse("patients", l.entite);
+  if (l.action.startsWith("antecedent.")) return null;
   if (l.action.startsWith("seance.") && l.action !== "seance.effacee") return adresse("seances", l.entite);
   if ((l.action.startsWith("facture.") || l.action.startsWith("reglement.") || l.action === "avoir.emis") && l.action !== "facture.brouillon_supprime")
     return adresse("facturation", "facture", l.entite);

@@ -21,6 +21,8 @@ import {
 /** Ce que la facturation de démonstration lit du reste du cœur simulé. */
 export interface AccesDemonstration {
   patient(id: string): Patient;
+  /** Le proche qui reçoit les factures du patient, s'il y en a un. */
+  payeur(patient: Patient): Patient | null;
   seance(id: string): Seance | undefined;
   identite(): IdentiteCabinet;
 }
@@ -305,7 +307,8 @@ export function creerFacturationDeDemonstration(acces: AccesDemonstration, exemp
         const seance = acces.seance(seanceId);
         if (!seance) throw new Error("Cette séance n’existe plus");
         const patient = acces.patient(seance.patient_id);
-        id = creer({ patient_id: patient.id, seance_id: seanceId, date_seance: null, destinataire: destinataireDuPatient(patient), lignes, commentaire_imprime: "", commentaire_interne: "" }).id;
+        const destinataire = destinataireDuPatient(patient, acces.payeur(patient));
+        id = creer({ patient_id: patient.id, seance_id: seanceId, date_seance: null, destinataire, lignes, commentaire_imprime: "", commentaire_interne: "" }).id;
       }
       emettre(id, date);
       if (reglement) ajouterReglement(id, reglement);
@@ -388,6 +391,22 @@ export function creerFacturationDeDemonstration(acces: AccesDemonstration, exemp
     },
     supprimerBrouillonsDeSeance(seanceId: string) {
       factures = factures.filter((f) => !(f.seance_id === seanceId && f.etat === "brouillon"));
+    },
+    nombreFactures(patientId: string): number {
+      return factures.filter((f) => f.patient_id === patientId).length;
+    },
+    /** Fusion de deux dossiers : les factures de l'un passent à l'autre. */
+    deplacerFactures(de: string, vers: string) {
+      factures = factures.map((f) => (f.patient_id === de ? { ...f, patient_id: vers } : f));
+    },
+    /** Effacement d'un dossier : les brouillons partent, les factures émises restent sans dossier. */
+    detacherFactures(patientId: string, seancesIds: string[]): { conservees: number; brouillons: number } {
+      const concernee = (f: Brute) => f.patient_id === patientId || (f.seance_id !== null && seancesIds.includes(f.seance_id));
+      const brouillons = factures.filter((f) => concernee(f) && f.etat === "brouillon").length;
+      factures = factures.filter((f) => !(concernee(f) && f.etat === "brouillon"));
+      const conservees = factures.filter(concernee).length;
+      factures = factures.map((f) => (concernee(f) ? { ...f, patient_id: null, seance_id: null } : f));
+      return { conservees, brouillons };
     },
     async listerPrestations() {
       return [...prestations].sort((a, b) => Number(a.archivee) - Number(b.archivee) || a.rang - b.rang);

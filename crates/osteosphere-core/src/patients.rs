@@ -63,6 +63,9 @@ pub struct Patient {
     #[serde(flatten)]
     pub fiche: FichePatient,
     pub archive: bool,
+    /// Le proche qui reçoit les factures (un parent pour son enfant), sinon le patient lui-même.
+    #[serde(default)]
+    pub factures_a: Option<String>,
     pub cree_le: i64,
     pub modifie_le: i64,
 }
@@ -280,6 +283,7 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Patient> {
             groupes: Vec::new(),
         },
         archive: ligne.get::<_, Option<i64>>("archive_le")?.is_some(),
+        factures_a: ligne.get("factures_a")?,
         cree_le: ligne.get("cree_le")?,
         modifie_le: ligne.get("modifie_le")?,
     })

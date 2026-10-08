@@ -12,6 +12,8 @@ export interface Destinataire {
   adresse: string;
   code_postal: string;
   ville: string;
+  /** Le patient soigné, quand la facture est adressée à un proche (un parent) : « Lucas Martin ». */
+  patient: string;
 }
 
 export interface LigneFacture {
@@ -172,7 +174,7 @@ export function libelleMoyen(moyen: Moyen): string {
   return MOYENS.find((m) => m.valeur === moyen)?.libelle ?? moyen;
 }
 
-export const DESTINATAIRE_VIDE: Destinataire = { civilite: "", prenom: "", nom: "", adresse: "", code_postal: "", ville: "" };
+export const DESTINATAIRE_VIDE: Destinataire = { civilite: "", prenom: "", nom: "", adresse: "", code_postal: "", ville: "", patient: "" };
 
 export const SAISIE_FACTURE_VIDE: SaisieFacture = {
   patient_id: null,
@@ -230,8 +232,7 @@ export function nomComplet(d: Pick<Destinataire, "prenom" | "nom">): string {
   return [d.prenom.trim(), d.nom.trim()].filter(Boolean).join(" ");
 }
 
-/** Le patient lui-même, d'après sa fiche : le destinataire proposé. */
-export function destinataireDuPatient(p: {
+type FicheDestinataire = {
   sexe: string;
   prenom: string;
   nom: string;
@@ -239,7 +240,11 @@ export function destinataireDuPatient(p: {
   complement_adresse: string;
   code_postal: string;
   ville: string;
-}): Destinataire {
+};
+
+/** Le patient lui-même, d'après sa fiche ; ou le proche qui reçoit ses factures, avec le nom du patient. */
+export function destinataireDuPatient(p: FicheDestinataire, payeur: FicheDestinataire | null = null): Destinataire {
+  if (payeur) return { ...destinataireDuPatient(payeur), patient: `${p.prenom} ${p.nom}`.trim() };
   return {
     civilite: p.sexe === "F" ? "Mme" : p.sexe === "M" ? "M." : "",
     prenom: p.prenom,
@@ -247,7 +252,14 @@ export function destinataireDuPatient(p: {
     adresse: [p.adresse.trim(), p.complement_adresse.trim()].filter(Boolean).join("\n"),
     code_postal: p.code_postal,
     ville: p.ville,
+    patient: "",
   };
+}
+
+/** Le destinataire des factures du patient : lui-même, ou le proche qui les reçoit. */
+export async function destinataireDesFactures(patient: FicheDestinataire & { factures_a: string | null }, lirePatient: (id: string) => Promise<FicheDestinataire>): Promise<Destinataire> {
+  const payeur = patient.factures_a ? await lirePatient(patient.factures_a).catch(() => null) : null;
+  return destinataireDuPatient(patient, payeur);
 }
 
 export type EtatPaiement = "brouillon" | "reglee" | "partielle" | "en_attente" | "trop_percu" | "annulee" | "avoir";

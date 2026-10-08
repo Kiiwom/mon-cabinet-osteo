@@ -13,6 +13,8 @@ import { ongletFacturation, PageFacturation } from "./pages/Facturation";
 import { PageFacture, PageNouvelleFacture } from "./pages/Facture";
 import { PageParametresCabinet, PageParametresFacturation } from "./pages/ParametresFacturation";
 import { PageParametresPatients } from "./pages/ParametresPatients";
+import { PageEffacement } from "./patients/Effacement";
+import { PageFusion } from "./patients/Fusion";
 import {
   ALERTE_SAUVEGARDE_JOURS,
   joursDepuis,
@@ -129,8 +131,10 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
 }
 
 function EcranPatients({ coeur, segments }: { coeur: Coeur; segments: string[] }) {
-  const [, id, suite] = segments;
+  const [, id, suite, autre] = segments;
   if (id === "nouveau") return <NouveauPatient key={suite ?? ""} coeur={coeur} depuisRecherche={suite} />;
+  if (id && suite === "fusion") return <PageFusion key={`${id}-${autre ?? ""}`} coeur={coeur} id={id} autreId={autre} />;
+  if (id && suite === "effacement") return <PageEffacement key={id} coeur={coeur} id={id} />;
   if (id) return <DossierPatient coeur={coeur} id={id} onglet={ongletDepuis(suite)} />;
   return <PagePatients coeur={coeur} />;
 }

@@ -866,11 +866,18 @@ pub fn importer(base: &Base, contenu: &[u8], choix: ChoixImport) -> Result<Rappo
     base.atomique(|| {
         // Patients.
         let mut patients_locaux: HashMap<String, String> = HashMap::new();
+        let mut effaces = 0;
         for p in archive.table(PATIENTS) {
             let id_mcl = champ(p, "id");
             if let Some(local) = lien(base, &source, "patient", id_mcl)? {
-                patients_locaux.insert(id_mcl.to_owned(), local);
-                rapport.patients.deja += 1;
+                // Un dossier effacé à la demande du patient ne revient pas, ni ce qu'il contenait.
+                if patients::lire(base, &local).is_ok() {
+                    patients_locaux.insert(id_mcl.to_owned(), local);
+                    rapport.patients.deja += 1;
+                } else {
+                    effaces += 1;
+                    rapport.patients.ignores += 1;
+                }
                 continue;
             }
             if !choix.patients {
@@ -888,6 +895,9 @@ pub fn importer(base: &Base, contenu: &[u8], choix: ChoixImport) -> Result<Rappo
             lier(base, &source, "patient", id_mcl, &patient.id)?;
             patients_locaux.insert(id_mcl.to_owned(), patient.id);
             rapport.patients.crees += 1;
+        }
+        if effaces > 0 {
+            rapport.avertissements.push(format!("{effaces} dossier(s) effacé(s) à la demande du patient : non réimporté(s), ni leurs séances."));
         }
 
         // Antécédents.
@@ -1353,6 +1363,19 @@ mod tests {
         assert_eq!((second.seances.crees, second.factures.crees, second.reglements.crees, second.antecedents.crees), (0, 0, 0, 0));
         assert_eq!(analyser(&base, &export_fictif()).unwrap().deja_importes, 3 + 3 + 2 + 5 + 2);
         assert_eq!(patients::lister(&base).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn un_dossier_efface_n_est_pas_reimporte() {
+        let (_d, base) = base();
+        importer(&base, &export_fictif(), TOUT).unwrap();
+        let camille = patients::lister(&base).unwrap().into_iter().find(|p| p.nom == "MARTIN" && p.seances == 2).unwrap();
+        crate::dossiers::effacer(&base, &camille.id).unwrap();
+        let second = importer(&base, &export_fictif(), TOUT).unwrap();
+        assert_eq!(second.patients, Compteur { crees: 0, deja: 2, ignores: 1 });
+        assert_eq!((second.seances.crees, second.antecedents.crees), (0, 0));
+        assert!(second.avertissements.iter().any(|a| a.starts_with("1 dossier(s) effacé(s) à la demande du patient")));
+        assert_eq!(patients::lister(&base).unwrap().len(), 2);
     }
 
     #[test]

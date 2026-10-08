@@ -25,7 +25,8 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 - Les factures suivent une numérotation continue et chronologique, commune aux factures et aux avoirs ; un brouillon n'a pas de numéro. Une facture émise ne se modifie pas : elle se corrige par un avoir et une facture rectificative, ou s'annule par un avoir. Les remboursements sont des règlements négatifs, jamais plus que ce qui a été réglé.
 - Les sauvegardes sont chiffrées, et ne se rouvrent qu'avec la clé de secours ; elles se font à la fermeture, à intervalle régulier, chaque jour ou chaque semaine, seulement si quelque chose a changé. Restaurer met les données en place de côté, sans rien effacer.
 - L'import depuis MonCabinetLibéral lit d'abord l'export sans rien écrire, sauvegarde le cabinet juste avant d'importer, garde les numéros de facture d'origine et ne recopie jamais deux fois la même donnée.
-- L'export complet (CSV et JSON) et le journal des modifications restent consultables à tout moment.
+- L'export complet (CSV et JSON) et le journal des modifications restent consultables à tout moment ; chaque dossier a son historique.
+- À la demande du patient, son dossier s'exporte en PDF ou s'efface pour de bon, historique compris ; les factures émises restent, comme la loi le demande, et un nouvel import ne fait pas revenir le dossier.
 - Tests, captures, rapports de problème et pièces jointes publiques n'utilisent que des exemples fictifs.
 
 ## Installer le prototype

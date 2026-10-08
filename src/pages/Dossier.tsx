@@ -12,9 +12,12 @@ import { PucesGroupes, useReglagesFiche } from "../patients/Groupes";
 import { ListeSeancesPatient } from "../seances/ListeSeances";
 import { creerSeanceMaintenant } from "../seances/nouvelleSeance";
 import { Documents } from "../documents/Documents";
+import { FenetreDossierPdf } from "../patients/DossierPdf";
+import { OngletHistorique } from "../patients/Historique";
+import { CarteProches } from "../patients/Proches";
 import { TexteRiche } from "../trames/TexteRiche";
 
-export type Onglet = "synthese" | "seances" | "antecedents" | "documents" | "identite";
+export type Onglet = "synthese" | "seances" | "antecedents" | "documents" | "identite" | "historique";
 
 const ONGLETS: { onglet: Onglet; libelle: string }[] = [
   { onglet: "synthese", libelle: "Synthèse" },
@@ -22,6 +25,7 @@ const ONGLETS: { onglet: Onglet; libelle: string }[] = [
   { onglet: "antecedents", libelle: "Antécédents" },
   { onglet: "documents", libelle: "Documents" },
   { onglet: "identite", libelle: "Identité et contact" },
+  { onglet: "historique", libelle: "Historique" },
 ];
 
 export function ongletDepuis(segment: string | undefined): Onglet {
@@ -74,9 +78,13 @@ export function PucesPatient({ patient, antecedents = [], groupes = [] }: { pati
   );
 }
 
-function MenuDossier({ patient, archiver }: { patient: Patient; archiver: (archive: boolean) => void }) {
+function MenuDossier({ patient, archiver, dossierPdf }: { patient: Patient; archiver: (archive: boolean) => void; dossierPdf: () => void }) {
   const id = useId();
   const [ouvert, setOuvert] = useState(false);
+  const choisir = (action: () => void) => () => {
+    setOuvert(false);
+    action();
+  };
   return (
     <div className="menu-dossier">
       <button
@@ -91,15 +99,17 @@ function MenuDossier({ patient, archiver }: { patient: Patient; archiver: (archi
       </button>
       {ouvert && (
         <div className="menu-dossier-liste" id={id} role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOuvert(false);
-              archiver(!patient.archive);
-            }}
-          >
+          <button type="button" role="menuitem" onClick={choisir(dossierPdf)}>
+            Dossier PDF…
+          </button>
+          <button type="button" role="menuitem" onClick={choisir(() => aller("patients", patient.id, "fusion"))}>
+            Fusionner avec un autre dossier…
+          </button>
+          <button type="button" role="menuitem" onClick={choisir(() => archiver(!patient.archive))}>
             {patient.archive ? "Sortir des archives" : "Archiver le dossier"}
+          </button>
+          <button type="button" role="menuitem" className="menu-danger" onClick={choisir(() => aller("patients", patient.id, "effacement"))}>
+            Effacer le dossier…
           </button>
         </div>
       )}
@@ -116,7 +126,10 @@ function Ligne({ libelle, children }: { libelle: string; children: ReactNode }) 
   );
 }
 
-function Synthese({
+const CLE_FRISE = "osteosphere.dossier.frise-repliee";
+
+/** La frise de vie, en tête de chaque onglet du dossier ; repliée, elle tient sur une ligne. */
+function BandeauFrise({
   patient,
   antecedents,
   formulaire,
@@ -127,14 +140,63 @@ function Synthese({
   formulaire: CategorieAntecedents[];
   seances: ResumeSeance[];
 }) {
+  const [repliee, setRepliee] = useState(() => {
+    try {
+      return localStorage.getItem(CLE_FRISE) === "oui";
+    } catch {
+      return false;
+    }
+  });
+  const basculer = () => {
+    setRepliee(!repliee);
+    try {
+      localStorage.setItem(CLE_FRISE, repliee ? "non" : "oui");
+    } catch {
+      // Préférence non retenue : sans conséquence.
+    }
+  };
+  const bouton = (
+    <button type="button" className="bouton bouton-petit" aria-expanded={!repliee} onClick={basculer}>
+      {repliee ? "Déplier" : "Replier"}
+    </button>
+  );
+  return (
+    <section className="carte bandeau-frise">
+      {repliee ? (
+        <div className="entete-carte">
+          <h2>Frise de vie</h2>
+          <span className="discret frise-resume">
+            {antecedents.length} antécédent{antecedents.length > 1 ? "s" : ""} · {seances.length} séance{seances.length > 1 ? "s" : ""}
+          </span>
+          {bouton}
+        </div>
+      ) : (
+        <FriseDeVie naissance={patient.naissance} antecedents={antecedents} formulaire={formulaire} seances={seances.map((s) => s.debut.slice(0, 10))} actions={bouton} />
+      )}
+    </section>
+  );
+}
+
+function Synthese({
+  coeur,
+  patient,
+  antecedents,
+  formulaire,
+  seances,
+  misAJour,
+}: {
+  coeur: Coeur;
+  patient: Patient;
+  antecedents: Antecedent[];
+  formulaire: CategorieAntecedents[];
+  seances: ResumeSeance[];
+  misAJour: (p: Patient) => void;
+}) {
   const adressePostale = [patient.adresse, patient.complement_adresse, [patient.code_postal, patient.ville].filter(Boolean).join(" "), patient.pays]
     .filter(Boolean)
     .join("\n");
   return (
     <div className="pile">
-      <section className="carte">
-        <FriseDeVie naissance={patient.naissance} antecedents={antecedents} formulaire={formulaire} seances={seances.map((s) => s.debut.slice(0, 10))} />
-      </section>
       <div className="colonnes-synthese">
         <div className="pile">
           <section className="carte" aria-labelledby="titre-dernieres">
@@ -173,6 +235,7 @@ function Synthese({
             </dl>
             {!patient.portable && !patient.fixe && !patient.email && !adressePostale && <p className="discret">Aucune coordonnée.</p>}
           </section>
+          <CarteProches coeur={coeur} patient={patient} misAJour={misAJour} />
         </div>
       </div>
     </div>
@@ -257,6 +320,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
   const [seances, setSeances] = useState<ResumeSeance[]>([]);
   const [creation, setCreation] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [pdf, setPdf] = useState(false);
   const reglages = useReglagesFiche(coeur);
 
   useEffect(() => {
@@ -323,7 +387,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
             <button type="button" className="bouton bouton-principal" disabled={creation || patient.decede} onClick={() => void nouvelleSeance()}>
               <span aria-hidden="true">+</span> Nouvelle séance
             </button>
-            <MenuDossier patient={patient} archiver={archiver} />
+            <MenuDossier patient={patient} archiver={archiver} dossierPdf={() => setPdf(true)} />
           </div>
         </div>
         <nav className="onglets" aria-label="Rubriques du dossier">
@@ -341,10 +405,14 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
         </nav>
       </section>
 
+      <BandeauFrise patient={patient} antecedents={antecedents} formulaire={formulaire} seances={seances.filter((s) => s.supprimee_le === null)} />
+
       {onglet === "identite" ? (
         <OngletIdentite key={patient.id} patient={patient} coeur={coeur} misAJour={setPatient} reglages={reglages} />
       ) : onglet === "synthese" ? (
-        <Synthese patient={patient} antecedents={antecedents} formulaire={formulaire} seances={seances} />
+        <Synthese coeur={coeur} patient={patient} antecedents={antecedents} formulaire={formulaire} seances={seances} misAJour={setPatient} />
+      ) : onglet === "historique" ? (
+        <OngletHistorique coeur={coeur} patient={patient} />
       ) : onglet === "documents" ? (
         <Documents coeur={coeur} patientId={patient.id} seances={seances.filter((s) => s.supprimee_le === null)} titre="Documents du dossier" />
       ) : onglet === "antecedents" ? (
@@ -361,6 +429,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
           <ListeSeancesPatient seances={seances} />
         </section>
       )}
+      {pdf && <FenetreDossierPdf coeur={coeur} patient={patient} seances={seances} fermer={() => setPdf(false)} />}
     </main>
   );
 }

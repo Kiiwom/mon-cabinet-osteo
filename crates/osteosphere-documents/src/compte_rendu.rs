@@ -35,7 +35,7 @@ fn nombre(n: f64) -> String {
 
 /// Un nœud de l'éditeur, prêt à imprimer : choix retenus et blancs deviennent du texte, le reste est
 /// laissé tel quel ; ce qui ne s'imprime pas disparaît.
-fn preparer(noeud: &Value) -> Option<Value> {
+pub(crate) fn preparer(noeud: &Value) -> Option<Value> {
     let attribut = |nom: &str| noeud.get("attrs").and_then(|a| a.get(nom));
     let marques = noeud.get("marks").cloned();
     let texte = |t: String| {
@@ -75,7 +75,7 @@ fn preparer(noeud: &Value) -> Option<Value> {
 }
 
 /// La section d'un champ, ou `None` s'il n'a rien à imprimer.
-fn section(champ: &Champ, valeur: Option<&Value>) -> Option<Value> {
+pub(crate) fn section(champ: &Champ, valeur: Option<&Value>) -> Option<Value> {
     let libelle = champ.libelle.trim();
     let texte = |t: String| (!t.trim().is_empty()).then(|| json!({ "genre": "texte", "libelle": libelle, "texte": t.trim() }));
     let valeur = valeur?;
@@ -167,6 +167,45 @@ pub fn champs_par_defaut(definition: &Definition, seance: &Seance) -> Vec<String
         .collect()
 }
 
+/// La date de la séance et son intitulé : « Séance du 6 octobre 2026 à 14 h 30 · première séance · Lombalgie ».
+pub(crate) fn intitule_seance(seance: &Seance) -> Result<(Date, String), ErreurDocument> {
+    let (jour, heure) = seance.saisie.debut.split_once('T').unwrap_or((seance.saisie.debut.as_str(), ""));
+    let date_seance = Date::lire(jour).map_err(|e| ErreurDocument::Donnee(e.to_string()))?;
+    let genre = match seance.saisie.type_seance {
+        TypeSeance::Premiere => "première séance",
+        TypeSeance::Suivi => "séance de suivi",
+        TypeSeance::Urgence => "séance en urgence",
+    };
+    let mut intitule = format!("Séance du {}", date_seance.en_toutes_lettres());
+    if !heure.is_empty() {
+        intitule.push_str(&format!(" à {}", heure.replace(':', "\u{a0}h\u{a0}")));
+    }
+    intitule.push_str(&format!(" · {genre}"));
+    if !seance.saisie.titre.trim().is_empty() {
+        intitule.push_str(&format!(" · {}", seance.saisie.titre.trim()));
+    }
+    Ok((date_seance, intitule))
+}
+
+/// « Née le 14 mars 1988 (38 ans) », l'âge au jour donné.
+pub(crate) fn naissance_et_age(patient: &FichePatient, au: &Date) -> String {
+    match patient.naissance.as_deref().and_then(|n| Date::lire(n).ok()) {
+        Some(n) => {
+            let ne = match patient.sexe.as_str() {
+                "F" => "Née",
+                "M" => "Né",
+                _ => "Né(e)",
+            };
+            let mut age = au.annee() - n.annee();
+            if (au.mois(), au.jour()) < (n.mois(), n.jour()) {
+                age -= 1;
+            }
+            format!("{ne} le {} ({age} an{})", n.en_toutes_lettres(), if age > 1 { "s" } else { "" })
+        }
+        None => String::new(),
+    }
+}
+
 fn vue(demande: &DemandeCompteRendu) -> Result<Value, ErreurDocument> {
     let praticien = demande.praticien.verifier().map_err(|e| ErreurDocument::Donnee(e.to_string()))?;
     let seance = demande.seance;
@@ -194,38 +233,10 @@ fn vue(demande: &DemandeCompteRendu) -> Result<Value, ErreurDocument> {
         }
     }
 
-    let (jour, heure) = seance.saisie.debut.split_once('T').unwrap_or((seance.saisie.debut.as_str(), ""));
-    let date_seance = Date::lire(jour).map_err(|e| ErreurDocument::Donnee(e.to_string()))?;
-    let genre = match seance.saisie.type_seance {
-        TypeSeance::Premiere => "première séance",
-        TypeSeance::Suivi => "séance de suivi",
-        TypeSeance::Urgence => "séance en urgence",
-    };
-    let mut sous_titre = format!("Séance du {}", date_seance.en_toutes_lettres());
-    if !heure.is_empty() {
-        sous_titre.push_str(&format!(" à {}", heure.replace(':', "\u{a0}h\u{a0}")));
-    }
-    sous_titre.push_str(&format!(" · {genre}"));
-    if !seance.saisie.titre.trim().is_empty() {
-        sous_titre.push_str(&format!(" · {}", seance.saisie.titre.trim()));
-    }
+    let (date_seance, sous_titre) = intitule_seance(seance)?;
 
     let patient = demande.patient;
-    let naissance = match patient.naissance.as_deref().and_then(|n| Date::lire(n).ok()) {
-        Some(n) => {
-            let ne = match patient.sexe.as_str() {
-                "F" => "Née",
-                "M" => "Né",
-                _ => "Né(e)",
-            };
-            let mut age = date_seance.annee() - n.annee();
-            if (date_seance.mois(), date_seance.jour()) < (n.mois(), n.jour()) {
-                age -= 1;
-            }
-            format!("{ne} le {} ({age} an{})", n.en_toutes_lettres(), if age > 1 { "s" } else { "" })
-        }
-        None => String::new(),
-    };
+    let naissance = naissance_et_age(patient, &date_seance);
 
     let aujourdhui = Date::lire(demande.aujourdhui).map_err(|e| ErreurDocument::Donnee(e.to_string()))?.en_toutes_lettres();
     let lieu_date = if praticien.ville.is_empty() { format!("Le {aujourdhui}") } else { format!("{}, le {aujourdhui}", praticien.ville) };

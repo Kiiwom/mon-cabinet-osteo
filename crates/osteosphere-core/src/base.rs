@@ -24,6 +24,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0010_documents.sql"),
     include_str!("migrations/0011_images.sql"),
     include_str!("migrations/0012_groupes.sql"),
+    include_str!("migrations/0013_familles.sql"),
 ];
 
 #[derive(Debug, thiserror::Error)]

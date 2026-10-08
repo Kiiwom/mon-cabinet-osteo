@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import type { Antecedent, CategorieAntecedents } from "../lib/coeur";
 import { anneesDepuisDate, dateCourte, enAnnees, MOIS_COURTS } from "../lib/dates";
@@ -100,12 +100,15 @@ export function FriseDeVie({
   formulaire,
   seances = [],
   aujourdhui = new Date(),
+  actions,
 }: {
   naissance: string | null;
   antecedents: Antecedent[];
   formulaire: CategorieAntecedents[];
   seances?: string[];
   aujourdhui?: Date;
+  /** Boutons ajoutés à l'en-tête : replier la frise… */
+  actions?: ReactNode;
 }) {
   const id = useId();
   const conteneur = useRef<HTMLDivElement>(null);
@@ -165,12 +168,15 @@ export function FriseDeVie({
     <figure className="frise" aria-labelledby={`${id}-titre`}>
       <div className="entete-carte">
         <h2 id={`${id}-titre`}>Frise de vie</h2>
-        <div className="segments" role="group" aria-label="Période affichée">
-          {PERIODES.map((p) => (
-            <button key={p.valeur} type="button" aria-pressed={mode === p.valeur} onClick={() => setMode(p.valeur)}>
-              {p.libelle}
-            </button>
-          ))}
+        <div className="rangee rangee-centree">
+          <div className="segments" role="group" aria-label="Période affichée">
+            {PERIODES.map((p) => (
+              <button key={p.valeur} type="button" aria-pressed={mode === p.valeur} onClick={() => setMode(p.valeur)}>
+                {p.libelle}
+              </button>
+            ))}
+          </div>
+          {actions}
         </div>
       </div>
 

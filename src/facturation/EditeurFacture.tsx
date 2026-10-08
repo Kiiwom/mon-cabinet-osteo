@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import type { Patient, ResumePatient } from "../lib/coeur";
 import { ecrireDateFr, lireDateFr } from "../lib/dates";
 import {
-  destinataireDuPatient,
+  destinataireDesFactures,
   euros,
   ligneDePrestation,
   montantLigne,
@@ -160,7 +160,7 @@ export function EditeurFacture({
   async function reprendrePatient(patientId: string | null) {
     if (!patientId) return changer({ ...saisie, patient_id: null });
     const patient = await lirePatient(patientId);
-    changer({ ...saisie, patient_id: patientId, destinataire: destinataireDuPatient(patient) });
+    changer({ ...saisie, patient_id: patientId, destinataire: await destinataireDesFactures(patient, lirePatient) });
   }
 
   return (
@@ -205,6 +205,10 @@ export function EditeurFacture({
             <label htmlFor={`${id}-ville`}>Ville</label>
             <input id={`${id}-ville`} value={d.ville} onChange={(e) => changerDestinataire("ville", e.target.value)} />
           </div>
+        </div>
+        <div className="champ">
+          <label htmlFor={`${id}-soins`}>Patient soigné, si la facture est adressée à un proche</label>
+          <input id={`${id}-soins`} value={d.patient} placeholder="Prénom et nom du patient" onChange={(e) => changerDestinataire("patient", e.target.value)} />
         </div>
         {saisie.patient_id && (
           <button type="button" className="lien-bouton" onClick={() => void reprendrePatient(saisie.patient_id)}>
@@ -293,7 +297,7 @@ export function saisieNeuve(prestations: Prestation[]): SaisieFacture {
     patient_id: null,
     seance_id: null,
     date_seance: null,
-    destinataire: { civilite: "", prenom: "", nom: "", adresse: "", code_postal: "", ville: "" },
+    destinataire: { civilite: "", prenom: "", nom: "", adresse: "", code_postal: "", ville: "", patient: "" },
     lignes: defaut ? [ligneDePrestation(defaut)] : [{ prestation_id: null, designation: "", quantite: 1, prix_unitaire_centimes: 0, reduction_centimes: 0 }],
     commentaire_imprime: "",
     commentaire_interne: "",

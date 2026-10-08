@@ -4220,3 +4220,100 @@ kbd {
 .saisie-reglable {
   align-items: center;
 }
+
+/* Dossier : frise de vie en tête de chaque onglet, proches, historique, fusion, effacement. */
+.bandeau-frise .frise-resume {
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.liste-simple {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.saisie-courte {
+  max-width: 340px;
+}
+
+input.saisie,
+input.saisie-courte,
+select.saisie-courte {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 10px;
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 15px;
+}
+
+.menu-dossier-liste button.menu-danger {
+  color: #8c2f25;
+}
+
+.liste-proches {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.liste-proches li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.ajout-proche {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bordure);
+}
+
+.details-historique {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.entete-carte-tableau {
+  padding: 16px 20px 8px;
+}
+
+.tableau-fusion {
+  table-layout: fixed;
+}
+
+.tableau-fusion th:first-child {
+  width: 22%;
+}
+
+.tableau-fusion th[scope="row"] {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tableau-fusion tr[data-conflit] {
+  background: var(--accent-doux);
+}
+
+.tableau-fusion td {
+  vertical-align: top;
+}
+
+.tableau-fusion [data-garde] {
+  font-weight: 600;
+}
+
+.choix-seances {
+  max-height: 260px;
+  overflow-y: auto;
+}

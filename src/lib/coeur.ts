@@ -342,6 +342,8 @@ export interface FichePatient {
 export interface Patient extends FichePatient {
   id: string;
   archive: boolean;
+  /** Le proche qui reçoit les factures (un parent pour son enfant), sinon `null` : le patient lui-même. */
+  factures_a: string | null;
   cree_le: number;
   modifie_le: number;
 }
@@ -382,6 +384,70 @@ export interface Groupe extends SaisieGroupe {
   id: string;
   /** Dossiers du groupe, archives comprises. */
   patients: number;
+}
+
+/** Ce que le proche est pour le patient. */
+export type LienFamilial = "parent" | "enfant" | "conjoint" | "fratrie";
+
+export interface Proche {
+  id: string;
+  lien: LienFamilial;
+  sexe: Sexe;
+  nom: string;
+  prenom: string;
+  naissance: string | null;
+  archive: boolean;
+  decede: boolean;
+  recoit_les_factures: boolean;
+}
+
+/** Ce que contient un dossier, corbeilles comprises : ce qu'une fusion déplace, ce qu'un effacement retire. */
+export interface ContenuDossier {
+  seances: number;
+  antecedents: number;
+  documents: number;
+  factures: number;
+  proches: number;
+}
+
+export interface BilanEffacement {
+  seances: number;
+  antecedents: number;
+  documents: number;
+  /** Factures et avoirs émis, gardés sans lien avec un dossier. */
+  factures_conservees: number;
+  brouillons_supprimes: number;
+}
+
+export interface Changement {
+  champ: string;
+  avant: unknown;
+  apres: unknown;
+}
+
+/** Une ligne de l'historique du dossier. */
+export interface Modification {
+  id: number;
+  /** Secondes depuis 1970. */
+  le: number;
+  action: string;
+  entite: string;
+  avant: unknown;
+  apres: unknown;
+  changements: Changement[];
+}
+
+/** Ce que le dossier PDF contient : les rubriques cochées et les séances choisies. */
+export interface RubriquesDossier {
+  identite: boolean;
+  profil: boolean;
+  notes_importantes: boolean;
+  remarques: boolean;
+  antecedents: boolean;
+  proches: boolean;
+  documents: boolean;
+  factures: boolean;
+  seances: string[];
 }
 
 /** Un statut de la liste réglée : `ancien` est son nom d'avant, `null` s'il est nouveau. */
@@ -609,6 +675,21 @@ export interface Coeur {
   enregistrerGroupe(id: string | null, saisie: SaisieGroupe): Promise<Groupe>;
   /** Les patients quittent le groupe, leurs dossiers restent. */
   supprimerGroupe(id: string): Promise<void>;
+  prochesPatient(patientId: string): Promise<Proche[]>;
+  /** `lien` : ce que le proche est pour le patient ; le lien s'inscrit dans les deux sens. */
+  lierProche(patientId: string, procheId: string, lien: LienFamilial): Promise<Proche[]>;
+  delierProche(patientId: string, procheId: string): Promise<Proche[]>;
+  /** Un parent ou un conjoint qui reçoit les factures du patient ; `null` : le patient lui-même. */
+  definirPayeur(patientId: string, payeur: string | null): Promise<Patient>;
+  contenuDossier(patientId: string): Promise<ContenuDossier>;
+  /** Tout passe au dossier gardé, qui prend la fiche choisie ; l'autre disparaît. */
+  fusionnerDossiers(gardeId: string, absorbeId: string, fiche: FichePatient): Promise<Patient>;
+  /** Effacement définitif ; les factures émises restent. */
+  effacerDossier(patientId: string): Promise<BilanEffacement>;
+  historiqueDossier(patientId: string, limite: number, avant: number | null): Promise<Modification[]>;
+  apercuDossierPdf(patientId: string, rubriques: RubriquesDossier): Promise<string[]>;
+  /** Range le PDF dans Documents › Osteosphere › Dossiers, puis l'ouvre ou le montre ; rend son chemin. */
+  enregistrerDossierPdf(patientId: string, rubriques: RubriquesDossier, ouvrir: boolean): Promise<string>;
   formulaireAntecedents(): Promise<CategorieAntecedents[]>;
   listerAntecedents(patientId: string): Promise<Antecedent[]>;
   enregistrerAntecedent(patientId: string, id: string | null, saisie: SaisieAntecedent): Promise<Antecedent>;
@@ -783,6 +864,16 @@ export const coeurTauri: Coeur = {
   listerGroupes: () => appeler("lister_groupes"),
   enregistrerGroupe: (id, saisie) => appeler("enregistrer_groupe", { id, saisie }),
   supprimerGroupe: (id) => appeler("supprimer_groupe", { id }),
+  prochesPatient: (patientId) => appeler("proches_patient", { patientId }),
+  lierProche: (patientId, procheId, lien) => appeler("lier_proche", { patientId, procheId, lien }),
+  delierProche: (patientId, procheId) => appeler("delier_proche", { patientId, procheId }),
+  definirPayeur: (patientId, payeur) => appeler("definir_payeur", { patientId, payeur }),
+  contenuDossier: (patientId) => appeler("contenu_dossier", { patientId }),
+  fusionnerDossiers: (gardeId, absorbeId, fiche) => appeler("fusionner_dossiers", { gardeId, absorbeId, fiche }),
+  effacerDossier: (patientId) => appeler("effacer_dossier", { patientId }),
+  historiqueDossier: (patientId, limite, avant) => appeler("historique_dossier", { patientId, limite, avant }),
+  apercuDossierPdf: (patientId, rubriques) => appeler("apercu_dossier_pdf", { patientId, rubriques }),
+  enregistrerDossierPdf: (patientId, rubriques, ouvrir) => appeler("enregistrer_dossier_pdf", { patientId, rubriques, ouvrir }),
   formulaireAntecedents: () => appeler("formulaire_antecedents"),
   listerAntecedents: (patientId) => appeler("lister_antecedents", { patientId }),
   enregistrerAntecedent: (patientId, id, saisie) => appeler("enregistrer_antecedent", { patientId, id, saisie }),
@@ -993,8 +1084,46 @@ export function creerCoeurDeDemonstration(
     : [];
   /** Patients créés par l'import de démonstration : un second import ne les recopie pas. */
   const importDemo: string[] = [];
+  /** Liens familiaux, dans les deux sens : ce que `proche` est pour `patient`. */
+  let liensDemo: { patient: string; proche: string; lien: LienFamilial }[] = exemples
+    ? [
+        { patient: "patient-2", proche: "patient-1", lien: "parent" },
+        { patient: "patient-1", proche: "patient-2", lien: "enfant" },
+      ]
+    : [];
+  let journalDemo: Modification[] = [];
+  const noterDemo = (action: string, entite: string, avant: unknown, apres: unknown) => {
+    const objet = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+    const [a, b] = [objet(avant), objet(apres)];
+    const changements =
+      a && b
+        ? [...new Set([...Object.keys(a), ...Object.keys(b)])]
+            .filter((c) => !["cree_le", "modifie_le"].includes(c) && JSON.stringify(a[c] ?? null) !== JSON.stringify(b[c] ?? null))
+            .sort()
+            .map((champ) => ({ champ, avant: a[champ] ?? null, apres: b[champ] ?? null }))
+        : [];
+    journalDemo = [{ id: journalDemo.length + 1, le: Math.floor(Date.now() / 1000), action, entite, avant, apres, changements }, ...journalDemo];
+  };
+  const inverseLien = (lien: LienFamilial): LienFamilial => (lien === "parent" ? "enfant" : lien === "enfant" ? "parent" : lien);
+  const prochesDemo = (patientId: string): Proche[] => {
+    const rang = ["parent", "enfant", "conjoint", "fratrie"];
+    const payeur = patients.find((p) => p.id === patientId)?.factures_a ?? null;
+    return liensDemo
+      .filter((l) => l.patient === patientId)
+      .flatMap((l) => {
+        const p = patients.find((x) => x.id === l.proche);
+        return p ? [{ id: p.id, lien: l.lien, sexe: p.sexe, nom: p.nom, prenom: p.prenom, naissance: p.naissance, archive: p.archive, decede: p.decede, recoit_les_factures: payeur === p.id }] : [];
+      })
+      .sort((a, b) => rang.indexOf(a.lien) - rang.indexOf(b.lien) || (a.naissance ?? "9").localeCompare(b.naissance ?? "9"));
+  };
+  /** Un payeur qui n'est plus parent ni conjoint ne reçoit plus les factures. */
+  const verifierPayeurs = () => {
+    patients = patients.map((p) =>
+      p.factures_a && !liensDemo.some((l) => l.patient === p.id && l.proche === p.factures_a && (l.lien === "parent" || l.lien === "conjoint")) ? { ...p, factures_a: null } : p,
+    );
+  };
   let patients: Patient[] = exemples
-    ? PATIENTS_FICTIFS.map((fiche, rang) => ({ ...FICHE_VIDE, ...fiche, id: `patient-${rang + 1}`, archive: false, cree_le: 0, modifie_le: 0 }))
+    ? PATIENTS_FICTIFS.map((fiche, rang) => ({ ...FICHE_VIDE, ...fiche, id: `patient-${rang + 1}`, archive: false, factures_a: null, cree_le: 0, modifie_le: 0 }))
     : [];
   let statutsDemo = ["Nouveau", "Suivi", "Ancien patient"];
   let groupesDemo: (SaisieGroupe & { id: string })[] = exemples
@@ -1056,6 +1185,7 @@ export function creerCoeurDeDemonstration(
         return patient;
       },
       seance: (id) => seances.find((s) => s.id === id),
+      payeur: (patient) => (patient.factures_a ? (patients.find((p) => p.id === patient.factures_a) ?? null) : null),
       identite: () => identite,
     },
     exemples,
@@ -1235,10 +1365,15 @@ export function creerCoeurDeDemonstration(
       return trouverPatient(id);
     },
     async creerPatient(fiche) {
-      return remplacer({ ...verifierFiche(fiche), id: `patient-${(compteur += 1)}-${Date.now()}`, archive: false, cree_le: 0, modifie_le: 0 });
+      const patient = remplacer({ ...verifierFiche(fiche), id: `patient-${(compteur += 1)}-${Date.now()}`, archive: false, factures_a: null, cree_le: 0, modifie_le: 0 });
+      noterDemo("patient.cree", patient.id, null, patient);
+      return patient;
     },
     async modifierPatient(id, fiche) {
-      return remplacer({ ...trouverPatient(id), ...verifierFiche(fiche) });
+      const avant = trouverPatient(id);
+      const apres = remplacer({ ...avant, ...verifierFiche(fiche) });
+      noterDemo("patient.modifie", id, avant, apres);
+      return apres;
     },
     async archiverPatient(id, archive) {
       return remplacer({ ...trouverPatient(id), archive });
@@ -1271,6 +1406,101 @@ export function creerCoeurDeDemonstration(
     async supprimerGroupe(id) {
       groupesDemo = groupesDemo.filter((g) => g.id !== id);
       patients = patients.map((p) => ({ ...p, groupes: p.groupes.filter((g) => g !== id) }));
+    },
+    async prochesPatient(patientId) {
+      trouverPatient(patientId);
+      return prochesDemo(patientId);
+    },
+    async lierProche(patientId, procheId, lien) {
+      if (patientId === procheId) throw new Error("Un dossier ne peut pas être lié à lui-même");
+      trouverPatient(patientId);
+      trouverPatient(procheId);
+      const autres = liensDemo.filter((l) => !((l.patient === patientId && l.proche === procheId) || (l.patient === procheId && l.proche === patientId)));
+      liensDemo = [...autres, { patient: patientId, proche: procheId, lien }, { patient: procheId, proche: patientId, lien: inverseLien(lien) }];
+      verifierPayeurs();
+      noterDemo("famille.lien", patientId, null, { proche_id: procheId, lien });
+      return prochesDemo(patientId);
+    },
+    async delierProche(patientId, procheId) {
+      const lien = liensDemo.find((l) => l.patient === patientId && l.proche === procheId);
+      if (!lien) throw new Error("Ces deux dossiers ne sont pas liés");
+      liensDemo = liensDemo.filter((l) => !((l.patient === patientId && l.proche === procheId) || (l.patient === procheId && l.proche === patientId)));
+      verifierPayeurs();
+      noterDemo("famille.delie", patientId, { proche_id: procheId, lien: lien.lien }, null);
+      return prochesDemo(patientId);
+    },
+    async definirPayeur(patientId, payeur) {
+      const avant = trouverPatient(patientId);
+      if (payeur && !liensDemo.some((l) => l.patient === patientId && l.proche === payeur && (l.lien === "parent" || l.lien === "conjoint")))
+        throw new Error("Seul un parent ou un conjoint peut recevoir les factures");
+      const apres = remplacer({ ...avant, factures_a: payeur });
+      noterDemo("patient.payeur", patientId, { factures_a: avant.factures_a }, { factures_a: payeur });
+      return apres;
+    },
+    async contenuDossier(patientId) {
+      trouverPatient(patientId);
+      return {
+        seances: seances.filter((s) => s.patient_id === patientId).length,
+        antecedents: antecedents.filter((a) => a.patient_id === patientId).length,
+        documents: documentsDemo.filter((d) => d.patient_id === patientId).length,
+        factures: facturation.nombreFactures(patientId),
+        proches: liensDemo.filter((l) => l.patient === patientId).length,
+      };
+    },
+    async fusionnerDossiers(gardeId, absorbeId, fiche) {
+      if (gardeId === absorbeId) throw new Error("Choisissez deux dossiers différents");
+      const garde = trouverPatient(gardeId);
+      const absorbe = trouverPatient(absorbeId);
+      const verifiee = verifierFiche(fiche);
+      seances = seances.map((s) => (s.patient_id === absorbeId ? { ...s, patient_id: gardeId } : s));
+      antecedents = antecedents.map((a) => (a.patient_id === absorbeId ? { ...a, patient_id: gardeId } : a));
+      for (const d of documentsDemo) if (d.patient_id === absorbeId) d.patient_id = gardeId;
+      facturation.deplacerFactures(absorbeId, gardeId);
+      const deja = (patient: string, proche: string) => liensDemo.some((l) => l.patient === patient && l.proche === proche);
+      liensDemo = liensDemo.flatMap((l) => {
+        if (l.patient === absorbeId) return l.proche === gardeId || deja(gardeId, l.proche) ? [] : [{ ...l, patient: gardeId }];
+        if (l.proche === absorbeId) return l.patient === gardeId || deja(l.patient, gardeId) ? [] : [{ ...l, proche: gardeId }];
+        return [l];
+      });
+      patients = patients.filter((p) => p.id !== absorbeId).map((p) => (p.factures_a === absorbeId ? { ...p, factures_a: gardeId } : p));
+      journalDemo = journalDemo.map((m) => (m.entite === absorbeId ? { ...m, entite: gardeId } : m));
+      const apres = remplacer({ ...garde, ...verifiee, archive: garde.archive && absorbe.archive, factures_a: garde.factures_a ?? (absorbe.factures_a !== gardeId ? absorbe.factures_a : null) });
+      verifierPayeurs();
+      noterDemo("patient.fusionne", gardeId, absorbe, apres);
+      return trouverPatient(gardeId);
+    },
+    async effacerDossier(patientId) {
+      trouverPatient(patientId);
+      const siennes = seances.filter((s) => s.patient_id === patientId).map((s) => s.id);
+      const { conservees, brouillons } = facturation.detacherFactures(patientId, siennes);
+      const bilan = {
+        seances: siennes.length,
+        antecedents: antecedents.filter((a) => a.patient_id === patientId).length,
+        documents: documentsDemo.filter((d) => d.patient_id === patientId).length,
+        factures_conservees: conservees,
+        brouillons_supprimes: brouillons,
+      };
+      seances = seances.filter((s) => s.patient_id !== patientId);
+      antecedents = antecedents.filter((a) => a.patient_id !== patientId);
+      for (let i = documentsDemo.length - 1; i >= 0; i--) if (documentsDemo[i].patient_id === patientId) documentsDemo.splice(i, 1);
+      liensDemo = liensDemo.filter((l) => l.patient !== patientId && l.proche !== patientId);
+      patients = patients.filter((p) => p.id !== patientId).map((p) => (p.factures_a === patientId ? { ...p, factures_a: null } : p));
+      journalDemo = journalDemo.filter((m) => m.entite !== patientId);
+      return bilan;
+    },
+    async historiqueDossier(patientId, limite, avant) {
+      const patient = trouverPatient(patientId);
+      const concerne = (m: Modification) =>
+        m.entite === patientId || [m.avant, m.apres].some((v) => v !== null && typeof v === "object" && (v as { proche_id?: string }).proche_id === patientId);
+      const creation: Modification = { id: 0, le: patient.cree_le || 1_780_000_000, action: "patient.cree", entite: patientId, avant: null, apres: patient, changements: [] };
+      const lignes = [...journalDemo.filter(concerne), ...(journalDemo.some((m) => m.entite === patientId && m.action === "patient.cree") ? [] : [creation])];
+      return lignes.filter((m) => avant === null || m.id < avant).slice(0, limite);
+    },
+    async apercuDossierPdf() {
+      throw new Error(SANS_DOSSIER_PDF);
+    },
+    async enregistrerDossierPdf() {
+      throw new Error(SANS_DOSSIER_PDF);
     },
     async formulaireAntecedents() {
       return formulaireAntecedentsParDefaut;
@@ -1679,6 +1909,7 @@ const ANALYSE_FICTIVE: AnalyseImport = {
 
 const SANS_PDF = "Les factures PDF sont mises en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour les voir.";
 const SANS_COMPTE_RENDU = "Les comptes rendus PDF sont mis en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour les voir.";
+const SANS_DOSSIER_PDF = "Le dossier PDF est mis en page par le cœur : ouvrez Osteosphere dans sa fenêtre pour le voir.";
 
 export function coeurParDefaut(): Coeur {
   return isTauri() ? coeurTauri : creerCoeurDeDemonstration();

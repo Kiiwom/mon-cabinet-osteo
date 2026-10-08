@@ -189,6 +189,7 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
         "seance": seance,
         "praticien": entete_praticien(&praticien, !praticien.sans_ei),
         "destinataire": { "nom": nom_destinataire, "lignes": lignes_destinataire },
+        "patient": d.patient.trim(),
         "remise": remise,
         "lignes": lignes,
         "totaux": totaux,
@@ -221,6 +222,7 @@ pub fn exemple(date: &str) -> Facture {
                 adresse: "12 rue des Tilleuls".into(),
                 code_postal: "47500".into(),
                 ville: "Fumel".into(),
+                patient: String::new(),
             },
             lignes: vec![LigneFacture {
                 designation: "Consultation d’ostéopathie".into(),
@@ -312,6 +314,7 @@ mod tests {
                     adresse: "12 rue des Tilleuls\nBâtiment B".into(),
                     code_postal: "47500".into(),
                     ville: "Fumel".into(),
+                    patient: String::new(),
                 },
                 lignes: vec![LigneFacture {
                     designation: "Consultation d'ostéopathie".into(),
@@ -374,6 +377,16 @@ mod tests {
         let pages = facture_svg(&facture_fictive(), &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(pages.len(), 1);
         assert!(pages[0].starts_with("<svg"));
+    }
+
+    #[test]
+    fn une_facture_adressee_a_un_parent_nomme_le_patient() {
+        let mut facture = facture_fictive();
+        assert_eq!(vue(&facture, &praticien(), None, &Habillage::default()).unwrap()["patient"], "");
+        facture.saisie.destinataire.patient = "Lucas Martin".into();
+        assert_eq!(vue(&facture, &praticien(), None, &Habillage::default()).unwrap()["patient"], "Lucas Martin");
+        let pages = facture_svg(&facture, &praticien(), None, &Habillage::default()).unwrap();
+        assert_eq!(pages.len(), 1);
     }
 
     #[test]

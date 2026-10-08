@@ -2,6 +2,7 @@ mod antecedents;
 mod comptes_rendus;
 mod demarrage;
 mod documents;
+mod dossiers;
 mod facturation;
 mod import;
 mod modeles;
@@ -109,6 +110,16 @@ pub fn run() {
             patients::lister_groupes,
             patients::enregistrer_groupe,
             patients::supprimer_groupe,
+            dossiers::proches_patient,
+            dossiers::lier_proche,
+            dossiers::delier_proche,
+            dossiers::definir_payeur,
+            dossiers::contenu_dossier,
+            dossiers::fusionner_dossiers,
+            dossiers::effacer_dossier,
+            dossiers::historique_dossier,
+            dossiers::apercu_dossier_pdf,
+            dossiers::enregistrer_dossier_pdf,
             antecedents::formulaire_antecedents,
             antecedents::lister_antecedents,
             antecedents::enregistrer_antecedent,

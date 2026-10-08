@@ -59,6 +59,7 @@
   [
     Date d’émission : #d.emission
     #if d.seance != "" [ \ #d.seance ]
+    #if d.patient != "" [ \ Patient : #d.patient ]
   ],
   [
     #text(fill: discret)[À l’attention de] \

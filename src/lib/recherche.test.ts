@@ -5,7 +5,7 @@ import { distance, doublonsProbables, normaliser, plier, rechercherPatients, res
 
 let rang = 0;
 const patient = (fiche: Partial<FichePatient>): ResumePatient =>
-  resumeDe({ ...FICHE_VIDE, ...fiche, id: `p${(rang += 1)}`, archive: false, cree_le: 0, modifie_le: 0 });
+  resumeDe({ ...FICHE_VIDE, ...fiche, id: `p${(rang += 1)}`, archive: false, factures_a: null, cree_le: 0, modifie_le: 0 });
 
 const LISTE = [
   patient({ nom: "Martin", prenom: "Camille", ville: "Fumel", portable: "06 12 34 56 78", naissance: "1988-03-14" }),

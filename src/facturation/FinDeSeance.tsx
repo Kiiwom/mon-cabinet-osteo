@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from "react";
 
 import { dateDuJour, type Coeur, type Patient, type SaisieSeance } from "../lib/coeur";
 import {
-  destinataireDuPatient,
+  destinataireDesFactures,
   euros,
   ligneDePrestation,
   prestationParDefaut,
@@ -114,7 +114,7 @@ export function FinDeSeance({
           patient_id: patient.id,
           seance_id: seanceId,
           date_seance: null,
-          destinataire: destinataireDuPatient(patient),
+          destinataire: await destinataireDesFactures(patient, (id) => coeur.lirePatient(id)),
           lignes: ligne ? [ligne] : [],
           commentaire_imprime: "",
           commentaire_interne: "",

@@ -9,6 +9,8 @@
 //! - [`trames`] : textes réutilisables appelés par un code court pendant la saisie.
 //! - [`patients`] : dossiers patients, identité, profil, remarques, statuts, archives.
 //! - [`groupes`] : groupes de patients colorés, utilisables comme filtres.
+//! - [`familles`] : liens familiaux entre dossiers, factures adressées à un parent.
+//! - [`dossiers`] : fusion de deux dossiers, effacement définitif, historique des modifications.
 //! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
 //! - [`modeles`] : modèles de consultation versionnés, modèles fournis.
 //! - [`seances`] : séances enregistrées au fil de la saisie, corbeille de 30 jours.
@@ -31,9 +33,11 @@ pub mod cabinet;
 pub mod chiffrement;
 pub mod cle_de_secours;
 pub mod documents;
+pub mod dossiers;
 pub mod emails;
 pub mod export;
 pub mod facturation;
+pub mod familles;
 mod fichier;
 pub mod groupes;
 mod hexa;
