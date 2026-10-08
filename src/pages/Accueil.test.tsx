@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { creerCoeurDeDemonstration, type ResumePatient } from "../lib/coeur";
 import { Accueil, anniversaires } from "./Accueil";
@@ -53,5 +53,25 @@ describe("accueil", () => {
     ]);
     // Né un 29 février : fêté le 28 les années non bissextiles.
     expect(anniversaires([patient("bissextile", "2000-02-29")], new Date(2027, 1, 25)).map((a) => [a.age, a.jour])).toEqual([[27, "dimanche"]]);
+  });
+});
+
+describe("nouvelle séance depuis l'accueil", () => {
+  it("choisit le patient au clavier et ouvre la séance", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    window.location.hash = "#/";
+    render(<Accueil coeur={coeur} cabinet={CABINET} aujourdhui={new Date(2026, 9, 7)} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Nouvelle séance" }));
+    const recherche = await screen.findByLabelText("Pour quel patient ?");
+    // Sans saisie : les patients vus récemment.
+    expect(await screen.findByRole("list", { name: "Patients vus récemment" })).toBeInTheDocument();
+    fireEvent.change(recherche, { target: { value: "girard" } });
+    expect(within(screen.getByRole("list", { name: "Patients trouvés" })).getByRole("button", { name: /^Thomas Girard/ })).toBeInTheDocument();
+    const avant = (await coeur.listerSeancesPatient("patient-7")).length;
+    fireEvent.keyDown(recherche, { key: "Enter" });
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/seances\/.+/));
+    const apres = await coeur.listerSeancesPatient("patient-7");
+    expect(apres).toHaveLength(avant + 1);
+    expect(apres.find((s) => window.location.hash.endsWith(s.id))?.type).toBe("suivi");
   });
 });

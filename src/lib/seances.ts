@@ -42,15 +42,19 @@ function texteEnLigne(noeud: JSONContent): string {
       return "\n";
     case "blanc":
       return String(noeud.attrs?.valeur ?? "");
-    case "choix":
-      return joindre((noeud.attrs?.retenus as string[] | undefined) ?? []);
+    case "choix": {
+      // Les retenus sont les rangs des options choisies.
+      const options = (noeud.attrs?.options as string[] | undefined) ?? [];
+      const retenus = (noeud.attrs?.retenus as (number | string)[] | undefined) ?? [];
+      return joindre(retenus.map((r) => (typeof r === "number" ? (options[r] ?? "") : r)).filter(Boolean));
+    }
     default:
       return "";
   }
 }
 
 function blocs(noeud: JSONContent, sortie: string[]) {
-  if (noeud.type === "paragraph") {
+  if (noeud.type === "paragraph" || noeud.type === "heading") {
     sortie.push(nettoyer((noeud.content ?? []).map(texteEnLigne).join("")));
     return;
   }

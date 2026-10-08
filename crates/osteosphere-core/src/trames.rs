@@ -6,6 +6,7 @@
 
 use rusqlite::{OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::base::{Base, ErreurBase, maintenant};
 use crate::identifiant;
@@ -21,6 +22,9 @@ pub struct Trame {
     pub titre: String,
     pub categorie: String,
     pub modele: String,
+    /// Le texte mis en forme (document de l'éditeur) ; absent pour une trame en texte simple.
+    #[serde(default)]
+    pub contenu: Option<Value>,
     pub origine: String,
     pub utilisations: i64,
 }
@@ -31,7 +35,10 @@ pub struct SaisieTrame {
     pub code: String,
     pub titre: String,
     pub categorie: String,
+    /// Le texte brut, un paragraphe par ligne : la syntaxe des choix et des blancs y est vérifiée.
     pub modele: String,
+    #[serde(default)]
+    pub contenu: Option<Value>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -46,6 +53,8 @@ pub enum ErreurTrame {
     ModeleVide,
     #[error("{message} (caractère {position})")]
     Syntaxe { message: &'static str, position: usize },
+    #[error("le texte mis en forme de la trame est illisible")]
+    ContenuInvalide,
     #[error("cette trame n'existe plus")]
     Introuvable,
     #[error("le générateur aléatoire du système est indisponible")]
@@ -144,11 +153,17 @@ fn verifier(saisie: &SaisieTrame) -> Result<SaisieTrame, ErreurTrame> {
         return Err(ErreurTrame::ModeleVide);
     }
     verifier_modele(&saisie.modele)?;
+    if let Some(contenu) = &saisie.contenu
+        && (contenu.get("type").and_then(Value::as_str) != Some("doc") || contenu.to_string().len() > 200_000)
+    {
+        return Err(ErreurTrame::ContenuInvalide);
+    }
     Ok(SaisieTrame {
         code: normaliser_code(&saisie.code)?,
         titre: titre.to_owned(),
         categorie: saisie.categorie.trim().to_owned(),
         modele: saisie.modele.trim().to_owned(),
+        contenu: saisie.contenu.clone(),
     })
 }
 
@@ -163,6 +178,7 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Trame> {
         titre: ligne.get("titre")?,
         categorie: ligne.get("categorie")?,
         modele: ligne.get("modele")?,
+        contenu: ligne.get::<_, Option<String>>("contenu")?.and_then(|texte| serde_json::from_str(&texte).ok()),
         origine: ligne.get("origine")?,
         utilisations: ligne.get("utilisations")?,
     })
@@ -199,11 +215,11 @@ pub fn enregistrer(base: &Base, id: Option<&str>, saisie: &SaisieTrame) -> Resul
     };
     let origine = avant.as_ref().map_or("praticien", |t| t.origine.as_str()).to_owned();
     base.connexion().execute(
-        "INSERT INTO trames (id, code, titre, categorie, modele, origine, modifiee_le)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-         ON CONFLICT (id) DO UPDATE SET code = excluded.code, titre = excluded.titre,
-           categorie = excluded.categorie, modele = excluded.modele, modifiee_le = excluded.modifiee_le",
-        (&id, &propre.code, &propre.titre, &propre.categorie, &propre.modele, &origine, maintenant()),
+        "INSERT INTO trames (id, code, titre, categorie, modele, contenu, origine, modifiee_le)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT (id) DO UPDATE SET code = excluded.code, titre = excluded.titre, categorie = excluded.categorie,
+           modele = excluded.modele, contenu = excluded.contenu, modifiee_le = excluded.modifiee_le",
+        rusqlite::params![&id, &propre.code, &propre.titre, &propre.categorie, &propre.modele, propre.contenu.as_ref().map(Value::to_string), &origine, maintenant()],
     )?;
     let apres = lire(base, &id)?.ok_or(ErreurTrame::Introuvable)?;
     base.journaliser(
@@ -260,7 +276,7 @@ mod tests {
     }
 
     fn saisie(code: &str, modele: &str) -> SaisieTrame {
-        SaisieTrame { code: code.into(), titre: "Essai".into(), categorie: "Examen".into(), modele: modele.into() }
+        SaisieTrame { code: code.into(), titre: "Essai".into(), categorie: "Examen".into(), modele: modele.into(), contenu: None }
     }
 
     #[test]
@@ -273,6 +289,20 @@ mod tests {
         assert!(matches!(verifier_modele("a } b"), Err(ErreurTrame::Syntaxe { position: 3, .. })));
         assert!(verifier_modele("{a | [b]}").is_err());
         assert!(verifier_modele("fin \\").is_err());
+    }
+
+    #[test]
+    fn garde_le_texte_mis_en_forme() {
+        let (_dossier, base) = base();
+        let contenu = serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+            { "type": "text", "text": "Douleur ", "marks": [{ "type": "bold" }] },
+            { "type": "text", "text": "{droite | gauche}" }
+        ]}]});
+        let trame = enregistrer(&base, None, &SaisieTrame { contenu: Some(contenu.clone()), ..saisie("dlr", "Douleur {droite | gauche}") }).unwrap();
+        assert_eq!(lister(&base).unwrap()[0].contenu.as_ref(), Some(&contenu));
+        assert_eq!(trame.contenu, Some(contenu));
+        let illisible = SaisieTrame { contenu: Some(serde_json::json!({ "type": "paragraph" })), ..saisie("x", "texte") };
+        assert!(matches!(enregistrer(&base, None, &illisible), Err(ErreurTrame::ContenuInvalide)));
     }
 
     #[test]

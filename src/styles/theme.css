@@ -2315,9 +2315,24 @@ a.rubrique-parametre:hover {
   color: var(--encre);
 }
 
-.champ-trame-saisie ul {
+.barre-outils {
+  flex-wrap: wrap;
+}
+
+.champ-trame-saisie ul,
+.champ-trame-saisie ol {
   margin: 4px 0;
   padding-left: 22px;
+}
+
+.champ-trame-saisie h2,
+.champ-trame-saisie h3 {
+  margin: 8px 0 2px;
+  font-size: 16px;
+}
+
+.champ-trame-saisie h3 {
+  font-size: 15px;
 }
 
 .alerte-repere {
@@ -3766,4 +3781,54 @@ kbd {
 
 .carte > .puce {
   align-self: flex-start;
+}
+
+/* Texte mis en forme, en lecture (remarques, aperçu des trames) */
+.texte-riche {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+.texte-riche p {
+  margin: 0;
+}
+
+.texte-riche ul,
+.texte-riche ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.texte-riche-titre {
+  font-weight: 700;
+  color: var(--encre);
+}
+
+.texte-riche-titre[data-niveau="2"] {
+  font-size: 16px;
+}
+
+/* Nouvelle séance depuis l'accueil */
+.ligne-choix-patient {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  color: var(--encre);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ligne-choix-patient:hover,
+.ligne-choix-patient:focus-visible {
+  background: var(--fond-barre);
 }

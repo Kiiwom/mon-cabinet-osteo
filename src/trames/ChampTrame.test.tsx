@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import depart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
+import { texteDe } from "../lib/seances";
 import { ChampTrame } from "./ChampTrame";
 import { filtrerTrames } from "./menu";
 import { insererTrame, nettoyer, type TrameResume } from "./valider";
@@ -113,5 +114,59 @@ describe("raccourci", () => {
     fireEvent.keyDown(blanc, { key: "Enter", ctrlKey: true });
     expect(editeur.getText()).toBe("À revoir dans 1 mois.");
     expect(valide).toHaveBeenCalledWith("À revoir dans 1 mois.");
+  });
+});
+
+describe("trame mise en forme", () => {
+  const MISE_EN_FORME: TrameResume = {
+    id: "mef",
+    code: "bilan",
+    titre: "Bilan",
+    categorie: "Examen",
+    modele: "Bilan\nDouleur {droite | gauche}\nRepos [durée]",
+    contenu: {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Bilan" }] },
+        { type: "paragraph", content: [{ type: "text", text: "Douleur ", marks: [{ type: "bold" }] }, { type: "text", text: "{droite | gauche}" }] },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Repos [durée]" }] }] }] },
+      ],
+    },
+  };
+
+  async function inserer(miseEnForme: boolean) {
+    let editeur: Editor | null = null;
+    render(<ChampTrame libelle="Examen" trames={[MISE_EN_FORME]} caractere="@" miseEnForme={miseEnForme} surEditeur={(e) => (editeur = e)} />);
+    await waitFor(() => expect(editeur).not.toBeNull());
+    const e = editeur as unknown as Editor;
+    await act(async () => {
+      e.commands.setContent("<p>@bilan</p>");
+      insererTrame(e, { from: 1, to: 7 }, MISE_EN_FORME);
+    });
+    return e;
+  }
+
+  it("garde titres, gras et listes, et la syntaxe devient pastilles et blancs", async () => {
+    const editeur = await inserer(true);
+    expect(screen.getByRole("button", { name: "droite" })).toBeInTheDocument();
+    expect(screen.getByLabelText("À compléter : durée")).toBeInTheDocument();
+    const html = editeur.getHTML();
+    expect(html).toContain("<h2>Bilan</h2>");
+    expect(html).toContain("<strong>Douleur </strong>");
+    expect(html).toContain("<ul>");
+    fireEvent.click(screen.getByRole("button", { name: "gauche" }));
+    fireEvent.change(screen.getByLabelText("À compléter : durée"), { target: { value: "2 jours" } });
+    fireEvent.click(screen.getByRole("button", { name: "Valider" }));
+    expect(texteDe(editeur.getJSON())).toBe("Bilan\nDouleur gauche\nRepos 2 jours");
+  });
+
+  it("devient du texte simple dans un champ sans mise en forme", async () => {
+    const editeur = await inserer(false);
+    const html = editeur.getHTML();
+    // Titres et listes deviennent des paragraphes ; le gras reste (Ctrl+G y est permis).
+    expect(html).not.toContain("<h2>");
+    expect(html).not.toContain("<ul>");
+    expect(html).toContain("<p>Bilan</p>");
+    expect(screen.getByRole("button", { name: "droite" })).toBeInTheDocument();
   });
 });

@@ -2,12 +2,17 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { App } from "../App";
 import { creerCoeurDeDemonstration } from "../lib/coeur";
+import { texteRiche } from "../lib/texteRiche";
+import { remplirEditeur } from "../test/editeur";
 import { resumeSeances } from "./FriseDeVie";
 
 const saisir = (libelle: string, valeur: string) => fireEvent.change(screen.getByLabelText(libelle), { target: { value: valeur } });
 
+let coeur = creerCoeurDeDemonstration("ouvert");
+
 async function ouvrirDossier(adresse: string) {
-  render(<App coeur={creerCoeurDeDemonstration("ouvert")} />);
+  coeur = creerCoeurDeDemonstration("ouvert");
+  render(<App coeur={coeur} />);
   await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
   await act(async () => {
     window.location.hash = adresse;
@@ -64,10 +69,14 @@ describe("antécédents", () => {
 
   it("enregistre les remarques sur les antécédents", async () => {
     await ouvrirDossier("#/patients/patient-1/antecedents");
-    const remarques = screen.getByRole("textbox", { name: "Remarques sur les antécédents" });
-    fireEvent.change(remarques, { target: { value: "Opérée à Agen, suites simples." } });
+    const remarques = await screen.findByRole("textbox", { name: "Remarques sur les antécédents" });
+    await remplirEditeur(remarques, "<p>Opérée à <strong>Agen</strong>, suites simples.</p><ul><li>Pas de séquelle</li></ul>");
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer les remarques" }));
     expect(await screen.findByText("Remarques enregistrées")).toBeInTheDocument();
+    // Rangées mises en forme : le texte brut se relit, gras et liste compris.
+    const fiche = await coeur.lirePatient("patient-1");
+    expect(texteRiche(fiche.remarques_antecedents)).toBe("Opérée à Agen, suites simples.\nPas de séquelle");
+    expect(fiche.remarques_antecedents).toContain('"type":"bold"');
   });
 
   it("résume les séances de la frise", () => {

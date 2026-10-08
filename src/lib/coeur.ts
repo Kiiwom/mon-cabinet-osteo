@@ -1,4 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import type { JSONContent } from "@tiptap/core";
 
 import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
 import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
@@ -201,6 +202,8 @@ export interface Trame {
   titre: string;
   categorie: string;
   modele: string;
+  /** Le texte mis en forme ; absent (null) pour une trame en texte simple. */
+  contenu: JSONContent | null;
   origine: "depart" | "praticien";
   utilisations: number;
 }
@@ -209,7 +212,9 @@ export interface SaisieTrame {
   code: string;
   titre: string;
   categorie: string;
+  /** Le texte brut, un paragraphe par ligne : la syntaxe des choix et des blancs y est vérifiée. */
   modele: string;
+  contenu: JSONContent | null;
 }
 
 export type Sexe = "" | "F" | "M";
@@ -467,6 +472,7 @@ export interface Coeur {
   supprimerTrame(id: string): Promise<void>;
   noterUtilisationTrame(id: string): Promise<void>;
   caractereTrames(): Promise<CaractereTrames>;
+  definirCaractereTrames(caractere: CaractereTrames): Promise<CaractereTrames>;
   /** Pages SVG de la facture d'essai, à la date locale `AAAA-MM-JJ`. */
   apercuFactureEssai(date: string): Promise<string[]>;
   ouvrirFactureEssai(date: string): Promise<void>;
@@ -604,6 +610,7 @@ export const coeurTauri: Coeur = {
   supprimerTrame: (id) => appeler("supprimer_trame", { id }),
   noterUtilisationTrame: (id) => appeler("noter_utilisation_trame", { id }),
   caractereTrames: () => appeler("caractere_trames"),
+  definirCaractereTrames: (caractere) => appeler("definir_caractere_trames", { caractere }),
   apercuFactureEssai: (date) => appeler("apercu_facture_essai", { date }),
   ouvrirFactureEssai: (date) => appeler("ouvrir_facture_essai", { date }),
   identiteCabinet: () => appeler("identite_cabinet"),
@@ -776,7 +783,7 @@ export function creerCoeurDeDemonstration(
       }
     : { ...IDENTITE_VIDE, prenom: "Alexandre", nom: "Roux" };
   let caractere: CaractereTrames = "@";
-  let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
+  let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, contenu: null, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
   let accueilDemo: PreferencesAccueil = {
     masques: [],
@@ -952,6 +959,7 @@ export function creerCoeurDeDemonstration(
         titre: saisie.titre.trim(),
         categorie: saisie.categorie.trim(),
         modele: saisie.modele.trim(),
+        contenu: saisie.contenu ?? null,
         origine: existante?.origine ?? "praticien",
         utilisations: existante?.utilisations ?? 0,
       };
@@ -965,6 +973,10 @@ export function creerCoeurDeDemonstration(
       trames = trames.map((t) => (t.id === id ? { ...t, utilisations: t.utilisations + 1 } : t));
     },
     async caractereTrames() {
+      return caractere;
+    },
+    async definirCaractereTrames(nouveau) {
+      caractere = nouveau;
       return caractere;
     },
     async apercuFactureEssai() {

@@ -26,6 +26,7 @@ import { PageParametres } from "./pages/Parametres";
 import { PageCorbeille, PageSeances } from "./pages/Seances";
 import { PageStatistiques } from "./pages/Statistiques";
 import { PagePatients } from "./pages/Patients";
+import { FournisseurTrames } from "./trames/contexte";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
 const PageTrames = lazy(() => import("./pages/Trames").then((module) => ({ default: module.PageTrames })));
@@ -235,37 +236,39 @@ function CabinetOuvert({
     return () => window.removeEventListener("keydown", touche);
   }, [coeur, surVerrouillage]);
   return (
-    <div className="coque">
-      <BarreLaterale courant={ecran} seancesAFacturer={aFacturer} donneesReelles={coeur.reel} sauvegarde={sauvegarde} />
-      <div className="contenu">
-        {ecran === "accueil" ? (
-          <Accueil coeur={coeur} cabinet={cabinet} />
-        ) : ecran === "patients" ? (
-          <EcranPatients coeur={coeur} segments={segments} />
-        ) : ecran === "seances" ? (
-          segments[1] === "corbeille" ? (
-            <PageCorbeille coeur={coeur} />
-          ) : segments[1] ? (
-            <Suspense fallback={<p className="page discret">Ouverture de la séance…</p>}>
-              <PageSeance key={segments[1]} coeur={coeur} id={segments[1]} />
+    <FournisseurTrames coeur={coeur}>
+      <div className="coque">
+        <BarreLaterale courant={ecran} seancesAFacturer={aFacturer} donneesReelles={coeur.reel} sauvegarde={sauvegarde} />
+        <div className="contenu">
+          {ecran === "accueil" ? (
+            <Accueil coeur={coeur} cabinet={cabinet} />
+          ) : ecran === "patients" ? (
+            <EcranPatients coeur={coeur} segments={segments} />
+          ) : ecran === "seances" ? (
+            segments[1] === "corbeille" ? (
+              <PageCorbeille coeur={coeur} />
+            ) : segments[1] ? (
+              <Suspense fallback={<p className="page discret">Ouverture de la séance…</p>}>
+                <PageSeance key={segments[1]} coeur={coeur} id={segments[1]} />
+              </Suspense>
+            ) : (
+              <PageSeances coeur={coeur} />
+            )
+          ) : ecran === "parametres" ? (
+            <EcranParametres coeur={coeur} segments={segments} surRestauration={surRestauration} surVerrouillage={surVerrouillage} />
+          ) : ecran === "facturation" ? (
+            <EcranFacturation coeur={coeur} segments={segments} />
+          ) : ecran === "statistiques" ? (
+            <PageStatistiques coeur={coeur} />
+          ) : ecran === "trames" ? (
+            <Suspense fallback={<p className="page discret">Chargement des trames…</p>}>
+              <PageTrames coeur={coeur} />
             </Suspense>
           ) : (
-            <PageSeances coeur={coeur} />
-          )
-        ) : ecran === "parametres" ? (
-          <EcranParametres coeur={coeur} segments={segments} surRestauration={surRestauration} surVerrouillage={surVerrouillage} />
-        ) : ecran === "facturation" ? (
-          <EcranFacturation coeur={coeur} segments={segments} />
-        ) : ecran === "statistiques" ? (
-          <PageStatistiques coeur={coeur} />
-        ) : ecran === "trames" ? (
-          <Suspense fallback={<p className="page discret">Chargement des trames…</p>}>
-            <PageTrames coeur={coeur} />
-          </Suspense>
-        ) : (
-          <EcranAVenir titre={TITRES[ecran]} />
-        )}
+            <EcranAVenir titre={TITRES[ecran]} />
+          )}
+        </div>
       </div>
-    </div>
+    </FournisseurTrames>
   );
 }

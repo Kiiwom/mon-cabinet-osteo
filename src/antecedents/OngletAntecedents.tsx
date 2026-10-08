@@ -4,6 +4,7 @@ import type { Antecedent, CategorieAntecedents, Coeur, CouleurAntecedent, FicheP
 import { ecrireDatePartielle, lireDatePartielle } from "../lib/dates";
 import { adresse } from "../lib/navigation";
 import { apparence, CHOIX_COULEURS, intitule, periode } from "./apparence";
+import { ChampTexteRiche } from "../trames/ChampTexteRiche";
 
 export function ficheDe(patient: Patient): FichePatient {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -178,13 +179,11 @@ function RemarquesAntecedents({ patient, coeur, misAJour }: { patient: Patient; 
   return (
     <section className="carte" aria-labelledby={`${id}-titre`}>
       <h2 id={`${id}-titre`}>Remarques sur les antécédents</h2>
-      <textarea
-        aria-labelledby={`${id}-titre`}
-        className="zone-texte"
-        rows={3}
-        value={texte}
-        onChange={(e) => {
-          setTexte(e.target.value);
+      <ChampTexteRiche
+        libelle="Remarques sur les antécédents"
+        valeur={texte}
+        changer={(valeur) => {
+          setTexte(valeur);
           setEtat("modifie");
         }}
       />

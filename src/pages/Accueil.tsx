@@ -11,13 +11,15 @@ import {
   type ResumePatient,
   type ResumeSeance,
 } from "../lib/coeur";
-import { dateCourte } from "../lib/dates";
+import { dateCourte, ecrireDateFr } from "../lib/dates";
 import { euros, type ResumeFacture } from "../lib/facturation";
-import { adresse } from "../lib/navigation";
+import { adresse, aller } from "../lib/navigation";
+import { rechercherPatients } from "../lib/recherche";
 import { jourEnLettres } from "../lib/seances";
 import type { Statistiques } from "../lib/statistiques";
 import { momentEnLettres } from "../sauvegardes/Restauration";
 import { EtatFacturation } from "../seances/ListeSeances";
+import { creerSeanceMaintenant } from "../seances/nouvelleSeance";
 import { MOIS_LONGS } from "../statistiques/Graphiques";
 import { ALERTE_SAUVEGARDE_JOURS, joursDepuis } from "./ParametresSauvegardes";
 
@@ -134,6 +136,90 @@ function PenseBetes({ preferences, enregistrer, aujourdhui }: { preferences: Pre
   );
 }
 
+/** Nouvelle séance depuis l'accueil : le patient se choisit au clavier, la séance s'ouvre aussitôt. */
+function NouvelleSeance({ coeur, fermer }: { coeur: Coeur; fermer: () => void }) {
+  const id = useId();
+  const [patients, setPatients] = useState<ResumePatient[]>([]);
+  const [texte, setTexte] = useState("");
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+
+  useEffect(() => {
+    coeur.listerPatients().then(setPatients, (e: Error) => setErreur(e.message));
+  }, [coeur]);
+
+  const suivis = patients.filter((p) => !p.archive && !p.decede);
+  const proposes = texte.trim()
+    ? rechercherPatients(suivis, texte)
+        .slice(0, 6)
+        .map((r) => r.patient)
+    : [...suivis].sort((a, b) => (b.derniere_seance ?? "").localeCompare(a.derniere_seance ?? "")).slice(0, 6);
+
+  const choisir = async (patient: ResumePatient | undefined) => {
+    if (!patient || envoi) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      const seance = await creerSeanceMaintenant(coeur, patient);
+      aller("seances", seance.id);
+    } catch (e) {
+      setErreur((e as Error).message);
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <section className="carte nouvelle-seance" aria-labelledby={`${id}-titre`}>
+      <div className="entete-carte">
+        <h2 id={`${id}-titre`}>Nouvelle séance</h2>
+        <button type="button" className="lien-bouton" onClick={fermer}>
+          Annuler
+        </button>
+      </div>
+      <div className="champ">
+        <label htmlFor={`${id}-patient`}>Pour quel patient&nbsp;?</label>
+        <input
+          id={`${id}-patient`}
+          type="search"
+          autoFocus
+          placeholder="Nom, prénom, téléphone, ville…"
+          value={texte}
+          onChange={(e) => setTexte(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void choisir(proposes[0]);
+            } else if (e.key === "Escape") fermer();
+          }}
+        />
+      </div>
+      {erreur && (
+        <p className="alerte" role="alert">
+          {erreur}
+        </p>
+      )}
+      <ul className="liste-accueil" aria-label={texte.trim() ? "Patients trouvés" : "Patients vus récemment"}>
+        {proposes.map((p) => (
+          <li key={p.id}>
+            <button type="button" className="ligne-choix-patient" disabled={envoi} onClick={() => void choisir(p)}>
+              <strong>
+                {p.prenom} {p.nom}
+              </strong>
+              <span className="discret">
+                {[p.naissance ? ecrireDateFr(p.naissance) : "", p.ville, p.derniere_seance ? `vu le ${dateCourte(p.derniere_seance)}` : "jamais vu"].filter(Boolean).join(" · ")}
+              </span>
+            </button>
+          </li>
+        ))}
+        {proposes.length === 0 && <li className="discret">Aucun patient ne correspond.</li>}
+      </ul>
+      <p className="discret">
+        Nouveau patient&nbsp;? <a href={adresse("patients", "nouveau")}>Créer son dossier</a>, puis «&nbsp;Nouvelle séance&nbsp;».
+      </p>
+    </section>
+  );
+}
+
 /** Accueil du cabinet : la journée, ce qui attend, les chiffres du mois ; chaque bloc peut être masqué. */
 export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Coeur; cabinet: IdentiteCabinet; aujourdhui?: Date }) {
   const id = useId();
@@ -148,6 +234,7 @@ export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Co
   const [patients, setPatients] = useState<ResumePatient[]>([]);
   const [sauvegardes, setSauvegardes] = useState<EtatSauvegardes | null>(null);
   const [personnaliser, setPersonnaliser] = useState(false);
+  const [choixSeance, setChoixSeance] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -362,9 +449,9 @@ export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Co
           <a className="bouton" href={adresse("patients", "nouveau")}>
             Nouveau patient
           </a>
-          <a className="bouton bouton-principal" href={adresse("patients")}>
+          <button type="button" className="bouton bouton-principal" aria-expanded={choixSeance} onClick={() => setChoixSeance((v) => !v)}>
             Nouvelle séance
-          </a>
+          </button>
           <button type="button" className="bouton" aria-expanded={personnaliser} onClick={() => setPersonnaliser((v) => !v)}>
             Personnaliser l’accueil
           </button>
@@ -375,6 +462,7 @@ export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Co
           {erreur}
         </p>
       )}
+      {choixSeance && <NouvelleSeance coeur={coeur} fermer={() => setChoixSeance(false)} />}
       {personnaliser && preferences && (
         <fieldset className="carte groupe">
           <legend>Blocs affichés</legend>

@@ -36,3 +36,15 @@ pub fn noter_utilisation_trame(etat: State<'_, Arc<EtatCabinet>>, id: String) ->
 pub fn caractere_trames(etat: State<'_, Arc<EtatCabinet>>) -> Result<CaractereTrames, String> {
     etat.avec_base(|base| Ok(base.lire_parametre(PARAMETRE_TRAMES).map_err(message)?.unwrap_or_default()))
 }
+
+/// Le caractère qui appelle les trames, @ ou /, se change à tout moment.
+#[tauri::command]
+pub fn definir_caractere_trames(etat: State<'_, Arc<EtatCabinet>>, caractere: CaractereTrames) -> Result<CaractereTrames, String> {
+    etat.avec_base(|base| {
+        let avant: CaractereTrames = base.lire_parametre(PARAMETRE_TRAMES).map_err(message)?.unwrap_or_default();
+        base.ecrire_parametre(PARAMETRE_TRAMES, &caractere).map_err(message)?;
+        let json = |c: &CaractereTrames| serde_json::to_string(c).ok();
+        base.journaliser("trames.caractere", PARAMETRE_TRAMES, json(&avant).as_deref(), json(&caractere).as_deref()).map_err(message)?;
+        Ok(caractere)
+    })
+}

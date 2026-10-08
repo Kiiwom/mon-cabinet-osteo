@@ -1,10 +1,41 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import type { JSONContent } from "@tiptap/core";
+import { EditorContent, useEditor } from "@tiptap/react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { CaractereTrames, Coeur, SaisieTrame, Trame } from "../lib/coeur";
-import { ChampTrame } from "../trames/ChampTrame";
-import { analyserModele, type Segment } from "../trames/syntaxe";
+import { documentDepuis } from "../lib/texteRiche";
+import { BarreOutils, ChampTrame, extensionsTexte } from "../trames/ChampTrame";
+import { signalerTrames } from "../trames/contexte";
+import type { Segment } from "../trames/syntaxe";
+import { TexteRiche } from "../trames/TexteRiche";
+import { contenuVersInsertion } from "../trames/valider";
 
-const SAISIE_VIDE: SaisieTrame = { code: "", titre: "", categorie: "", modele: "" };
+const SAISIE_VIDE: SaisieTrame = { code: "", titre: "", categorie: "", modele: "", contenu: null };
+
+/** Texte de la trame, mis en forme : la syntaxe des choix et des blancs s'écrit dans le texte. */
+function EditeurTexteTrame({ id, depart, changer }: { id: string; depart: JSONContent; changer: (contenu: JSONContent, modele: string) => void }) {
+  const changement = useRef(changer);
+  changement.current = changer;
+  const editor = useEditor({
+    extensions: [extensionsTexte(true)],
+    content: depart,
+    editorProps: {
+      attributes: { class: "champ-trame-saisie", "aria-labelledby": `${id}-libelle-modele`, "aria-describedby": `${id}-syntaxe` },
+    },
+    onUpdate: ({ editor: e }) => changement.current(e.getJSON(), e.getText({ blockSeparator: "\n" })),
+  });
+  return (
+    <div className="champ-trame">
+      <span className="champ-trame-entete">
+        <span id={`${id}-libelle-modele`} className="champ-trame-libelle">
+          Texte de la trame
+        </span>
+        {editor && <BarreOutils editor={editor} />}
+      </span>
+      <EditorContent editor={editor} />
+    </div>
+  );
+}
 
 /** Aperçu non interactif : pastilles et blancs tels qu'ils apparaîtront en séance. */
 export function ApercuTrame({ segments }: { segments: Segment[] }) {
@@ -57,8 +88,15 @@ function EditeurTrame({
     setEnregistree(false);
   }, [trame]);
 
-  const analyse = analyserModele(saisie.modele);
-  const changer = (champ: keyof SaisieTrame) => (valeur: string) => {
+  // Le texte prêt à insérer : la syntaxe est vérifiée ligne par ligne, comme à l'insertion en séance.
+  const conversion = useMemo((): { ok: true; blocs: JSONContent[] } | { ok: false; erreur: string } => {
+    try {
+      return { ok: true, blocs: contenuVersInsertion(saisie.contenu ?? documentDepuis(saisie.modele)) };
+    } catch (e) {
+      return { ok: false, erreur: (e as Error).message };
+    }
+  }, [saisie.contenu, saisie.modele]);
+  const changer = (champ: "code" | "titre" | "categorie") => (valeur: string) => {
     setSaisie((s) => ({ ...s, [champ]: valeur }));
     setEnregistree(false);
   };
@@ -70,7 +108,7 @@ function EditeurTrame({
       return setErreur("Le code ne contient que des lettres sans accent, des chiffres ou des tirets, 20 au plus.");
     }
     if (!saisie.modele.trim()) return setErreur("Écrivez le texte de la trame.");
-    if (!analyse.ok) return setErreur(`${analyse.erreur} (caractère ${analyse.position + 1})`);
+    if (!conversion.ok) return setErreur(conversion.erreur);
     try {
       await enregistrer(saisie);
       setEnregistree(true);
@@ -110,33 +148,33 @@ function EditeurTrame({
           </datalist>
         </div>
         <div className="champ champ-large">
-          <label htmlFor={`${id}-modele`}>Texte de la trame</label>
-          <textarea
-            id={`${id}-modele`}
-            rows={3}
-            value={saisie.modele}
-            onChange={(e) => changer("modele")(e.target.value)}
-            aria-describedby={`${id}-syntaxe`}
-            spellCheck
+          <EditeurTexteTrame
+            key={trame?.id ?? "nouvelle"}
+            id={id}
+            depart={trame?.contenu ?? documentDepuis(trame?.modele ?? "")}
+            changer={(contenu, modele) => {
+              setSaisie((s) => ({ ...s, contenu, modele }));
+              setEnregistree(false);
+            }}
           />
           <span id={`${id}-syntaxe`} className="discret">
             <code>{"{droite | gauche}"}</code> choix unique · <code>{"{+ a | b | c}"}</code> choix multiple ·{" "}
-            <code>[durée]</code> blanc à compléter
+            <code>[durée]</code> blanc à compléter · gras, titres et listes restent à l’insertion
           </span>
         </div>
       </div>
       <div className="pile-serree">
         <span className="champ-trame-libelle">Aperçu</span>
-        {analyse.ok ? (
+        {conversion.ok ? (
           saisie.modele.trim() ? (
-            <ApercuTrame segments={analyse.segments} />
+            <div className="apercu-trame">
+              <TexteRiche document={{ type: "doc", content: conversion.blocs }} />
+            </div>
           ) : (
             <p className="discret">L’aperçu apparaît dès que vous écrivez.</p>
           )
         ) : (
-          <p className="champ-erreur">
-            {analyse.erreur} (caractère {analyse.position + 1})
-          </p>
+          <p className="champ-erreur">{conversion.erreur}</p>
         )}
       </div>
       {erreur && (
@@ -211,8 +249,29 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
         <div>
           <h1 className="page-titre">Trames</h1>
           <p className="page-sous-titre">
-            Vos textes réutilisables&nbsp;: tapez {caractere} puis le code dans n’importe quel champ de séance
+            Vos textes réutilisables&nbsp;: tapez {caractere} puis le code dans une séance, les remarques ou tout texte mis en forme
           </p>
+        </div>
+        <div className="segments" role="group" aria-label="Caractère d’appel des trames">
+          {(["@", "/"] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-pressed={caractere === c}
+              title={c === "@" ? "Appel par @, comme sur MonCabinetLibéral" : "Appel par /, comme sur osteopathes.pro"}
+              onClick={() => {
+                coeur.definirCaractereTrames(c).then(
+                  (nouveau) => {
+                    setCaractere(nouveau);
+                    signalerTrames();
+                  },
+                  (e: Error) => setErreur(e.message),
+                );
+              }}
+            >
+              Appel par {c}
+            </button>
+          ))}
         </div>
         <button
           type="button"
@@ -279,6 +338,7 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
             </div>
             <ChampTrame
               key={caractere}
+              miseEnForme
               libelle="Motif de consultation"
               trames={trames}
               caractere={caractere}
@@ -302,6 +362,7 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
               enregistrer={async (saisie) => {
                 const enregistree = await coeur.enregistrerTrame(trame?.id ?? null, saisie);
                 await recharger();
+                signalerTrames();
                 setNouvelle(false);
                 setChoisie(enregistree.id);
               }}
@@ -311,6 +372,7 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
                       await coeur.supprimerTrame(trame.id);
                       setChoisie(null);
                       await recharger();
+                      signalerTrames();
                     }
                   : null
               }

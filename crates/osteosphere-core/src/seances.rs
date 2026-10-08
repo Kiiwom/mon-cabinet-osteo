@@ -188,6 +188,19 @@ impl SaisieSeance {
 
 /// Texte lisible d'une valeur : texte simple, ou document de l'éditeur (paragraphes, listes,
 /// choix retenus d'une trame, blancs complétés).
+/// Le texte brut d'un champ texte mis en forme du dossier (remarques…) : le document de l'éditeur en
+/// JSON, ou un texte simple d'avant, rendu tel quel.
+pub fn texte_riche(valeur: &str) -> String {
+    let texte = valeur.trim();
+    if texte.starts_with('{')
+        && let Ok(document) = serde_json::from_str::<Value>(texte)
+        && document.get("type").and_then(Value::as_str) == Some("doc")
+    {
+        return texte_de(&document);
+    }
+    valeur.to_owned()
+}
+
 pub fn texte_de(valeur: &Value) -> String {
     match valeur {
         Value::String(texte) => texte.clone(),
@@ -203,7 +216,7 @@ pub fn texte_de(valeur: &Value) -> String {
 fn texte_des_blocs(noeud: &Value, blocs: &mut Vec<String>) {
     let enfants = noeud.get("content").and_then(Value::as_array);
     match noeud.get("type").and_then(Value::as_str) {
-        Some("paragraph") => {
+        Some("paragraph" | "heading") => {
             let mut ligne = String::new();
             for enfant in enfants.into_iter().flatten() {
                 ligne.push_str(&texte_en_ligne(enfant));
@@ -251,7 +264,14 @@ fn texte_en_ligne(noeud: &Value) -> String {
         Some("hardBreak") => "\n".into(),
         Some("blanc") => attribut("valeur").and_then(Value::as_str).unwrap_or_default().to_owned(),
         Some("choix") => {
-            let retenus: Vec<&str> = attribut("retenus").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
+            // Les retenus sont les rangs des options choisies.
+            let options: Vec<&str> = attribut("options").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
+            let retenus: Vec<&str> = attribut("retenus")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|r| r.as_u64().and_then(|rang| options.get(rang as usize).copied()).or_else(|| r.as_str()))
+                .collect();
             match retenus.as_slice() {
                 [] => String::new(),
                 [seul] => (*seul).to_owned(),
@@ -625,6 +645,18 @@ mod tests {
         assert_eq!(nettoyer("depuis  3 jours , EVA ."), "depuis 3 jours, EVA.");
         assert_eq!(nettoyer("a, , b"), "a, b");
         assert_eq!(texte_de(&json!(6)), "");
+        // Les retenus sont des rangs d'options ; les titres comptent comme des paragraphes.
+        let rangs = json!({ "type": "doc", "content": [
+            { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Bilan" }] },
+            { "type": "paragraph", "content": [
+                { "type": "text", "text": "Côté " },
+                { "type": "choix", "attrs": { "options": ["droit", "gauche"], "multiple": false, "retenus": [1] } }
+            ]}
+        ]});
+        assert_eq!(texte_de(&rangs), "Bilan\nCôté gauche");
+        assert_eq!(texte_riche(&rangs.to_string()), "Bilan\nCôté gauche");
+        assert_eq!(texte_riche("{ texte simple entre accolades"), "{ texte simple entre accolades");
+        assert_eq!(texte_riche("Ligne 1\nLigne 2"), "Ligne 1\nLigne 2");
     }
 
     #[test]

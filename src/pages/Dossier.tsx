@@ -5,12 +5,12 @@ import { FriseDeVie } from "../antecedents/FriseDeVie";
 import { CarteAntecedents, OngletAntecedents } from "../antecedents/OngletAntecedents";
 import type { Antecedent, CategorieAntecedents, Coeur, Patient, ResumeSeance } from "../lib/coeur";
 import { accorder, ageEnClair, neLe } from "../lib/dates";
-import { modelePropose } from "../lib/modeles";
 import { adresse, aller } from "../lib/navigation";
-import { debutMaintenant } from "../lib/seances";
 import { Avatar } from "../patients/Avatar";
 import { depuisBrouillon, FormulaireFiche, versBrouillon, type BrouillonFiche, type ErreursFiche } from "../patients/FormulaireFiche";
 import { ListeSeancesPatient } from "../seances/ListeSeances";
+import { creerSeanceMaintenant } from "../seances/nouvelleSeance";
+import { TexteRiche } from "../trames/TexteRiche";
 
 export type Onglet = "synthese" | "seances" | "antecedents" | "identite";
 
@@ -147,7 +147,7 @@ function Synthese({
                 Modifier
               </a>
             </div>
-            {patient.remarques ? <p className="texte-multiligne">{patient.remarques}</p> : <p className="discret">Aucune remarque.</p>}
+            {patient.remarques ? <TexteRiche valeur={patient.remarques} /> : <p className="discret">Aucune remarque.</p>}
           </section>
         </div>
         <div className="pile">
@@ -275,19 +275,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
     if (!patient) return;
     setCreation(true);
     try {
-      const modele = modelePropose(await coeur.listerModeles(), patient.naissance);
-      if (!modele) throw new Error("Aucun modèle de consultation actif : activez-en un dans Paramètres.");
-      const seance = await coeur.creerSeance(patient.id, {
-        debut: debutMaintenant(),
-        modele_id: modele.id,
-        modele_version: modele.version,
-        type: seances.length === 0 ? "premiere" : "suivi",
-        titre: "",
-        importante: false,
-        valeurs: {},
-        facturation: "a_facturer",
-        commentaire_gratuit: "",
-      });
+      const seance = await creerSeanceMaintenant(coeur, patient);
       aller("seances", seance.id);
     } catch (e) {
       setErreur((e as Error).message);

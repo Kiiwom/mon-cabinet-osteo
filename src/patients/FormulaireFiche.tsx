@@ -3,6 +3,7 @@ import { useId, type ReactNode } from "react";
 import type { FichePatient, Lateralite, Sexe } from "../lib/coeur";
 import { dateDuJour } from "../lib/coeur";
 import { ecrireDateFr, lireDateFr } from "../lib/dates";
+import { ChampTexteRiche } from "../trames/ChampTexteRiche";
 
 /** La fiche telle qu'on la tape : dates et nombre d'enfants en texte, convertis à l'enregistrement. */
 export type BrouillonFiche = Omit<FichePatient, "naissance" | "consentement_le" | "enfants"> & {
@@ -272,7 +273,9 @@ export function FormulaireFiche({
           changer={champ("notes_importantes")}
           aide="Allergie, contre-indication, précaution : affichées en tête du dossier et de chaque séance."
         />
-        <TexteLong libelle="Remarques générales" valeur={brouillon.remarques} changer={champ("remarques")} />
+        <div className="champ champ-large">
+          <ChampTexteRiche libelle="Remarques générales" valeur={brouillon.remarques} changer={champ("remarques")} />
+        </div>
       </Section>
     </div>
   );

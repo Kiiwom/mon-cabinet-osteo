@@ -16,13 +16,33 @@ export type ResultatAnalyse = { ok: true; segments: Segment[] } | { ok: false; e
 const SPECIAUX = new Set(["{", "}", "[", "]", "|", "\\"]);
 
 export function analyserModele(modele: string): ResultatAnalyse {
+  const analyse = analyserDetaille(modele);
+  return analyse.ok ? { ok: true, segments: analyse.segments } : analyse;
+}
+
+/**
+ * Où chaque segment prend sa source : pour un texte, la position de chacun de ses caractères ; pour
+ * un choix ou un blanc, la position de son accolade ou de son crochet. Sert à garder la mise en
+ * forme (gras, italique…) d'une trame à l'insertion.
+ */
+export type Origine = number[] | number;
+
+export type AnalyseDetaillee = { ok: true; segments: Segment[]; origines: Origine[] } | { ok: false; erreur: string; position: number };
+
+export function analyserDetaille(modele: string): AnalyseDetaillee {
   const segments: Segment[] = [];
+  const origines: Origine[] = [];
   let texte = "";
+  let positions: number[] = [];
   let i = 0;
-  const echec = (erreur: string, position: number): ResultatAnalyse => ({ ok: false, erreur, position });
+  const echec = (erreur: string, position: number): AnalyseDetaillee => ({ ok: false, erreur, position });
   const pousserTexte = () => {
-    if (texte) segments.push({ type: "texte", texte });
+    if (texte) {
+      segments.push({ type: "texte", texte });
+      origines.push(positions);
+    }
     texte = "";
+    positions = [];
   };
 
   while (i < modele.length) {
@@ -31,6 +51,7 @@ export function analyserModele(modele: string): ResultatAnalyse {
       const suivant = modele[i + 1];
       if (suivant === undefined || !SPECIAUX.has(suivant)) return echec("Barre oblique inverse sans caractère à protéger.", i);
       texte += suivant;
+      positions.push(i + 1);
       i += 2;
     } else if (c === "{") {
       pousserTexte();
@@ -67,6 +88,7 @@ export function analyserModele(modele: string): ResultatAnalyse {
       }
       if (!ferme) return echec("Groupe de choix non refermé : il manque « } ».", debut);
       segments.push({ type: "choix", options, multiple });
+      origines.push(debut);
     } else if (c === "[") {
       pousserTexte();
       const debut = i;
@@ -75,16 +97,18 @@ export function analyserModele(modele: string): ResultatAnalyse {
       const indication = modele.slice(i + 1, fin);
       if (/[{}[|]/.test(indication)) return echec("Un blanc ne contient que son indication.", debut);
       segments.push({ type: "blanc", indication: indication.trim() });
+      origines.push(debut);
       i = fin + 1;
     } else if (c === "}" || c === "]" || c === "|") {
       return echec(`Caractère « ${c} » isolé : écrivez « \\${c} » pour l’afficher.`, i);
     } else {
       texte += c;
+      positions.push(i);
       i += 1;
     }
   }
   pousserTexte();
-  return { ok: true, segments };
+  return { ok: true, segments, origines };
 }
 
 const proteger = (texte: string) => texte.replace(/[{}[\]|\\]/g, (c) => `\\${c}`);

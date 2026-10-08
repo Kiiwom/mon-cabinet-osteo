@@ -17,11 +17,11 @@ function eurosRonds(centimes: number): string {
 }
 
 /** « janvier à septembre 2026 », « du 3 mars 2026 au 7 octobre 2026 ». */
-function libelleDuree(du: string, au: string): string {
+function libelleDuree(du: string, au: string, aujourdhui: string): string {
   const [ad, md, jd] = du.split("-").map(Number);
   const [aa, ma, ja] = au.split("-").map(Number);
   const finDeMois = new Date(aa, ma, 0).getDate();
-  if (jd === 1 && ad === aa && (ja === finDeMois || au === dateDuJour())) {
+  if (jd === 1 && ad === aa && (ja === finDeMois || au === aujourdhui)) {
     const debut = MOIS_LONGS[md - 1];
     return md === ma ? `${debut} ${aa}` : `${debut} à ${MOIS_LONGS[ma - 1]} ${aa}`;
   }
@@ -220,7 +220,7 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
         <div>
           <h1 className="page-titre">Statistiques</h1>
           <p className="page-sous-titre">
-            {libelleDuree(du, au).replace(/^./, (c) => c.toUpperCase())}, comparé à la même période de {Number(au.slice(0, 4)) - 1}
+            {libelleDuree(du, au, today).replace(/^./, (c) => c.toUpperCase())}, comparé à la même période de {Number(au.slice(0, 4)) - 1}
           </p>
         </div>
         <button type="button" className="bouton" disabled={!stats} onClick={() => void exporter()}>

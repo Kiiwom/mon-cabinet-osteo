@@ -151,7 +151,7 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
                     f.profession.clone(),
                     f.statut.clone(),
                     f.notes_importantes.clone(),
-                    f.remarques.clone(),
+                    seances::texte_riche(&f.remarques),
                     if p.archive { "oui".into() } else { String::new() },
                 ]
             })

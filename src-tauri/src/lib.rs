@@ -167,6 +167,7 @@ pub fn run() {
             import::ouvrir_rapport_import,
             parametres::accueil,
             parametres::enregistrer_accueil,
+            trames::definir_caractere_trames,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

@@ -18,29 +18,61 @@ interface Props {
   valeur?: JSONContent;
   /** À chaque modification : le document complet, trames non validées comprises. */
   surChangement?: (document: JSONContent) => void;
-  /** Gras, italique et liste à puces, avec leur barre d'outils. */
+  /** Titres, listes, gras, italique et souligné, avec leur barre d'outils. */
   miseEnForme?: boolean;
   /** Pour les tests : donne accès à l'éditeur une fois créé. */
   surEditeur?: (editor: Editor) => void;
 }
 
-function BarreOutils({ editor }: { editor: Editor }) {
+/** Extensions de l'éditeur : texte simple, ou mis en forme (titres, listes, gras, italique, souligné). */
+export function extensionsTexte(miseEnForme: boolean) {
+  return StarterKit.configure({
+    heading: miseEnForme ? { levels: [2, 3] } : false,
+    bulletList: miseEnForme ? {} : false,
+    orderedList: miseEnForme ? {} : false,
+    listItem: miseEnForme ? {} : false,
+    listKeymap: miseEnForme ? {} : false,
+    underline: miseEnForme ? {} : false,
+    blockquote: false,
+    codeBlock: false,
+    code: false,
+    horizontalRule: false,
+    link: false,
+    strike: false,
+  });
+}
+
+/** Barre de mise en forme : gras, italique, souligné, titre, listes, effacement de la mise en forme. */
+export function BarreOutils({ editor }: { editor: Editor }) {
   const etat = useEditorState({
     editor,
-    selector: ({ editor: e }) => ({ gras: e.isActive("bold"), italique: e.isActive("italic"), liste: e.isActive("bulletList") }),
+    selector: ({ editor: e }) => ({
+      gras: e.isActive("bold"),
+      italique: e.isActive("italic"),
+      souligne: e.isActive("underline"),
+      titre: e.isActive("heading"),
+      puces: e.isActive("bulletList"),
+      numeros: e.isActive("orderedList"),
+    }),
   });
   const boutons = [
     { nom: "Gras", signe: "G", actif: etat.gras, agir: () => editor.chain().focus().toggleBold().run(), style: { fontWeight: 700 } },
     { nom: "Italique", signe: "I", actif: etat.italique, agir: () => editor.chain().focus().toggleItalic().run(), style: { fontStyle: "italic" } },
-    { nom: "Liste à puces", signe: "≡", actif: etat.liste, agir: () => editor.chain().focus().toggleBulletList().run(), style: {} },
+    { nom: "Souligné", signe: "S", actif: etat.souligne, agir: () => editor.chain().focus().toggleUnderline().run(), style: { textDecoration: "underline" } },
+    { nom: "Intertitre", signe: "T", actif: etat.titre, agir: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), style: { fontWeight: 700 } },
+    { nom: "Liste à puces", signe: "•", actif: etat.puces, agir: () => editor.chain().focus().toggleBulletList().run(), style: {} },
+    { nom: "Liste numérotée", signe: "1.", actif: etat.numeros, agir: () => editor.chain().focus().toggleOrderedList().run(), style: {} },
   ];
   return (
     <span className="barre-outils" role="toolbar" aria-label="Mise en forme">
       {boutons.map((b) => (
-        <button key={b.nom} type="button" aria-label={b.nom} aria-pressed={b.actif} onClick={b.agir} style={b.style}>
+        <button key={b.nom} type="button" aria-label={b.nom} title={b.nom} aria-pressed={b.actif} onClick={b.agir} style={b.style}>
           {b.signe}
         </button>
       ))}
+      <button type="button" aria-label="Effacer la mise en forme" title="Effacer la mise en forme" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
+        <span aria-hidden="true">⌫</span>
+      </button>
     </span>
   );
 }
@@ -59,20 +91,7 @@ export function ChampTrame({ libelle, trames, caractere, surUtilisation, surVali
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({
-          heading: false,
-          bulletList: miseEnForme ? {} : false,
-          orderedList: false,
-          listItem: miseEnForme ? {} : false,
-          listKeymap: miseEnForme ? {} : false,
-          blockquote: false,
-          codeBlock: false,
-          code: false,
-          horizontalRule: false,
-          link: false,
-          strike: false,
-          underline: false,
-        }),
+        extensionsTexte(miseEnForme),
         Choix,
         Blanc,
         NavigationTrames,
