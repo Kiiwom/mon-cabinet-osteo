@@ -398,6 +398,10 @@ const ACTIONS: Record<string, string> = {
   "documents.mise_en_page": "Présentation des documents modifiée",
   "documents.image": "Logo ou signature changé",
   "emails.modele": "Modèle d’email des factures modifié",
+  "patients.statuts": "Statuts des patients modifiés",
+  "groupe.cree": "Groupe de patients créé",
+  "groupe.modifie": "Groupe de patients modifié",
+  "groupe.supprime": "Groupe de patients supprimé",
 };
 
 /** Lien vers ce que concerne la ligne du journal, quand c'est possible. */

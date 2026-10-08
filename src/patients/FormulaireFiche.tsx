@@ -1,9 +1,11 @@
 import { useId, type ReactNode } from "react";
 
-import type { FichePatient, Lateralite, Sexe } from "../lib/coeur";
+import type { FichePatient, Groupe, Lateralite, Sexe } from "../lib/coeur";
 import { dateDuJour } from "../lib/coeur";
 import { ecrireDateFr, lireDateFr } from "../lib/dates";
 import { ChampTexteRiche } from "../trames/ChampTexteRiche";
+import { ChampsCommune } from "./ChampsCommune";
+import { ChoixGroupes } from "./Groupes";
 
 /** La fiche telle qu'on la tape : dates et nombre d'enfants en texte, convertis à l'enregistrement. */
 export type BrouillonFiche = Omit<FichePatient, "naissance" | "consentement_le" | "enfants"> & {
@@ -159,12 +161,17 @@ export function FormulaireFiche({
   changer,
   erreurs,
   statuts,
+  groupes = [],
+  departement = "",
   premierChampAutoFocus = false,
 }: {
   brouillon: BrouillonFiche;
   changer: (b: BrouillonFiche) => void;
   erreurs: ErreursFiche;
   statuts: string[];
+  groupes?: Groupe[];
+  /** Département du cabinet : ses communes sont proposées d'abord. */
+  departement?: string;
   premierChampAutoFocus?: boolean;
 }) {
   const idListe = useId();
@@ -207,8 +214,14 @@ export function FormulaireFiche({
         <Texte libelle="Email" valeur={brouillon.email} changer={champ("email")} erreur={erreurs.email} type="email" inputMode="email" autoComplete="off" />
         <Texte libelle="Adresse" valeur={brouillon.adresse} changer={champ("adresse")} large autoComplete="off" />
         <Texte libelle="Complément d’adresse" valeur={brouillon.complement_adresse} changer={champ("complement_adresse")} large autoComplete="off" />
-        <Texte libelle="Code postal" valeur={brouillon.code_postal} changer={champ("code_postal")} erreur={erreurs.code_postal} inputMode="numeric" autoComplete="off" />
-        <Texte libelle="Ville" valeur={brouillon.ville} changer={champ("ville")} autoComplete="off" />
+        <ChampsCommune
+          codePostal={brouillon.code_postal}
+          ville={brouillon.ville}
+          pays={brouillon.pays}
+          changer={(code_postal, ville) => changer({ ...brouillon, code_postal, ville })}
+          erreur={erreurs.code_postal}
+          departement={departement}
+        />
         <Texte libelle="Pays" valeur={brouillon.pays} changer={champ("pays")} placeholder="France" autoComplete="off" />
       </Section>
 
@@ -247,6 +260,7 @@ export function FormulaireFiche({
           changer={champ("statut")}
           options={[{ valeur: "", libelle: "Aucun" }, ...statutsProposes.map((s) => ({ valeur: s, libelle: s }))]}
         />
+        <ChoixGroupes choisis={brouillon.groupes} groupes={groupes} changer={champ("groupes")} />
         <div className="champ">
           <Texte
             libelle="Consentement recueilli le"

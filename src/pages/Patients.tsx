@@ -1,12 +1,18 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
-import type { Coeur, ResumePatient } from "../lib/coeur";
+import { Exports } from "../composants/Exports";
+import { dateDuJour, type Coeur, type Groupe, type ResumePatient } from "../lib/coeur";
 import { age, ageEnClair, dateCourte, neLe } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
 import { doublonsProbables, rechercherPatients, type Surlignage } from "../lib/recherche";
+import { colonne, feuilleVersCsv, type Feuille } from "../lib/tableur";
 import { Avatar } from "../patients/Avatar";
+import { groupesDe, PucesGroupes } from "../patients/Groupes";
 
 type FiltreAge = "tous" | "nourrisson" | "enfant" | "adulte" | "senior";
+
+/** Valeur des filtres « Sans statut » et « Sans groupe » : aucun identifiant ne la porte. */
+const SANS = "\u0000sans";
 
 const AGES: { valeur: FiltreAge; libelle: string; garder: (ans: number) => boolean }[] = [
   { valeur: "tous", libelle: "Tous", garder: () => true },
@@ -15,6 +21,74 @@ const AGES: { valeur: FiltreAge; libelle: string; garder: (ans: number) => boole
   { valeur: "adulte", libelle: "18 à 64 ans", garder: (ans) => ans >= 18 && ans < 65 },
   { valeur: "senior", libelle: "65 ans et plus", garder: (ans) => ans >= 65 },
 ];
+
+type FiltreVenue = "toutes" | "mois" | "trimestre" | "annee" | "plus_annee" | "jamais";
+
+/** La date d'il y a `mois` mois, `AAAA-MM-JJ`. */
+function ilYa(mois: number, aujourdhui: Date): string {
+  const d = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() - mois, aujourdhui.getDate());
+  return dateDuJour(d);
+}
+
+export const VENUES: { valeur: FiltreVenue; libelle: string; garder: (derniere: string | null, aujourdhui: Date) => boolean }[] = [
+  { valeur: "toutes", libelle: "Peu importe", garder: () => true },
+  { valeur: "mois", libelle: "Dans le mois", garder: (d, a) => d !== null && d >= ilYa(1, a) },
+  { valeur: "trimestre", libelle: "Dans les 3 mois", garder: (d, a) => d !== null && d >= ilYa(3, a) },
+  { valeur: "annee", libelle: "Dans l’année", garder: (d, a) => d !== null && d >= ilYa(12, a) },
+  { valeur: "plus_annee", libelle: "Il y a plus d’un an", garder: (d, a) => d !== null && d < ilYa(12, a) },
+  { valeur: "jamais", libelle: "Jamais venus", garder: (d) => d === null },
+];
+
+/** La liste telle qu'affichée, pour un tableur. */
+export function feuillePatients(patients: ResumePatient[], groupes: Groupe[], aujourdhui = new Date()): Feuille {
+  return {
+    nom: "Patients",
+    colonnes: [
+      colonne("Nom"),
+      colonne("Prénom"),
+      colonne("Nom de naissance"),
+      colonne("Sexe"),
+      colonne("Naissance", "date"),
+      colonne("Âge", "nombre"),
+      colonne("Portable"),
+      colonne("Fixe"),
+      colonne("Email"),
+      colonne("Adresse"),
+      colonne("Complément"),
+      colonne("Code postal"),
+      colonne("Ville"),
+      colonne("Statut"),
+      colonne("Groupes"),
+      colonne("Séances", "nombre"),
+      colonne("Dernière séance", "date"),
+      colonne("Archivé"),
+      colonne("Décédé"),
+    ],
+    lignes: patients.map((p) => [
+      p.nom,
+      p.prenom,
+      p.nom_naissance,
+      p.sexe,
+      p.naissance,
+      p.naissance ? age(p.naissance, aujourdhui).ans : null,
+      p.portable,
+      p.fixe,
+      p.email,
+      p.adresse,
+      p.complement_adresse,
+      p.code_postal,
+      p.ville,
+      p.statut,
+      groupesDe(p.groupes, groupes)
+        .map((g) => g.nom)
+        .join(", "),
+      p.seances,
+      p.derniere_seance,
+      p.archive ? "oui" : "",
+      p.decede ? "oui" : "",
+    ]),
+  };
+}
 
 /** Le texte avec ses passages trouvés en surbrillance. */
 function Surligne({ texte, passages }: { texte: string; passages: Surlignage[] }) {
@@ -50,9 +124,13 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
   const id = useId();
   const [liste, setListe] = useState<ResumePatient[] | null>(null);
   const [statuts, setStatuts] = useState<string[]>([]);
+  const [groupes, setGroupes] = useState<Groupe[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [texte, setTexte] = useState("");
   const [statut, setStatut] = useState("");
+  const [groupe, setGroupe] = useState("");
+  const [venue, setVenue] = useState<FiltreVenue>("toutes");
   const [filtreAge, setFiltreAge] = useState<FiltreAge>("tous");
   const [archives, setArchives] = useState(false);
   const [actif, setActif] = useState(0);
@@ -62,25 +140,30 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
   useEffect(() => {
     coeur.listerPatients().then(setListe, (e: Error) => setErreur(e.message));
     coeur.statutsPatients().then(setStatuts, () => setStatuts([]));
+    coeur.listerGroupes().then(setGroupes, () => setGroupes([]));
   }, [coeur]);
 
   const resultats = useMemo(() => {
     if (!liste) return [];
+    const aujourdhui = new Date();
     const gardeAge = AGES.find((a) => a.valeur === filtreAge)!.garder;
+    const gardeVenue = VENUES.find((v) => v.valeur === venue)!.garder;
     const filtres = liste.filter(
       (p) =>
         (archives || !p.archive) &&
-        (!statut || p.statut === statut) &&
+        (!statut || (statut === SANS ? !p.statut : p.statut === statut)) &&
+        (!groupe || (groupe === SANS ? p.groupes.length === 0 : p.groupes.includes(groupe))) &&
+        gardeVenue(p.derniere_seance, aujourdhui) &&
         (filtreAge === "tous" || (p.naissance !== null && gardeAge(age(p.naissance).ans))),
     );
     return rechercherPatients(filtres, texte);
-  }, [liste, texte, statut, filtreAge, archives]);
+  }, [liste, texte, statut, groupe, venue, filtreAge, archives]);
 
   const doublons = useMemo(() => (liste ? doublonsProbables(liste) : []), [liste]);
 
-  useEffect(() => setActif(0), [texte, statut, filtreAge, archives]);
+  useEffect(() => setActif(0), [texte, statut, groupe, venue, filtreAge, archives]);
 
-  if (erreur) return <main className="page"><p className="alerte" role="alert">{erreur}</p></main>;
+  if (erreur && liste === null) return <main className="page"><p className="alerte" role="alert">{erreur}</p></main>;
 
   const actifs = liste?.filter((p) => !p.archive).length ?? 0;
   const archives_ = (liste?.length ?? 0) - actifs;
@@ -101,6 +184,23 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
 
   // Le texte cherché devient le nom (premier mot) et le prénom (la suite) du nouveau dossier.
   const nouveauDepuisRecherche = () => aller("patients", "nouveau", texte.trim());
+
+  // Les statuts portés par des dossiers sans être dans la liste du praticien (repris d'un import) se filtrent aussi.
+  const statutsFiltres = [...statuts, ...[...new Set((liste ?? []).map((p) => p.statut))].filter((s) => s && !statuts.includes(s)).sort()];
+  const filtresActifs = Boolean(statut || groupe || venue !== "toutes" || filtreAge !== "tous");
+
+  async function exporter(format: "xlsx" | "csv") {
+    setErreur(null);
+    setMessage(null);
+    try {
+      const feuille = feuillePatients(resultats.map((r) => r.patient), groupes);
+      const nom = `Patients du ${dateDuJour()}`;
+      const chemin = format === "xlsx" ? await coeur.exporterClasseur(`${nom}.xlsx`, [feuille]) : await coeur.exporterFichier(`${nom}.csv`, feuilleVersCsv(feuille));
+      setMessage(`Export enregistré : ${chemin}`);
+    } catch (e) {
+      setErreur((e as Error).message);
+    }
+  }
 
   return (
     <main className="page page-large">
@@ -176,9 +276,34 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
           <span>Statut</span>
           <select value={statut} onChange={(e) => setStatut(e.target.value)}>
             <option value="">Tous</option>
-            {statuts.map((s) => (
+            {statutsFiltres.map((s) => (
               <option key={s} value={s}>
                 {s}
+              </option>
+            ))}
+            <option value={SANS}>Sans statut</option>
+          </select>
+        </label>
+        {groupes.length > 0 && (
+          <label className="filtre">
+            <span>Groupe</span>
+            <select value={groupe} onChange={(e) => setGroupe(e.target.value)}>
+              <option value="">Tous</option>
+              {groupes.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nom}
+                </option>
+              ))}
+              <option value={SANS}>Sans groupe</option>
+            </select>
+          </label>
+        )}
+        <label className="filtre">
+          <span>Dernière séance</span>
+          <select value={venue} onChange={(e) => setVenue(e.target.value as FiltreVenue)}>
+            {VENUES.map((v) => (
+              <option key={v.valeur} value={v.valeur}>
+                {v.libelle}
               </option>
             ))}
           </select>
@@ -197,7 +322,34 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
           <input type="checkbox" checked={archives} onChange={(e) => setArchives(e.target.checked)} />
           Inclure les archives
         </label>
+        {filtresActifs && (
+          <button
+            type="button"
+            className="lien-bouton"
+            onClick={() => {
+              setStatut("");
+              setGroupe("");
+              setVenue("toutes");
+              setFiltreAge("tous");
+            }}
+          >
+            Retirer les filtres
+          </button>
+        )}
+        <span className="filtres-fin">
+          <Exports desactive={resultats.length === 0} excel={() => void exporter("xlsx")} csv={() => void exporter("csv")} />
+        </span>
       </div>
+      {message && (
+        <p className="succes" role="status">
+          {message}
+        </p>
+      )}
+      {erreur && (
+        <p className="alerte" role="alert">
+          {erreur}
+        </p>
+      )}
 
       <section className="carte carte-tableau" aria-label="Liste des patients">
         {liste !== null && liste.length === 0 ? (
@@ -229,7 +381,7 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
                 <th scope="col" className="nombre">
                   Séances
                 </th>
-                <th scope="col">Statut</th>
+                <th scope="col">Statut et groupes</th>
               </tr>
             </thead>
             <tbody>
@@ -261,8 +413,11 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
                   <td>{p.derniere_seance ? dateCourte(p.derniere_seance) : <span className="discret">jamais venu{p.sexe === "F" ? "e" : ""}</span>}</td>
                   <td className="nombre">{p.seances}</td>
                   <td>
-                    {p.statut && <span className="puce">{p.statut}</span>}
-                    {p.archive && <span className="puce puce-discrete">Archivé</span>}
+                    <div className="puces-cellule">
+                      {p.statut && <span className="puce">{p.statut}</span>}
+                      <PucesGroupes ids={p.groupes} groupes={groupes} />
+                      {p.archive && <span className="puce puce-discrete">Archivé</span>}
+                    </div>
                   </td>
                 </tr>
               ))}

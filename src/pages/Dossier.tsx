@@ -3,11 +3,12 @@ import { useEffect, useId, useState, type FormEvent, type ReactNode } from "reac
 import { intitule } from "../antecedents/apparence";
 import { FriseDeVie } from "../antecedents/FriseDeVie";
 import { CarteAntecedents, OngletAntecedents } from "../antecedents/OngletAntecedents";
-import type { Antecedent, CategorieAntecedents, Coeur, Patient, ResumeSeance } from "../lib/coeur";
+import type { Antecedent, CategorieAntecedents, Coeur, Groupe, Patient, ResumeSeance } from "../lib/coeur";
 import { accorder, ageEnClair, neLe } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
 import { Avatar } from "../patients/Avatar";
 import { depuisBrouillon, FormulaireFiche, versBrouillon, type BrouillonFiche, type ErreursFiche } from "../patients/FormulaireFiche";
+import { PucesGroupes, useReglagesFiche } from "../patients/Groupes";
 import { ListeSeancesPatient } from "../seances/ListeSeances";
 import { creerSeanceMaintenant } from "../seances/nouvelleSeance";
 import { Documents } from "../documents/Documents";
@@ -48,7 +49,7 @@ export function descriptionPatient(p: Patient): string {
 }
 
 /** Puces sous le nom : notes importantes d'abord, puis statut et situations particulières. */
-export function PucesPatient({ patient, antecedents = [] }: { patient: Patient; antecedents?: Antecedent[] }) {
+export function PucesPatient({ patient, antecedents = [], groupes = [] }: { patient: Patient; antecedents?: Antecedent[]; groupes?: Groupe[] }) {
   const premiereLigne = patient.notes_importantes.split("\n")[0];
   return (
     <div className="rangee">
@@ -65,6 +66,7 @@ export function PucesPatient({ patient, antecedents = [] }: { patient: Patient; 
           </span>
         ))}
       {patient.statut && <span className="puce">{patient.statut}</span>}
+      <PucesGroupes ids={patient.groupes} groupes={groupes} />
       {patient.archive && <span className="puce puce-discrete">Archivé</span>}
       {patient.decede && <span className="puce puce-discrete">{accorder(patient.sexe, "Décédé", "Décédée")}</span>}
       {patient.mobilite_reduite && <span className="puce">Mobilité réduite</span>}
@@ -177,16 +179,21 @@ function Synthese({
   );
 }
 
-function OngletIdentite({ patient, coeur, misAJour }: { patient: Patient; coeur: Coeur; misAJour: (p: Patient) => void }) {
+function OngletIdentite({
+  patient,
+  coeur,
+  misAJour,
+  reglages,
+}: {
+  patient: Patient;
+  coeur: Coeur;
+  misAJour: (p: Patient) => void;
+  reglages: ReturnType<typeof useReglagesFiche>;
+}) {
   const [brouillon, setBrouillon] = useState<BrouillonFiche>(() => versBrouillon(patient));
   const [erreurs, setErreurs] = useState<ErreursFiche>({});
   const [erreur, setErreur] = useState<string | null>(null);
   const [etat, setEtat] = useState<"modifie" | "envoi" | "enregistre" | null>(null);
-  const [statuts, setStatuts] = useState<string[]>([]);
-
-  useEffect(() => {
-    coeur.statutsPatients().then(setStatuts, () => setStatuts([]));
-  }, [coeur]);
 
   const changer = (b: BrouillonFiche) => {
     setBrouillon(b);
@@ -217,7 +224,14 @@ function OngletIdentite({ patient, coeur, misAJour }: { patient: Patient; coeur:
   return (
     <form className="pile" onSubmit={enregistrer} noValidate>
       <div className="carte">
-        <FormulaireFiche brouillon={brouillon} changer={changer} erreurs={erreurs} statuts={statuts} />
+        <FormulaireFiche
+          brouillon={brouillon}
+          changer={changer}
+          erreurs={erreurs}
+          statuts={reglages.statuts}
+          groupes={reglages.groupes}
+          departement={reglages.departement}
+        />
       </div>
       {erreur && (
         <p className="alerte" role="alert">
@@ -243,6 +257,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
   const [seances, setSeances] = useState<ResumeSeance[]>([]);
   const [creation, setCreation] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const reglages = useReglagesFiche(coeur);
 
   useEffect(() => {
     setPatient(null);
@@ -302,7 +317,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
               {patient.prenom} {patient.nom}
             </h1>
             <span className="discret">{descriptionPatient(patient)}</span>
-            <PucesPatient patient={patient} antecedents={antecedents} />
+            <PucesPatient patient={patient} antecedents={antecedents} groupes={reglages.groupes} />
           </div>
           <div className="rangee entete-dossier-actions">
             <button type="button" className="bouton bouton-principal" disabled={creation || patient.decede} onClick={() => void nouvelleSeance()}>
@@ -327,7 +342,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
       </section>
 
       {onglet === "identite" ? (
-        <OngletIdentite key={patient.id} patient={patient} coeur={coeur} misAJour={setPatient} />
+        <OngletIdentite key={patient.id} patient={patient} coeur={coeur} misAJour={setPatient} reglages={reglages} />
       ) : onglet === "synthese" ? (
         <Synthese patient={patient} antecedents={antecedents} formulaire={formulaire} seances={seances} />
       ) : onglet === "documents" ? (

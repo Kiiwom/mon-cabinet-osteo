@@ -6,6 +6,7 @@ import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/fo
 import modelesFournis from "../../crates/osteosphere-core/src/modeles_fournis.json";
 import { creerFacturationDeDemonstration } from "./demoFacturation";
 import type {
+  CouleurPrestation,
   EvenementFacture,
   Facture,
   FactureDeSeance,
@@ -334,6 +335,8 @@ export interface FichePatient {
   /** Remarques sur les antécédents, saisies dans l'onglet Antécédents. */
   remarques_antecedents: string;
   consentement_le: string | null;
+  /** Identifiants des groupes du patient, triés. */
+  groupes: string[];
 }
 
 export interface Patient extends FichePatient {
@@ -355,13 +358,36 @@ export interface ResumePatient {
   fixe: string;
   email: string;
   adresse: string;
+  complement_adresse: string;
+  code_postal: string;
   ville: string;
   statut: string;
+  groupes: string[];
   notes_importantes: string;
   decede: boolean;
   archive: boolean;
   seances: number;
   derniere_seance: string | null;
+}
+
+/** Groupe de patients : une famille, un club, une entreprise… Les couleurs sont celles des prestations. */
+export type CouleurGroupe = CouleurPrestation;
+
+export interface SaisieGroupe {
+  nom: string;
+  couleur: CouleurGroupe;
+}
+
+export interface Groupe extends SaisieGroupe {
+  id: string;
+  /** Dossiers du groupe, archives comprises. */
+  patients: number;
+}
+
+/** Un statut de la liste réglée : `ancien` est son nom d'avant, `null` s'il est nouveau. */
+export interface StatutSaisi {
+  ancien: string | null;
+  nom: string;
 }
 
 export const FICHE_VIDE: FichePatient = {
@@ -393,6 +419,7 @@ export const FICHE_VIDE: FichePatient = {
   remarques: "",
   remarques_antecedents: "",
   consentement_le: null,
+  groupes: [],
 };
 
 /** Couleurs d'antécédent proposées ; vide = couleur de la catégorie. */
@@ -535,9 +562,12 @@ export function completerChamp(champ: Partial<Champ> & Pick<Champ, "id" | "type"
 }
 
 export function resumeDe(patient: Patient): ResumePatient {
-  const { id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut, notes_importantes, decede, archive } =
-    patient;
-  return { id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut, notes_importantes, decede, archive, seances: 0, derniere_seance: null };
+  const { id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, complement_adresse, code_postal, ville, statut, groupes } = patient;
+  const { notes_importantes, decede, archive } = patient;
+  return {
+    ...{ id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, complement_adresse, code_postal, ville, statut, groupes },
+    ...{ notes_importantes, decede, archive, seances: 0, derniere_seance: null },
+  };
 }
 
 /** Ce que l'interface demande au cœur Rust. */
@@ -573,6 +603,12 @@ export interface Coeur {
   modifierPatient(id: string, fiche: FichePatient): Promise<Patient>;
   archiverPatient(id: string, archive: boolean): Promise<Patient>;
   statutsPatients(): Promise<string[]>;
+  /** Remplace la liste des statuts ; les dossiers suivent les renommages et perdent les statuts retirés. */
+  enregistrerStatuts(statuts: StatutSaisi[]): Promise<string[]>;
+  listerGroupes(): Promise<Groupe[]>;
+  enregistrerGroupe(id: string | null, saisie: SaisieGroupe): Promise<Groupe>;
+  /** Les patients quittent le groupe, leurs dossiers restent. */
+  supprimerGroupe(id: string): Promise<void>;
   formulaireAntecedents(): Promise<CategorieAntecedents[]>;
   listerAntecedents(patientId: string): Promise<Antecedent[]>;
   enregistrerAntecedent(patientId: string, id: string | null, saisie: SaisieAntecedent): Promise<Antecedent>;
@@ -743,6 +779,10 @@ export const coeurTauri: Coeur = {
   modifierPatient: (id, fiche) => appeler("modifier_patient", { id, fiche }),
   archiverPatient: (id, archive) => appeler("archiver_patient", { id, archive }),
   statutsPatients: () => appeler("statuts_patients"),
+  enregistrerStatuts: (statuts) => appeler("enregistrer_statuts", { statuts }),
+  listerGroupes: () => appeler("lister_groupes"),
+  enregistrerGroupe: (id, saisie) => appeler("enregistrer_groupe", { id, saisie }),
+  supprimerGroupe: (id) => appeler("supprimer_groupe", { id }),
   formulaireAntecedents: () => appeler("formulaire_antecedents"),
   listerAntecedents: (patientId) => appeler("lister_antecedents", { patientId }),
   enregistrerAntecedent: (patientId, id, saisie) => appeler("enregistrer_antecedent", { patientId, id, saisie }),
@@ -847,15 +887,16 @@ const PATIENTS_FICTIFS: Partial<FichePatient>[] = [
     lateralite: "droitier",
     activites: "Course à pied",
     statut: "Suivi",
+    groupes: ["groupe-course", "groupe-famille"],
     notes_importantes: "Allergie aux AINS",
     remarques: "Travaille de nuit un week-end sur deux. Course à pied trois fois par semaine. Préfère les créneaux de fin de journée.",
   },
-  { sexe: "M", nom: "Martin", prenom: "Lucas", naissance: "2019-06-02", code_postal: "47500", ville: "Fumel", portable: "06 00 00 00 01", statut: "Suivi" },
+  { sexe: "M", nom: "Martin", prenom: "Lucas", naissance: "2019-06-02", code_postal: "47500", ville: "Fumel", portable: "06 00 00 00 01", statut: "Suivi", groupes: ["groupe-famille"] },
   { sexe: "F", nom: "Martinez", prenom: "Julie", naissance: "1981-01-30", code_postal: "47150", ville: "Monflanquin", portable: "06 00 00 00 02", statut: "Suivi" },
   { sexe: "F", nom: "Aubert", prenom: "Martine", naissance: "1954-11-08", code_postal: "47210", ville: "Villeréal", fixe: "05 00 00 00 03", statut: "Ancien patient" },
   { sexe: "M", nom: "Morel", prenom: "Paul", naissance: "1974-08-19", adresse: "4 rue de la Martinie", code_postal: "47500", ville: "Fumel", portable: "06 00 00 00 04", statut: "Suivi" },
   { sexe: "F", nom: "Marthe", prenom: "Élodie", naissance: "1997-05-03", code_postal: "47150", ville: "Lacapelle-Biron", portable: "07 00 00 00 05", statut: "Nouveau" },
-  { sexe: "M", nom: "Girard", prenom: "Thomas", naissance: "1990-04-12", code_postal: "47300", ville: "Villeneuve-sur-Lot", portable: "06 00 00 00 06", statut: "Suivi" },
+  { sexe: "M", nom: "Girard", prenom: "Thomas", naissance: "1990-04-12", code_postal: "47300", ville: "Villeneuve-sur-Lot", portable: "06 00 00 00 06", statut: "Suivi", groupes: ["groupe-course"] },
   { sexe: "M", nom: "Petit", prenom: "Louis", naissance: "2014-09-20", code_postal: "47500", ville: "Fumel", portable: "06 00 00 00 07", statut: "Suivi" },
 ];
 
@@ -955,6 +996,13 @@ export function creerCoeurDeDemonstration(
   let patients: Patient[] = exemples
     ? PATIENTS_FICTIFS.map((fiche, rang) => ({ ...FICHE_VIDE, ...fiche, id: `patient-${rang + 1}`, archive: false, cree_le: 0, modifie_le: 0 }))
     : [];
+  let statutsDemo = ["Nouveau", "Suivi", "Ancien patient"];
+  let groupesDemo: (SaisieGroupe & { id: string })[] = exemples
+    ? [
+        { id: "groupe-course", nom: "Club de course de Fumel", couleur: "vert" },
+        { id: "groupe-famille", nom: "Famille Martin", couleur: "rose" },
+      ]
+    : [];
   let antecedents: Antecedent[] = exemples
     ? ANTECEDENTS_FICTIFS.map((a, rang) => ({ ...SAISIE_ANTECEDENT_VIDE, ...a, id: `antecedent-${rang + 1}`, patient_id: "patient-1" }))
     : [];
@@ -1037,8 +1085,10 @@ export function creerCoeurDeDemonstration(
   };
   const verifierFiche = (fiche: FichePatient): FichePatient => {
     const propre = (t: string) => t.trim().replace(/\s+/g, " ");
-    const verifiee = { ...fiche, nom: propre(fiche.nom), prenom: propre(fiche.prenom), naissance: fiche.naissance || null };
+    const groupes = [...new Set(fiche.groupes)].sort();
+    const verifiee = { ...fiche, nom: propre(fiche.nom), prenom: propre(fiche.prenom), naissance: fiche.naissance || null, groupes };
     if (!verifiee.nom || !verifiee.prenom) throw new Error("Indiquez le nom et le prénom du patient");
+    if (groupes.some((g) => !groupesDemo.some((d) => d.id === g))) throw new Error("Un des groupes choisis n’existe plus");
     return verifiee;
   };
   const remplacer = (patient: Patient) => {
@@ -1194,7 +1244,33 @@ export function creerCoeurDeDemonstration(
       return remplacer({ ...trouverPatient(id), archive });
     },
     async statutsPatients() {
-      return ["Nouveau", "Suivi", "Ancien patient"];
+      return statutsDemo;
+    },
+    async enregistrerStatuts(saisis) {
+      const liste = saisis.map((s) => s.nom.trim().replace(/\s+/g, " "));
+      if (liste.some((s) => !s)) throw new Error("Indiquez le nom de chaque statut");
+      if (new Set(liste.map((s) => s.toLowerCase())).size !== liste.length) throw new Error("Deux statuts portent le même nom");
+      const gardes = new Map(saisis.flatMap((s, rang) => (s.ancien !== null && statutsDemo.includes(s.ancien) ? [[s.ancien, liste[rang]] as const] : [])));
+      patients = patients.map((p) => (statutsDemo.includes(p.statut) ? { ...p, statut: gardes.get(p.statut) ?? "" } : p));
+      statutsDemo = liste;
+      return liste;
+    },
+    async listerGroupes() {
+      return groupesDemo
+        .map((g) => ({ ...g, patients: patients.filter((p) => p.groupes.includes(g.id)).length }))
+        .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    },
+    async enregistrerGroupe(id, saisie) {
+      const nom = saisie.nom.trim().replace(/\s+/g, " ");
+      if (!nom) throw new Error("Indiquez le nom du groupe");
+      if (groupesDemo.some((g) => g.id !== id && g.nom.toLowerCase() === nom.toLowerCase())) throw new Error("Un groupe porte déjà ce nom");
+      const groupe = { id: id ?? `groupe-${(compteur += 1)}`, nom, couleur: saisie.couleur };
+      groupesDemo = [...groupesDemo.filter((g) => g.id !== groupe.id), groupe];
+      return { ...groupe, patients: patients.filter((p) => p.groupes.includes(groupe.id)).length };
+    },
+    async supprimerGroupe(id) {
+      groupesDemo = groupesDemo.filter((g) => g.id !== id);
+      patients = patients.map((p) => ({ ...p, groupes: p.groupes.filter((g) => g !== id) }));
     },
     async formulaireAntecedents() {
       return formulaireAntecedentsParDefaut;

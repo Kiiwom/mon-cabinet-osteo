@@ -4,6 +4,7 @@ const RUBRIQUES: { titre: string; detail: string; lien?: string }[] = [
   { titre: "Cabinet et mentions légales", detail: "Identité, mentions, logo, signature : l’en-tête et le pied de vos documents.", lien: adresse("parametres", "cabinet") },
   { titre: "Prestations et numérotation", detail: "Vos actes, leurs tarifs, le numéro de vos factures, l’email d’envoi.", lien: adresse("parametres", "facturation") },
   { titre: "Modèles de consultation", detail: "Les champs proposés à chaque séance, selon le patient.", lien: adresse("parametres", "modeles") },
+  { titre: "Statuts et groupes", detail: "Le statut des patients et les groupes colorés qui filtrent la liste.", lien: adresse("parametres", "patients") },
   { titre: "Trames", detail: "Textes réutilisables appelés par un code pendant la saisie.", lien: adresse("trames") },
   { titre: "Sauvegardes", detail: "Fréquence, dossier, sauvegarde à la demande, restauration.", lien: adresse("parametres", "sauvegardes") },
   { titre: "Sécurité et mot de passe", detail: "Mot de passe facultatif, verrouillage, clé de secours.", lien: adresse("parametres", "securite") },

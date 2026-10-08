@@ -361,7 +361,9 @@ a.etat-sauvegarde[data-alerte="true"] {
 }
 
 .champ input,
-.formulaire input {
+.formulaire input,
+.liste-reglable input,
+.saisie-reglable input {
   min-height: 44px;
   min-width: 0;
   padding: 0 12px;
@@ -1235,7 +1237,9 @@ a.etat-sauvegarde[data-alerte="true"] {
 }
 
 .champ select,
-.filtre select {
+.filtre select,
+.liste-reglable select,
+.saisie-reglable select {
   min-height: 44px;
   padding: 0 10px;
   border: 1px solid var(--bordure-champ);
@@ -4112,5 +4116,107 @@ kbd {
 }
 
 .rangee-centree {
+  align-items: center;
+}
+
+/* Groupes de patients : pastille de couleur dans les puces, cases à cocher dans la fiche. */
+.puce-groupe .pastille-prestation {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.puces-cellule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.choix-groupes {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.choix-groupes legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.choix-groupes .choix-groupe input[type="checkbox"] {
+  min-height: 0;
+  margin: 0;
+}
+
+.choix-groupe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 999px;
+  background: var(--fond-carte);
+  cursor: pointer;
+}
+
+.choix-groupe:has(input:checked) {
+  border-color: var(--prestation);
+  background: var(--fond-discret);
+}
+
+.choix-groupe .pastille-prestation {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Complétion du code postal et de la ville. */
+.propositions-communes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.filtres-fin {
+  margin-left: auto;
+}
+
+/* Listes réglables des paramètres : statuts, groupes. */
+.liste-reglable {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ligne-reglable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+}
+
+.ligne-reglable > .rangee:last-of-type {
+  margin-left: auto;
+}
+
+.ligne-reglable-edition {
+  flex: 1;
+}
+
+.ligne-reglable input {
+  min-height: 36px;
+}
+
+.saisie-reglable {
   align-items: center;
 }

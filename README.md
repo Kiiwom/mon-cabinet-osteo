@@ -13,6 +13,9 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 | `crates/osteosphere-core/` | Cœur en Rust, sans interface : ouverture du cabinet, base chiffrée, clé de secours, mot de passe facultatif, patients, antécédents, modèles de consultation, séances, trames, facturation, sauvegardes, statistiques, export, import MonCabinetLibéral |
 | `crates/osteosphere-documents/` | Documents PDF (factures) mis en page par Typst, polices Figtree embarquées |
 | `crates/osteosphere-session/` | Protection de la clé par la session : DPAPI sous Windows, trousseau de la session sous Linux |
+| `crates/osteosphere-courriel/` | Email d'une facture avec le PDF joint, par la messagerie de l'ordinateur |
+| `src/donnees/` | Codes postaux et communes de France, pour la complétion des adresses |
+| `outils/` | Scripts qui fabriquent ces données à partir des sources officielles |
 
 ## Principes
 
@@ -41,7 +44,7 @@ npm install
 npm run tauri dev               # l'application dans sa fenêtre
 npm run dev                     # l'interface seule, dans un navigateur
 npm test                        # tests de l'interface
-cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session  # tests du cœur
+cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session -p osteosphere-courriel  # tests du cœur
 npm run tauri build             # installateur pour le système courant
 ```
 
@@ -65,5 +68,7 @@ L'ancienne application Python (version 0.4.0, nommée « Mon Cabinet d'Ostéo »
 ## Licence
 
 Osteosphere est distribué sous licence [GPL-3.0](LICENSE), version 3 ou ultérieure : toute version modifiée et redistribuée doit rester libre. La police Figtree est distribuée sous licence SIL Open Font License 1.1 ([texte](crates/osteosphere-documents/polices/OFL.txt)).
+
+Les codes postaux et les noms des communes proviennent de la [base officielle des codes postaux](https://datanova.laposte.fr/datasets/laposte-hexasmal) de La Poste et de l'[API Découpage administratif](https://geo.api.gouv.fr/decoupage-administratif), sous [Licence Ouverte](https://www.etalab.gouv.fr/licence-ouverte-open-licence) ; `outils/codes_postaux.py` les met à jour.
 
 Osteosphere n'est affilié à aucun autre logiciel. Les noms d'autres logiciels n'apparaissent que pour décrire la compatibilité, par exemple l'import de leurs exports.

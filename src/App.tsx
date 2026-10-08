@@ -12,6 +12,7 @@ import { EcranAVenir } from "./pages/EcranAVenir";
 import { ongletFacturation, PageFacturation } from "./pages/Facturation";
 import { PageFacture, PageNouvelleFacture } from "./pages/Facture";
 import { PageParametresCabinet, PageParametresFacturation } from "./pages/ParametresFacturation";
+import { PageParametresPatients } from "./pages/ParametresPatients";
 import {
   ALERTE_SAUVEGARDE_JOURS,
   joursDepuis,
@@ -167,6 +168,8 @@ function EcranParametres({
       return <PageParametresCabinet coeur={coeur} />;
     case "facturation":
       return <PageParametresFacturation coeur={coeur} />;
+    case "patients":
+      return <PageParametresPatients coeur={coeur} />;
     default:
       return <PageParametres />;
   }

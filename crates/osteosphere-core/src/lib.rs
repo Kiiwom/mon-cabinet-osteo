@@ -7,7 +7,8 @@
 //! - [`trousseau`] : enveloppes rangées à côté de la base (clé de secours, session, mot de passe).
 //! - [`numerotation`] : numéros de facture continus et chronologiques.
 //! - [`trames`] : textes réutilisables appelés par un code court pendant la saisie.
-//! - [`patients`] : dossiers patients, identité, profil, remarques, archives.
+//! - [`patients`] : dossiers patients, identité, profil, remarques, statuts, archives.
+//! - [`groupes`] : groupes de patients colorés, utilisables comme filtres.
 //! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
 //! - [`modeles`] : modèles de consultation versionnés, modèles fournis.
 //! - [`seances`] : séances enregistrées au fil de la saisie, corbeille de 30 jours.
@@ -34,6 +35,7 @@ pub mod emails;
 pub mod export;
 pub mod facturation;
 mod fichier;
+pub mod groupes;
 mod hexa;
 pub mod horloge;
 pub mod identifiant;

@@ -53,6 +53,8 @@ pub struct FichePatient {
     pub remarques_antecedents: String,
     /// Date de recueil du consentement au traitement des données, `AAAA-MM-JJ`.
     pub consentement_le: Option<String>,
+    /// Identifiants des groupes du patient, triés.
+    pub groupes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,8 +80,11 @@ pub struct ResumePatient {
     pub fixe: String,
     pub email: String,
     pub adresse: String,
+    pub complement_adresse: String,
+    pub code_postal: String,
     pub ville: String,
     pub statut: String,
+    pub groupes: Vec<String>,
     pub notes_importantes: String,
     pub decede: bool,
     pub archive: bool,
@@ -95,6 +100,8 @@ pub enum ErreurPatient {
     Champ(&'static str),
     #[error("ce dossier n'existe plus")]
     Introuvable,
+    #[error("un des groupes choisis n'existe plus")]
+    GroupeIntrouvable,
     #[error(transparent)]
     Aleatoire(#[from] identifiant::ErreurAleatoire),
     #[error(transparent)]
@@ -167,6 +174,12 @@ impl FichePatient {
             remarques: propre_long(&self.remarques),
             remarques_antecedents: propre_long(&self.remarques_antecedents),
             consentement_le: date_facultative(&self.consentement_le, "la date du consentement est invalide")?,
+            groupes: {
+                let mut groupes: Vec<String> = self.groupes.iter().map(|g| g.trim().to_owned()).filter(|g| !g.is_empty()).collect();
+                groupes.sort();
+                groupes.dedup();
+                groupes
+            },
         };
         if fiche.nom.is_empty() || fiche.prenom.is_empty() {
             return Err(ErreurPatient::NomOuPrenomVide);
@@ -264,6 +277,7 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Patient> {
             remarques: ligne.get("remarques")?,
             remarques_antecedents: ligne.get("remarques_antecedents")?,
             consentement_le: ligne.get("consentement_le")?,
+            groupes: Vec::new(),
         },
         archive: ligne.get::<_, Option<i64>>("archive_le")?.is_some(),
         cree_le: ligne.get("cree_le")?,
@@ -272,10 +286,14 @@ fn depuis_ligne(ligne: &Row<'_>) -> rusqlite::Result<Patient> {
 }
 
 pub fn lire(base: &Base, id: &str) -> Result<Patient, ErreurPatient> {
-    base.connexion()
+    let mut patient = base
+        .connexion()
         .query_row("SELECT * FROM patients WHERE id = ?1", [id], depuis_ligne)
         .optional()?
-        .ok_or(ErreurPatient::Introuvable)
+        .ok_or(ErreurPatient::Introuvable)?;
+    let mut requete = base.connexion().prepare("SELECT groupe_id FROM patients_groupes WHERE patient_id = ?1 ORDER BY groupe_id")?;
+    patient.fiche.groupes = requete.query_map([id], |l| l.get(0))?.collect::<Result<_, _>>()?;
+    Ok(patient)
 }
 
 fn ecrire(base: &Base, id: &str, fiche: &FichePatient, cree_le: i64) -> Result<(), ErreurPatient> {
@@ -326,6 +344,14 @@ fn ecrire(base: &Base, id: &str, fiche: &FichePatient, cree_le: i64) -> Result<(
         ),
         parametres.as_slice(),
     )?;
+    base.connexion().execute("DELETE FROM patients_groupes WHERE patient_id = ?1", [id])?;
+    for groupe in &f.groupes {
+        let existe: bool = base.connexion().query_row("SELECT EXISTS (SELECT 1 FROM groupes WHERE id = ?1)", [groupe], |l| l.get(0))?;
+        if !existe {
+            return Err(ErreurPatient::GroupeIntrouvable);
+        }
+        base.connexion().execute("INSERT INTO patients_groupes (patient_id, groupe_id) VALUES (?1, ?2)", [id, groupe])?;
+    }
     Ok(())
 }
 
@@ -338,10 +364,12 @@ fn journaliser(base: &Base, action: &str, avant: Option<&Patient>, apres: &Patie
 pub fn creer(base: &Base, fiche: &FichePatient) -> Result<Patient, ErreurPatient> {
     let fiche = fiche.verifier()?;
     let id = identifiant::nouveau()?;
-    ecrire(base, &id, &fiche, maintenant())?;
-    let patient = lire(base, &id)?;
-    journaliser(base, "patient.cree", None, &patient)?;
-    Ok(patient)
+    base.atomique(|| {
+        ecrire(base, &id, &fiche, maintenant())?;
+        let patient = lire(base, &id)?;
+        journaliser(base, "patient.cree", None, &patient)?;
+        Ok(patient)
+    })
 }
 
 pub fn modifier(base: &Base, id: &str, fiche: &FichePatient) -> Result<Patient, ErreurPatient> {
@@ -350,10 +378,12 @@ pub fn modifier(base: &Base, id: &str, fiche: &FichePatient) -> Result<Patient, 
     if avant.fiche == fiche {
         return Ok(avant);
     }
-    ecrire(base, id, &fiche, avant.cree_le)?;
-    let apres = lire(base, id)?;
-    journaliser(base, "patient.modifie", Some(&avant), &apres)?;
-    Ok(apres)
+    base.atomique(|| {
+        ecrire(base, id, &fiche, avant.cree_le)?;
+        let apres = lire(base, id)?;
+        journaliser(base, "patient.modifie", Some(&avant), &apres)?;
+        Ok(apres)
+    })
 }
 
 /// Met le dossier aux archives ou l'en sort. Un dossier archivé reste consultable et cherchable.
@@ -374,8 +404,9 @@ pub fn archiver(base: &Base, id: &str, archive: bool) -> Result<Patient, ErreurP
 /// Tous les dossiers, archives comprises, par nom puis prénom.
 pub fn lister(base: &Base) -> Result<Vec<ResumePatient>, ErreurPatient> {
     let mut requete = base.connexion().prepare(
-        "SELECT id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, ville, statut,
-                notes_importantes, decede, archive_le,
+        "SELECT id, sexe, nom, nom_naissance, prenom, naissance, portable, fixe, email, adresse, complement_adresse, code_postal,
+                ville, statut, notes_importantes, decede, archive_le,
+                (SELECT group_concat(groupe_id, ',') FROM patients_groupes g WHERE g.patient_id = p.id) AS groupes,
                 (SELECT COUNT(*) FROM seances s WHERE s.patient_id = p.id AND s.supprimee_le IS NULL) AS nombre_seances,
                 (SELECT substr(MAX(s.debut), 1, 10) FROM seances s WHERE s.patient_id = p.id AND s.supprimee_le IS NULL)
                   AS derniere_seance
@@ -393,8 +424,16 @@ pub fn lister(base: &Base) -> Result<Vec<ResumePatient>, ErreurPatient> {
             fixe: l.get("fixe")?,
             email: l.get("email")?,
             adresse: l.get("adresse")?,
+            complement_adresse: l.get("complement_adresse")?,
+            code_postal: l.get("code_postal")?,
             ville: l.get("ville")?,
             statut: l.get("statut")?,
+            groupes: {
+                let mut groupes: Vec<String> =
+                    l.get::<_, Option<String>>("groupes")?.unwrap_or_default().split(',').filter(|g| !g.is_empty()).map(str::to_owned).collect();
+                groupes.sort();
+                groupes
+            },
             notes_importantes: l.get("notes_importantes")?,
             decede: l.get("decede")?,
             archive: l.get::<_, Option<i64>>("archive_le")?.is_some(),
@@ -410,6 +449,56 @@ pub fn statuts(base: &Base) -> Result<Vec<String>, ErreurPatient> {
     Ok(base
         .lire_parametre::<Vec<String>>(PARAMETRE_STATUTS)?
         .unwrap_or_else(|| STATUTS_PAR_DEFAUT.iter().map(|s| s.to_string()).collect()))
+}
+
+/// Un statut de la liste réglée par le praticien : `ancien` est son nom d'avant, absent s'il est nouveau.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct StatutSaisi {
+    pub ancien: Option<String>,
+    pub nom: String,
+}
+
+/// Remplace la liste des statuts, dans l'ordre donné. Un statut renommé l'est aussi dans les
+/// dossiers ; un statut retiré de la liste est retiré des dossiers qui le portaient.
+pub fn enregistrer_statuts(base: &Base, saisis: &[StatutSaisi]) -> Result<Vec<String>, ErreurPatient> {
+    let avant = statuts(base)?;
+    let mut liste: Vec<String> = Vec::new();
+    for saisi in saisis {
+        let nom = propre(&saisi.nom);
+        if nom.is_empty() {
+            return Err(ErreurPatient::Champ("indiquez le nom de chaque statut"));
+        }
+        if nom.chars().count() > 40 {
+            return Err(ErreurPatient::Champ("le nom d'un statut est trop long"));
+        }
+        if liste.iter().any(|s| s.to_lowercase() == nom.to_lowercase()) {
+            return Err(ErreurPatient::Champ("deux statuts portent le même nom"));
+        }
+        liste.push(nom);
+    }
+    let gardes: Vec<(&String, &String)> = saisis
+        .iter()
+        .zip(&liste)
+        .filter_map(|(saisi, nom)| saisi.ancien.as_ref().filter(|a| avant.contains(a)).map(|a| (a, nom)))
+        .collect();
+    base.atomique(|| {
+        for retire in avant.iter().filter(|a| !gardes.iter().any(|(ancien, _)| ancien == a)) {
+            base.connexion().execute("UPDATE patients SET statut = '' WHERE statut = ?1", [retire])?;
+        }
+        // En deux temps, pour que deux statuts puissent échanger leurs noms.
+        let renommes: Vec<_> = gardes.iter().filter(|(ancien, nom)| ancien != nom).collect();
+        for (rang, (ancien, _)) in renommes.iter().enumerate() {
+            base.connexion().execute("UPDATE patients SET statut = ?2 WHERE statut = ?1", [ancien.as_str(), &format!("\u{1}{rang}")])?;
+        }
+        for (rang, (_, nom)) in renommes.iter().enumerate() {
+            base.connexion().execute("UPDATE patients SET statut = ?2 WHERE statut = ?1", [&format!("\u{1}{rang}"), nom.as_str()])?;
+        }
+        base.ecrire_parametre(PARAMETRE_STATUTS, &liste)?;
+        base.journaliser("patients.statuts", PARAMETRE_STATUTS, Some(&serde_json::to_string(&avant)?), Some(&serde_json::to_string(&liste)?))?;
+        Ok::<_, ErreurPatient>(())
+    })?;
+    Ok(liste)
 }
 
 #[cfg(test)]
@@ -503,5 +592,27 @@ mod tests {
         assert_eq!(statuts(&base).unwrap(), STATUTS_PAR_DEFAUT);
         base.ecrire_parametre(PARAMETRE_STATUTS, &["Suivi", "Archivé"]).unwrap();
         assert_eq!(statuts(&base).unwrap(), ["Suivi", "Archivé"]);
+    }
+
+    #[test]
+    fn renomme_echange_et_retire_les_statuts_dans_les_dossiers() {
+        let (_dossier, base) = base();
+        let avec = |prenom: &str, statut: &str| creer(&base, &FichePatient { prenom: prenom.into(), statut: statut.into(), ..camille() }).unwrap().id;
+        let (nouveau, suivi, ancien, importe) = (avec("A", "Nouveau"), avec("B", "Suivi"), avec("C", "Ancien patient"), avec("D", "Importé"));
+        let saisi = |ancien: Option<&str>, nom: &str| StatutSaisi { ancien: ancien.map(str::to_owned), nom: nom.into() };
+        let liste = enregistrer_statuts(&base, &[saisi(Some("Nouveau"), "Suivi"), saisi(Some("Suivi"), "Nouveau"), saisi(None, " Bilan  annuel ")]).unwrap();
+        assert_eq!(liste, ["Suivi", "Nouveau", "Bilan annuel"]);
+        assert_eq!(statuts(&base).unwrap(), liste);
+        let statut = |id: &str| lire(&base, id).unwrap().fiche.statut;
+        assert_eq!(statut(&nouveau), "Suivi");
+        assert_eq!(statut(&suivi), "Nouveau");
+        assert_eq!(statut(&ancien), "");
+        // Un statut qui n'était pas dans la liste (repris d'un import) ne bouge pas.
+        assert_eq!(statut(&importe), "Importé");
+
+        let erreur = |saisis: &[StatutSaisi]| enregistrer_statuts(&base, saisis).unwrap_err().to_string();
+        assert_eq!(erreur(&[saisi(None, "Suivi"), saisi(None, "suivi")]), "deux statuts portent le même nom");
+        assert_eq!(erreur(&[saisi(None, " ")]), "indiquez le nom de chaque statut");
+        assert_eq!(statuts(&base).unwrap(), liste);
     }
 }

@@ -91,6 +91,63 @@ describe("patients", () => {
     expect(within(liste).getByRole("link", { name: "Martin Camille" })).toBeInTheDocument();
   });
 
+  it("complète la ville d'après le code postal, et le code d'après la ville", async () => {
+    demarrer();
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
+    await ouvrir("#/patients/nouveau");
+    await screen.findByRole("heading", { name: "Nouveau patient" });
+    fireEvent.focus(screen.getByLabelText("Code postal"));
+    saisir("Code postal", "47150");
+    const communes = await screen.findByRole("group", { name: "Communes proposées" });
+    expect(within(communes).getByText("Communes du 47150 :")).toBeInTheDocument();
+    fireEvent.click(within(communes).getByRole("button", { name: "Lacapelle-Biron" }));
+    expect(screen.getByLabelText("Ville")).toHaveValue("Lacapelle-Biron");
+    expect(screen.queryByRole("group", { name: "Communes proposées" })).not.toBeInTheDocument();
+
+    // Un code d'une seule commune remplit la ville vide.
+    saisir("Ville", "");
+    saisir("Code postal", "75011");
+    expect(screen.getByLabelText("Ville")).toHaveValue("Paris");
+
+    saisir("Code postal", "");
+    saisir("Ville", "st front sur");
+    fireEvent.click(await screen.findByRole("button", { name: "47500 Saint-Front-sur-Lémance" }));
+    expect(screen.getByLabelText("Code postal")).toHaveValue("47500");
+    expect(screen.getByLabelText("Ville")).toHaveValue("Saint-Front-sur-Lémance");
+
+    // Hors de France, rien n'est proposé.
+    saisir("Pays", "Belgique");
+    saisir("Code postal", "1000");
+    saisir("Ville", "Bruxel");
+    expect(screen.queryByRole("group", { name: "Communes proposées" })).not.toBeInTheDocument();
+  });
+
+  it("filtre par groupe et par dernière séance, puis exporte la liste vers un tableur", async () => {
+    const coeur = demarrer();
+    const exporter = vi.spyOn(coeur, "exporterClasseur");
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
+    await ouvrir("#/patients");
+    const liste = await screen.findByRole("table");
+    expect(within(liste).getAllByText("Famille Martin")).toHaveLength(2);
+
+    fireEvent.change(screen.getByLabelText("Groupe"), { target: { value: (await coeur.listerGroupes()).find((g) => g.nom === "Famille Martin")!.id } });
+    expect(within(liste).getAllByRole("row")).toHaveLength(3);
+    fireEvent.change(screen.getByLabelText("Dernière séance"), { target: { value: "jamais" } });
+    expect(within(liste).getAllByRole("row")).toHaveLength(2);
+    expect(within(liste).getByRole("link", { name: "Martin Lucas" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    expect(await screen.findByText(/^Export enregistré/)).toBeInTheDocument();
+    const [nom, [feuille]] = exporter.mock.calls[0];
+    expect(nom).toMatch(/^Patients du \d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(feuille.lignes).toHaveLength(1);
+    expect(feuille.lignes[0].slice(0, 2)).toEqual(["Martin", "Lucas"]);
+    expect(feuille.lignes[0][feuille.colonnes.findIndex((c) => c.titre === "Groupes")]).toBe("Famille Martin");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retirer les filtres" }));
+    expect(within(liste).getAllByRole("row")).toHaveLength(9);
+  });
+
   it("propose de créer le dossier cherché quand il n'existe pas", async () => {
     demarrer();
     await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });

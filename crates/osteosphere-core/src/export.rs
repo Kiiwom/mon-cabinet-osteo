@@ -15,7 +15,7 @@ use crate::base::{Base, ErreurBase};
 use crate::facturation::{self, Facture};
 use crate::modeles::{self, Definition};
 use crate::seances::{self, Seance};
-use crate::{antecedents, documents, fichier, horloge, patients, prestations, trames};
+use crate::{antecedents, documents, fichier, groupes, horloge, patients, prestations, trames};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct LigneJournal {
@@ -128,8 +128,30 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
         }
     }
 
+    let tous_groupes = groupes::lister(base).map_err(donnees)?;
+    let noms_groupes = |ids: &[String]| tous_groupes.iter().filter(|g| ids.contains(&g.id)).map(|g| g.nom.as_str()).collect::<Vec<_>>().join(", ");
     let csv_patients = csv(
-        &["Identifiant", "Nom", "Prénom", "Nom de naissance", "Sexe", "Naissance", "Adresse", "Complément", "Code postal", "Ville", "Portable", "Fixe", "Email", "Profession", "Statut", "Notes importantes", "Remarques", "Archivé"],
+        &[
+            "Identifiant",
+            "Nom",
+            "Prénom",
+            "Nom de naissance",
+            "Sexe",
+            "Naissance",
+            "Adresse",
+            "Complément",
+            "Code postal",
+            "Ville",
+            "Portable",
+            "Fixe",
+            "Email",
+            "Profession",
+            "Statut",
+            "Groupes",
+            "Notes importantes",
+            "Remarques",
+            "Archivé",
+        ],
         &fiches
             .iter()
             .map(|p| {
@@ -150,6 +172,7 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
                     f.email.clone(),
                     f.profession.clone(),
                     f.statut.clone(),
+                    noms_groupes(&f.groupes),
                     f.notes_importantes.clone(),
                     seances::texte_riche(&f.remarques),
                     if p.archive { "oui".into() } else { String::new() },
@@ -279,6 +302,7 @@ pub fn exporter_tout(base: &Base, dossier: &Path, maintenant: i64) -> Result<Pat
         "exporte_le": maintenant,
         "parametres": parametres.iter().map(|(c, v)| (c.clone(), serde_json::from_str::<Value>(v).unwrap_or(Value::Null))).collect::<serde_json::Map<_, _>>(),
         "patients": fiches,
+        "groupes": tous_groupes,
         "antecedents": tous_antecedents,
         "modeles": liste_modeles,
         "seances": toutes_seances,

@@ -12,6 +12,7 @@ import {
 } from "../lib/coeur";
 import { verifierIdentite, type ErreursIdentite } from "../lib/identite";
 import { RestaurationSauvegarde } from "../sauvegardes/Restauration";
+import { ChampsCommune } from "../patients/ChampsCommune";
 
 const ETAPES = [
   { titre: "Bienvenue", detail: "Présentation et licence" },
@@ -348,8 +349,16 @@ export function ChampsIdentite({
       <Champ libelle="Nom" valeur={identite.nom} changer={changer("nom")} erreur={erreurs.nom} autoComplete="family-name" obligatoire />
       <Champ libelle="Profession" valeur={identite.profession} changer={changer("profession")} large />
       <Champ libelle="Adresse du cabinet" valeur={identite.adresse} changer={changer("adresse")} autoComplete="street-address" large />
-      <Champ libelle="Code postal" valeur={identite.code_postal} changer={changer("code_postal")} erreur={erreurs.code_postal} autoComplete="postal-code" />
-      <Champ libelle="Ville" valeur={identite.ville} changer={changer("ville")} autoComplete="address-level2" />
+      <ChampsCommune
+        codePostal={identite.code_postal}
+        ville={identite.ville}
+        pays=""
+        changer={(codePostal, ville) => {
+          changer("code_postal")(codePostal);
+          changer("ville")(ville);
+        }}
+        erreur={erreurs.code_postal}
+      />
       <Champ libelle="Téléphone" valeur={identite.telephone} changer={changer("telephone")} type="tel" autoComplete="tel" />
       <Champ libelle="Email" valeur={identite.email} changer={changer("email")} erreur={erreurs.email} type="email" autoComplete="email" />
       <Champ libelle="SIRET" valeur={identite.siret} changer={changer("siret")} erreur={erreurs.siret} aide="14 chiffres, espaces acceptés" />

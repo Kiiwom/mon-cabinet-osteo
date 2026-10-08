@@ -5,6 +5,7 @@ import { lireDateFr, neLe } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
 import { ressemblants } from "../lib/recherche";
 import { depuisBrouillon, FormulaireFiche, versBrouillon, type BrouillonFiche, type ErreursFiche } from "../patients/FormulaireFiche";
+import { useReglagesFiche } from "../patients/Groupes";
 
 /** Création d'un dossier, avec l'alerte de doublon dès que le nom et le prénom sont tapés. */
 export function NouveauPatient({ coeur, depuisRecherche = "" }: { coeur: Coeur; depuisRecherche?: string }) {
@@ -16,12 +17,16 @@ export function NouveauPatient({ coeur, depuisRecherche = "" }: { coeur: Coeur; 
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [liste, setListe] = useState<ResumePatient[]>([]);
-  const [statuts, setStatuts] = useState<string[]>([]);
+  const { statuts, groupes, departement } = useReglagesFiche(coeur);
 
   useEffect(() => {
     coeur.listerPatients().then(setListe, () => setListe([]));
-    coeur.statutsPatients().then(setStatuts, () => setStatuts([]));
   }, [coeur]);
+
+  // Le statut « Nouveau » proposé d'office, s'il est encore dans la liste du praticien.
+  useEffect(() => {
+    if (statuts.length > 0 && !statuts.includes("Nouveau")) setBrouillon((b) => (b.statut === "Nouveau" ? { ...b, statut: "" } : b));
+  }, [statuts]);
 
   const semblables = useMemo(
     () => ressemblants(liste, { nom: brouillon.nom, prenom: brouillon.prenom, naissance: lireDateFr(brouillon.naissance) ?? null }),
@@ -71,7 +76,15 @@ export function NouveauPatient({ coeur, depuisRecherche = "" }: { coeur: Coeur; 
           </div>
         )}
         <div className="carte">
-          <FormulaireFiche brouillon={brouillon} changer={setBrouillon} erreurs={erreurs} statuts={statuts} premierChampAutoFocus />
+          <FormulaireFiche
+            brouillon={brouillon}
+            changer={setBrouillon}
+            erreurs={erreurs}
+            statuts={statuts}
+            groupes={groupes}
+            departement={departement}
+            premierChampAutoFocus
+          />
         </div>
         {erreur && (
           <p className="alerte" role="alert">

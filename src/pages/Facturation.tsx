@@ -22,6 +22,7 @@ import { adresse, aller } from "../lib/navigation";
 import { bornesPeriode, decalerPeriode, isoDe, libellePeriode, surLaPeriode, type Periode, type TypePeriode } from "../lib/periodes";
 import { normaliser } from "../lib/recherche";
 import { colonne, feuilleVersCsv, type Feuille } from "../lib/tableur";
+import { Exports } from "../composants/Exports";
 
 export type OngletFacturation = "recettes" | "factures" | "a-facturer" | "en-attente";
 
@@ -341,25 +342,6 @@ function ParJour({ recettes, periode, voirJour }: { recettes: LigneRecette[]; pe
 }
 
 /** Excel, CSV ou impression : les boutons d'export communs aux tableaux de la facturation. */
-function Exports({ desactive, excel, csv, imprimer }: { desactive: boolean; excel: () => void; csv: () => void; imprimer?: () => void }) {
-  return (
-    <div className="rangee rangee-centree sans-impression">
-      <span className="discret">Exporter</span>
-      <button type="button" className="bouton bouton-petit" disabled={desactive} onClick={excel}>
-        Excel
-      </button>
-      <button type="button" className="bouton bouton-petit" disabled={desactive} onClick={csv}>
-        CSV
-      </button>
-      {imprimer && (
-        <button type="button" className="bouton bouton-petit" disabled={desactive} onClick={imprimer}>
-          Imprimer ou PDF
-        </button>
-      )}
-    </div>
-  );
-}
-
 function Recettes({
   coeur,
   periode,

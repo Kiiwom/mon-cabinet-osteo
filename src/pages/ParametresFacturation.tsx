@@ -33,7 +33,7 @@ export function PageParametresCabinet({ coeur }: { coeur: Coeur }) {
   if (!identite) return <main className="page">{erreur ? <ErreurFacturation message={erreur} /> : <p className="discret">Chargement…</p>}</main>;
 
   const modifier = (champs: Partial<IdentiteCabinet>) => {
-    setIdentite({ ...identite, ...champs });
+    setIdentite((i) => i && { ...i, ...champs });
     setMessage(null);
   };
   const changer = (champ: ChampTexteIdentite) => (valeur: string) => modifier({ [champ]: valeur });
