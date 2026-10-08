@@ -4,6 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useId, useRef, useState } from "react";
 
 import type { CaractereTrames } from "../lib/coeur";
+import { useVariablesTrames } from "./contexte";
 import { MenuTrames } from "./menu";
 import { Blanc, Choix, NavigationTrames } from "./noeuds";
 import { compterACompleter, validerTrames, type TrameResume } from "./valider";
@@ -86,6 +87,10 @@ export function ChampTrame({ libelle, trames, caractere, surUtilisation, surVali
   rappel.current = surUtilisation;
   const changement = useRef(surChangement);
   changement.current = surChangement;
+  // Sans contexte (fiche d'un nouveau patient…), les variables restent des blancs à compléter.
+  const valeursVariables = useVariablesTrames();
+  const variables = useRef(valeursVariables);
+  variables.current = valeursVariables;
   const [etat, setEtat] = useState({ restants: 0, total: 0 });
 
   const editor = useEditor(
@@ -99,6 +104,7 @@ export function ChampTrame({ libelle, trames, caractere, surUtilisation, surVali
           caractere,
           trames: () => tramesActuelles.current,
           surInsertion: (trame) => rappel.current?.(trame),
+          variables: () => variables.current,
         }),
       ],
       content: valeur ?? "",

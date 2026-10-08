@@ -8,6 +8,7 @@ import { estVide, evolutionDouleur, jourEnLettres, TYPES_SEANCE } from "../lib/s
 import { FinDeSeance } from "../facturation/FinDeSeance";
 import { Avatar } from "../patients/Avatar";
 import { ChampSeance, type ContexteSaisie } from "../seances/ChampSeance";
+import { FournisseurVariables, variablesDuPatient } from "../trames/contexte";
 import type { TrameResume } from "../trames/valider";
 import { descriptionPatient, PucesPatient } from "./Dossier";
 import { Documents } from "../documents/Documents";
@@ -337,6 +338,7 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
   const depuis = toutes.length ? toutes[toutes.length - 1].debut.slice(0, 4) : dateSeance.slice(0, 4);
 
   return (
+    <FournisseurVariables valeurs={variablesDuPatient(patient, dateSeance)}>
     <main className="page page-large">
       <div className="entete-page">
         <nav className="fil" aria-label="Fil d’Ariane">
@@ -487,5 +489,6 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
       </div>
       {compteRendu && <CompteRendu coeur={coeur} seanceId={id} fermer={() => setCompteRendu(false)} surAjout={() => setVersionDocuments((v) => v + 1)} />}
     </main>
+    </FournisseurVariables>
   );
 }

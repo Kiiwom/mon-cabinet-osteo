@@ -4462,3 +4462,47 @@ select.saisie-courte {
 .grille-creneaux {
   width: 100%;
 }
+
+/* Lot 6 : trames par catégorie, variables, import. */
+.trames-categorie {
+  margin: 10px 0 2px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--encre-discrete);
+}
+
+.variables-trame {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.variables-trame .bouton {
+  font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  font-size: 13px;
+}
+
+.etat-import-trame {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.etat-import-trame[data-etat="nouvelle"] {
+  background: var(--succes-fond);
+  color: var(--succes-texte);
+}
+
+.etat-import-trame[data-etat="identique"] {
+  background: var(--fond-discret);
+  color: var(--encre-2);
+}
+
+.etat-import-trame[data-etat="differente"] {
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+}

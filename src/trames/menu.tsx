@@ -4,7 +4,7 @@ import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 
-import { insererTrame, type TrameResume } from "./valider";
+import { insererTrame, type TrameResume, type ValeursVariables } from "./valider";
 
 const sansAccents = (texte: string) =>
   texte
@@ -97,16 +97,18 @@ export interface OptionsMenuTrames {
   caractere: string;
   trames: () => TrameResume[];
   surInsertion: (trame: TrameResume) => void;
+  /** Prénom, âge… du patient du champ, au moment de l'insertion. */
+  variables: () => ValeursVariables;
 }
 
 /** Menu ouvert par le caractère choisi (@ par défaut), en début de mot. */
 export const MenuTrames = Extension.create<OptionsMenuTrames>({
   name: "menuTrames",
   addOptions() {
-    return { caractere: "@", trames: () => [], surInsertion: () => undefined };
+    return { caractere: "@", trames: () => [], surInsertion: () => undefined, variables: () => ({}) };
   },
   addProseMirrorPlugins() {
-    const { caractere, trames, surInsertion } = this.options;
+    const { caractere, trames, surInsertion, variables } = this.options;
     return [
       Suggestion<TrameResume, TrameResume>({
         editor: this.editor,
@@ -115,7 +117,7 @@ export const MenuTrames = Extension.create<OptionsMenuTrames>({
         allowSpaces: false,
         items: ({ query }) => filtrerTrames(trames(), query),
         command: ({ editor, range, props }) => {
-          if (insererTrame(editor, range, props)) surInsertion(props);
+          if (insererTrame(editor, range, props, variables())) surInsertion(props);
         },
         render: () => {
           let rendu: ReactRenderer<CommandeListe, PropsListe> | null = null;

@@ -83,6 +83,8 @@ pub async fn choisir_fichier(app: AppHandle, sorte: String) -> Result<Option<Str
         let dialogue = match sorte.as_str() {
             "sauvegarde" => dialogue.set_title("Choisir une sauvegarde Osteosphere").add_filter("Sauvegarde Osteosphere", &[EXTENSION]),
             "import" => dialogue.set_title("Choisir l’export de MonCabinetLibéral").add_filter("Export MonCabinetLibéral (zip)", &["zip"]),
+            "trames" => dialogue.set_title("Choisir un fichier de trames").add_filter("Trames (json)", &["json"]),
+            "modele" => dialogue.set_title("Choisir un fichier de modèle de consultation").add_filter("Modèle de consultation (json)", &["json"]),
             _ => dialogue,
         };
         Ok(dialogue.blocking_pick_file().and_then(|f| f.into_path().ok()).map(|p| p.display().to_string()))

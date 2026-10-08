@@ -3,7 +3,7 @@ import { useEffect, useId, useState, type FormEvent, type ReactNode } from "reac
 import { intitule } from "../antecedents/apparence";
 import { FriseDeVie } from "../antecedents/FriseDeVie";
 import { CarteAntecedents, OngletAntecedents } from "../antecedents/OngletAntecedents";
-import type { Antecedent, CategorieAntecedents, Coeur, Groupe, Patient, ResumeSeance } from "../lib/coeur";
+import { dateDuJour, type Antecedent, type CategorieAntecedents, type Coeur, type Groupe, type Patient, type ResumeSeance } from "../lib/coeur";
 import { accorder, ageEnClair, neLe } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
 import { Avatar } from "../patients/Avatar";
@@ -15,6 +15,7 @@ import { Documents } from "../documents/Documents";
 import { FenetreDossierPdf } from "../patients/DossierPdf";
 import { OngletHistorique } from "../patients/Historique";
 import { CarteProches } from "../patients/Proches";
+import { FournisseurVariables, variablesDuPatient } from "../trames/contexte";
 import { TexteRiche } from "../trames/TexteRiche";
 
 export type Onglet = "synthese" | "seances" | "antecedents" | "documents" | "identite" | "historique";
@@ -369,6 +370,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
   };
 
   return (
+    <FournisseurVariables valeurs={variablesDuPatient(patient, dateDuJour())}>
     <main className="page page-large">
       <nav className="fil" aria-label="Fil d’Ariane">
         <a href={adresse("patients")}>Patients</a> <span aria-hidden="true">›</span> {patient.prenom} {patient.nom}
@@ -431,5 +433,6 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
       )}
       {pdf && <FenetreDossierPdf coeur={coeur} patient={patient} seances={seances} fermer={() => setPdf(false)} />}
     </main>
+    </FournisseurVariables>
   );
 }

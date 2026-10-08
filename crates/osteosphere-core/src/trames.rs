@@ -2,6 +2,7 @@
 //!
 //! Syntaxe du modèle, la même que celle de l'interface :
 //! `{droite | gauche}` choix unique, `{+ a | b}` choix multiple, `[durée]` blanc à compléter,
+//! `{{prénom}}`, `{{nom}}`, `{{âge}}` et `{{date}}` remplis d'après le patient et la séance,
 //! `\{`, `\}`, `\[`, `\]`, `\|` et `\\` pour écrire ces caractères tels quels.
 
 use rusqlite::{OptionalExtension, Row};
@@ -13,6 +14,16 @@ use crate::identifiant;
 
 const BIBLIOTHEQUE_DE_DEPART: &str = include_str!("bibliotheque_depart.json");
 const PARAMETRE_BIBLIOTHEQUE: &str = "trames.bibliotheque_installee";
+/// Les codes de la bibliothèque déjà proposés au cabinet : une trame ajoutée à la bibliothèque
+/// arrive aux cabinets existants, une trame supprimée par le praticien ne revient pas.
+const PARAMETRE_PROPOSEES: &str = "trames.bibliotheque_proposee";
+/// La première bibliothèque, proposée avant que les codes soient retenus un par un.
+const PREMIERE_BIBLIOTHEQUE: [&str; 6] = ["lomb", "cerv", "eg", "nour", "post", "revoir"];
+/// Les variables, sans accent : `{{âge}}` et `{{age}}` se valent.
+pub const VARIABLES: [&str; 4] = ["prenom", "nom", "age", "date"];
+/// Format des fichiers d'échange de trames.
+pub const FORMAT_ECHANGE: &str = "osteosphere.trames";
+const TRAMES_PAR_FICHIER: usize = 2_000;
 const SPECIAUX: [char; 6] = ['{', '}', '[', ']', '|', '\\'];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,6 +80,24 @@ impl From<rusqlite::Error> for ErreurTrame {
     }
 }
 
+/// `prénom` donne `prenom` : le nom d'une variable sans accent ni majuscule.
+pub fn nom_de_variable(texte: &str) -> String {
+    texte
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'â' | 'à' | 'ä' => 'a',
+            'î' | 'ï' => 'i',
+            'ô' | 'ö' => 'o',
+            'û' | 'ù' | 'ü' => 'u',
+            'ç' => 'c',
+            c => c,
+        })
+        .collect()
+}
+
 /// Vérifie la syntaxe du modèle. La position est comptée en caractères, à partir de 1.
 pub fn verifier_modele(modele: &str) -> Result<(), ErreurTrame> {
     let caracteres: Vec<char> = modele.chars().collect();
@@ -76,6 +105,17 @@ pub fn verifier_modele(modele: &str) -> Result<(), ErreurTrame> {
     let mut i = 0;
     while i < caracteres.len() {
         match caracteres[i] {
+            '{' if caracteres.get(i + 1) == Some(&'{') => {
+                let debut = i;
+                let Some(fin) = (i + 2..caracteres.len().saturating_sub(1)).find(|&j| caracteres[j] == '}' && caracteres[j + 1] == '}') else {
+                    return erreur("variable non refermée : il manque « }} »", debut);
+                };
+                let nom: String = caracteres[i + 2..fin].iter().collect();
+                if !VARIABLES.contains(&nom_de_variable(&nom).as_str()) {
+                    return erreur("variable inconnue : {{prénom}}, {{nom}}, {{âge}} ou {{date}}", debut);
+                }
+                i = fin + 2;
+            }
             '\\' => {
                 if !caracteres.get(i + 1).is_some_and(|c| SPECIAUX.contains(c)) {
                     return erreur("barre oblique inverse sans caractère à protéger", i);
@@ -244,15 +284,23 @@ pub fn noter_utilisation(base: &Base, id: &str) -> Result<(), ErreurTrame> {
     Ok(())
 }
 
-/// Installe la bibliothèque de départ une seule fois : une trame supprimée ne revient pas.
+/// Installe les trames de la bibliothèque de départ que le cabinet n'a pas encore eues : une trame
+/// ajoutée à la bibliothèque arrive avec la mise à jour, une trame supprimée ne revient pas.
 pub fn installer_bibliotheque_de_depart(base: &Base) -> Result<usize, ErreurTrame> {
-    if base.lire_parametre::<bool>(PARAMETRE_BIBLIOTHEQUE)?.unwrap_or(false) {
-        return Ok(0);
-    }
+    let mut proposees: Vec<String> = match base.lire_parametre(PARAMETRE_PROPOSEES)? {
+        Some(codes) => codes,
+        None if base.lire_parametre::<bool>(PARAMETRE_BIBLIOTHEQUE)?.unwrap_or(false) => PREMIERE_BIBLIOTHEQUE.iter().map(|c| (*c).to_owned()).collect(),
+        None => Vec::new(),
+    };
     let depart: Vec<SaisieTrame> = serde_json::from_str(BIBLIOTHEQUE_DE_DEPART).map_err(ErreurBase::from)?;
     let mut installees = 0;
+    let avant = proposees.len();
     for saisie in &depart {
         let code = normaliser_code(&saisie.code)?;
+        if proposees.contains(&code) {
+            continue;
+        }
+        proposees.push(code.clone());
         let deja: bool = base.connexion().query_row("SELECT count(*) > 0 FROM trames WHERE code = ?1", [&code], |l| l.get(0))?;
         if !deja {
             let trame = enregistrer(base, None, saisie)?;
@@ -260,8 +308,195 @@ pub fn installer_bibliotheque_de_depart(base: &Base) -> Result<usize, ErreurTram
             installees += 1;
         }
     }
-    base.ecrire_parametre(PARAMETRE_BIBLIOTHEQUE, &true)?;
+    if proposees.len() != avant || base.lire_parametre::<Vec<String>>(PARAMETRE_PROPOSEES)?.is_none() {
+        base.ecrire_parametre(PARAMETRE_PROPOSEES, &proposees)?;
+        base.ecrire_parametre(PARAMETRE_BIBLIOTHEQUE, &true)?;
+    }
     Ok(installees)
+}
+
+/// Un fichier d'échange de trames, lisible et modifiable dans un éditeur de texte.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FichierTrames {
+    pub format: String,
+    pub version: u32,
+    pub trames: Vec<SaisieTrame>,
+}
+
+/// Les trames choisies (toutes si `ids` est absent), en fichier d'échange JSON.
+pub fn exporter(base: &Base, ids: Option<&[String]>) -> Result<String, ErreurTrame> {
+    let trames = lister(base)?
+        .into_iter()
+        .filter(|t| ids.is_none_or(|ids| ids.contains(&t.id)))
+        .map(|t| SaisieTrame { code: t.code, titre: t.titre, categorie: t.categorie, modele: t.modele, contenu: t.contenu })
+        .collect();
+    let fichier = FichierTrames { format: FORMAT_ECHANGE.to_owned(), version: 1, trames };
+    Ok(serde_json::to_string_pretty(&fichier).map_err(ErreurBase::from)?)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ErreurEchange {
+    #[error("ce fichier n'est pas un fichier de trames Osteosphere")]
+    Format,
+    #[error("ce fichier ne contient aucune trame")]
+    Vide,
+    #[error("deux mille trames au plus par fichier")]
+    TropDeTrames,
+    #[error("la trame « {code} » du fichier est invalide : {erreur}")]
+    Trame { code: String, erreur: ErreurTrame },
+    #[error(transparent)]
+    Trames(#[from] ErreurTrame),
+}
+
+impl From<rusqlite::Error> for ErreurEchange {
+    fn from(erreur: rusqlite::Error) -> Self {
+        Self::Trames(erreur.into())
+    }
+}
+
+impl From<ErreurBase> for ErreurEchange {
+    fn from(erreur: ErreurBase) -> Self {
+        Self::Trames(erreur.into())
+    }
+}
+
+/// Ce que devient une trame du fichier, comparée aux trames du cabinet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EtatTrameImportee {
+    /// Son code est libre.
+    Nouvelle,
+    /// Le cabinet a déjà la même trame, sous le même code.
+    Identique,
+    /// Le code est pris par une trame différente.
+    Differente,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct TrameImportee {
+    pub code: String,
+    pub titre: String,
+    pub categorie: String,
+    pub modele: String,
+    pub etat: EtatTrameImportee,
+}
+
+/// Que faire d'une trame du fichier dont le code est pris par une trame différente.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Conflit {
+    /// Garder la trame du cabinet, ignorer celle du fichier.
+    #[default]
+    Garder,
+    /// Remplacer la trame du cabinet par celle du fichier.
+    Remplacer,
+    /// Ajouter celle du fichier sous un code libre : `lomb-2`.
+    Renommer,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct BilanEchange {
+    pub ajoutees: usize,
+    pub remplacees: usize,
+    pub renommees: usize,
+    /// Déjà là à l'identique, ou gardées en cas de conflit.
+    pub ignorees: usize,
+}
+
+/// Lit un fichier d'échange (ou une simple liste de trames) et vérifie chaque trame.
+fn lire_fichier(contenu: &str) -> Result<Vec<SaisieTrame>, ErreurEchange> {
+    let valeur: Value = serde_json::from_str(contenu).map_err(|_| ErreurEchange::Format)?;
+    let trames: Vec<SaisieTrame> = match &valeur {
+        Value::Array(_) => serde_json::from_value(valeur).map_err(|_| ErreurEchange::Format)?,
+        Value::Object(objet) if objet.get("format").and_then(Value::as_str) == Some(FORMAT_ECHANGE) => {
+            serde_json::from_value::<FichierTrames>(valeur).map_err(|_| ErreurEchange::Format)?.trames
+        }
+        _ => return Err(ErreurEchange::Format),
+    };
+    if trames.is_empty() {
+        return Err(ErreurEchange::Vide);
+    }
+    if trames.len() > TRAMES_PAR_FICHIER {
+        return Err(ErreurEchange::TropDeTrames);
+    }
+    let mut propres: Vec<SaisieTrame> = Vec::with_capacity(trames.len());
+    for trame in &trames {
+        let propre = verifier(trame).map_err(|erreur| ErreurEchange::Trame { code: trame.code.clone(), erreur })?;
+        // Le même code deux fois dans le fichier : la première l'emporte.
+        if !propres.iter().any(|p| p.code == propre.code) {
+            propres.push(propre);
+        }
+    }
+    Ok(propres)
+}
+
+fn comparer(base: &Base, trame: &SaisieTrame) -> Result<(EtatTrameImportee, Option<Trame>), ErreurEchange> {
+    let existante: Option<Trame> = base.connexion().query_row("SELECT * FROM trames WHERE code = ?1", [&trame.code], depuis_ligne).optional()?;
+    let etat = match &existante {
+        None => EtatTrameImportee::Nouvelle,
+        Some(t) if t.titre == trame.titre && t.categorie == trame.categorie && t.modele == trame.modele && t.contenu == trame.contenu => EtatTrameImportee::Identique,
+        Some(_) => EtatTrameImportee::Differente,
+    };
+    Ok((etat, existante))
+}
+
+/// Les trames du fichier et ce qu'elles deviendraient, sans rien changer.
+pub fn analyser_import(base: &Base, contenu: &str) -> Result<Vec<TrameImportee>, ErreurEchange> {
+    lire_fichier(contenu)?
+        .into_iter()
+        .map(|t| {
+            let (etat, _) = comparer(base, &t)?;
+            Ok(TrameImportee { code: t.code, titre: t.titre, categorie: t.categorie, modele: t.modele, etat })
+        })
+        .collect()
+}
+
+/// Importe les trames du fichier, toutes ou aucune.
+pub fn importer(base: &Base, contenu: &str, conflit: Conflit) -> Result<BilanEchange, ErreurEchange> {
+    let trames = lire_fichier(contenu)?;
+    base.atomique(|| {
+        let mut bilan = BilanEchange::default();
+        for trame in &trames {
+            let (etat, existante) = comparer(base, trame)?;
+            let id = match (etat, conflit) {
+                (EtatTrameImportee::Nouvelle, _) => {
+                    bilan.ajoutees += 1;
+                    enregistrer(base, None, trame)?.id
+                }
+                (EtatTrameImportee::Identique, _) | (EtatTrameImportee::Differente, Conflit::Garder) => {
+                    bilan.ignorees += 1;
+                    continue;
+                }
+                (EtatTrameImportee::Differente, Conflit::Remplacer) => {
+                    bilan.remplacees += 1;
+                    let existante = existante.ok_or(ErreurTrame::Introuvable)?;
+                    enregistrer(base, Some(&existante.id), trame)?;
+                    continue;
+                }
+                (EtatTrameImportee::Differente, Conflit::Renommer) => {
+                    bilan.renommees += 1;
+                    let code = code_libre(base, &trame.code)?;
+                    enregistrer(base, None, &SaisieTrame { code, ..trame.clone() })?.id
+                }
+            };
+            base.connexion().execute("UPDATE trames SET origine = 'importee' WHERE id = ?1", [&id])?;
+        }
+        Ok::<_, ErreurEchange>(bilan)
+    })
+}
+
+/// `lomb-2`, `lomb-3`… : le premier code libre, raccourci pour tenir en vingt caractères.
+fn code_libre(base: &Base, code: &str) -> Result<String, ErreurTrame> {
+    for rang in 2.. {
+        let suffixe = format!("-{rang}");
+        let debut: String = code.chars().take(20 - suffixe.len()).collect();
+        let candidat = format!("{}{suffixe}", debut.trim_end_matches('-'));
+        let pris: bool = base.connexion().query_row("SELECT count(*) > 0 FROM trames WHERE code = ?1", [&candidat], |l| l.get(0))?;
+        if !pris {
+            return Ok(candidat);
+        }
+    }
+    unreachable!("un code finit toujours par être libre")
 }
 
 #[cfg(test)]
@@ -289,6 +524,10 @@ mod tests {
         assert!(matches!(verifier_modele("a } b"), Err(ErreurTrame::Syntaxe { position: 3, .. })));
         assert!(verifier_modele("{a | [b]}").is_err());
         assert!(verifier_modele("fin \\").is_err());
+        // Variables : connues, avec ou sans accent.
+        assert!(verifier_modele("{{prénom}}, {{Age}}, vu le {{date}} ({{nom}}).").is_ok());
+        assert!(matches!(verifier_modele("Bonjour {{surnom}}"), Err(ErreurTrame::Syntaxe { position: 9, .. })));
+        assert!(verifier_modele("Bonjour {{prénom}").is_err());
     }
 
     #[test]
@@ -348,10 +587,96 @@ mod tests {
     }
 
     #[test]
+    fn la_bibliotheque_compte_une_vingtaine_de_trames_valides() {
+        let depart: Vec<SaisieTrame> = serde_json::from_str(BIBLIOTHEQUE_DE_DEPART).unwrap();
+        assert!(depart.len() >= 20, "{} trames", depart.len());
+        for trame in &depart {
+            verifier(trame).unwrap_or_else(|e| panic!("{} : {e}", trame.code));
+        }
+        let codes: std::collections::HashSet<&str> = depart.iter().map(|t| t.code.as_str()).collect();
+        assert_eq!(codes.len(), depart.len());
+        assert!(PREMIERE_BIBLIOTHEQUE.iter().all(|c| codes.contains(c)));
+    }
+
+    #[test]
+    fn le_catalogue_du_depot_reprend_la_bibliotheque() {
+        let catalogue = include_str!("../../../catalogue/trames/bibliotheque-de-depart.json");
+        let fichier: FichierTrames = serde_json::from_str(catalogue).unwrap();
+        let depart: Vec<SaisieTrame> = serde_json::from_str(BIBLIOTHEQUE_DE_DEPART).unwrap();
+        assert_eq!((fichier.format.as_str(), fichier.version), (FORMAT_ECHANGE, 1));
+        assert_eq!(fichier.trames, depart, "catalogue/trames/bibliotheque-de-depart.json à refaire d'après la bibliothèque");
+        assert_eq!(lire_fichier(catalogue).unwrap().len(), depart.len());
+    }
+
+    #[test]
+    fn un_cabinet_existant_recoit_les_nouvelles_trames_sauf_celles_supprimees() {
+        let (_dossier, base) = base();
+        // Un cabinet de la version précédente : la première bibliothèque, dont « eg » supprimée depuis.
+        for code in PREMIERE_BIBLIOTHEQUE.iter().filter(|c| **c != "eg") {
+            enregistrer(&base, None, &saisie(code, "texte")).unwrap();
+        }
+        base.ecrire_parametre(PARAMETRE_BIBLIOTHEQUE, &true).unwrap();
+        let depart: Vec<SaisieTrame> = serde_json::from_str(BIBLIOTHEQUE_DE_DEPART).unwrap();
+        assert_eq!(installer_bibliotheque_de_depart(&base).unwrap(), depart.len() - 6);
+        let codes: Vec<String> = lister(&base).unwrap().into_iter().map(|t| t.code).collect();
+        assert!(codes.contains(&"dors".to_owned()) && !codes.contains(&"eg".to_owned()));
+        assert_eq!(installer_bibliotheque_de_depart(&base).unwrap(), 0);
+    }
+
+    #[test]
+    fn exporte_et_importe_les_trames() {
+        let (_dossier, base) = base();
+        let lomb = enregistrer(&base, None, &saisie("lomb", "Douleur {droite | gauche}")).unwrap();
+        enregistrer(&base, None, &saisie("cerv", "Cervicalgie")).unwrap();
+        let fichier = exporter(&base, Some(std::slice::from_ref(&lomb.id))).unwrap();
+        assert!(fichier.contains("\"format\": \"osteosphere.trames\""));
+        assert!(!fichier.contains("cerv"));
+
+        // Chez un confrère : une trame identique, une autre sous le même code, une nouvelle.
+        let (_autre_dossier, autre) = base_seule();
+        enregistrer(&autre, None, &saisie("lomb", "Douleur {droite | gauche}")).unwrap();
+        let tout = exporter(&base, None).unwrap();
+        enregistrer(&autre, None, &saisie("cerv", "Cou")).unwrap();
+        let apercu = analyser_import(&autre, &tout).unwrap();
+        assert_eq!(apercu.iter().map(|t| (t.code.as_str(), t.etat)).collect::<Vec<_>>(), [
+            ("cerv", EtatTrameImportee::Differente),
+            ("lomb", EtatTrameImportee::Identique)
+        ]);
+        let bilan = importer(&autre, &tout, Conflit::Renommer).unwrap();
+        assert_eq!(bilan, BilanEchange { ajoutees: 0, remplacees: 0, renommees: 1, ignorees: 1 });
+        let cerv2 = lister(&autre).unwrap().into_iter().find(|t| t.code == "cerv-2").unwrap();
+        assert_eq!((cerv2.modele.as_str(), cerv2.origine.as_str()), ("Cervicalgie", "importee"));
+        assert_eq!(importer(&autre, &tout, Conflit::Remplacer).unwrap().remplacees, 1);
+        assert_eq!(lister(&autre).unwrap().into_iter().find(|t| t.code == "cerv").unwrap().modele, "Cervicalgie");
+
+        // Une simple liste se lit aussi ; un fichier faux ne change rien.
+        let liste = r#"[{"code": "Nouv", "titre": "Nouvelle", "categorie": "", "modele": "Texte {a | b}"}]"#;
+        assert_eq!(importer(&autre, liste, Conflit::Garder).unwrap().ajoutees, 1);
+        let faux = r#"[{"code": "ok", "titre": "Bonne", "categorie": "", "modele": "a"}, {"code": "x", "titre": "Fausse", "categorie": "", "modele": "{a"}]"#;
+        assert!(matches!(importer(&autre, faux, Conflit::Garder), Err(ErreurEchange::Trame { .. })));
+        assert!(lister(&autre).unwrap().iter().all(|t| t.code != "ok"));
+        assert!(matches!(analyser_import(&autre, "{\"a\": 1}"), Err(ErreurEchange::Format)));
+        assert!(matches!(analyser_import(&autre, "[]"), Err(ErreurEchange::Vide)));
+    }
+
+    fn base_seule() -> (tempfile::TempDir, Base) {
+        base()
+    }
+
+    #[test]
+    fn trouve_un_code_libre() {
+        let (_dossier, base) = base();
+        enregistrer(&base, None, &saisie("lomb", "a")).unwrap();
+        enregistrer(&base, None, &saisie("lomb-2", "a")).unwrap();
+        assert_eq!(code_libre(&base, "lomb").unwrap(), "lomb-3");
+        assert_eq!(code_libre(&base, "abcdefghijklmnopqrst").unwrap(), "abcdefghijklmnopqr-2");
+    }
+
+    #[test]
     fn installe_la_bibliotheque_une_seule_fois() {
         let (_dossier, base) = base();
         let installees = installer_bibliotheque_de_depart(&base).unwrap();
-        assert!(installees >= 6);
+        assert!(installees >= 20);
         let lomb = lister(&base).unwrap().into_iter().find(|t| t.code == "lomb").unwrap();
         assert_eq!(lomb.origine, "depart");
 

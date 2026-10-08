@@ -16,6 +16,7 @@ Logiciel libre et gratuit de gestion de cabinet pour ostéopathes, installé sur
 | `crates/osteosphere-courriel/` | Email d'une facture avec le PDF joint, par la messagerie de l'ordinateur |
 | `src/donnees/` | Codes postaux et communes de France, pour la complétion des adresses |
 | `outils/` | Scripts qui fabriquent ces données à partir des sources officielles |
+| `catalogue/trames/` | Trames partagées par les praticiens, à importer dans Osteosphere ; le format y est décrit |
 
 ## Principes
 

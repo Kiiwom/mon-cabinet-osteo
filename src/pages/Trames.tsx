@@ -2,11 +2,12 @@ import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import type { CaractereTrames, Coeur, SaisieTrame, Trame } from "../lib/coeur";
+import { dateDuJour, type BilanEchangeTrames, type CaractereTrames, type Coeur, type ConflitTrames, type SaisieTrame, type Trame, type TrameImportee } from "../lib/coeur";
+import { dateEnLettres } from "../lib/dates";
 import { documentDepuis } from "../lib/texteRiche";
 import { BarreOutils, ChampTrame, extensionsTexte } from "../trames/ChampTrame";
-import { signalerTrames } from "../trames/contexte";
-import type { Segment } from "../trames/syntaxe";
+import { FournisseurVariables, signalerTrames } from "../trames/contexte";
+import { VARIABLES, type Segment } from "../trames/syntaxe";
 import { TexteRiche } from "../trames/TexteRiche";
 import { contenuVersInsertion } from "../trames/valider";
 
@@ -33,6 +34,23 @@ function EditeurTexteTrame({ id, depart, changer }: { id: string; depart: JSONCo
         {editor && <BarreOutils editor={editor} />}
       </span>
       <EditorContent editor={editor} />
+      <div className="rangee rangee-centree variables-trame" role="group" aria-label="Insérer une variable">
+        <span className="discret">Variables&nbsp;:</span>
+        {VARIABLES.map((v) => (
+          <button
+            key={v.nom}
+            type="button"
+            className="bouton bouton-petit"
+            title={`Remplacée par ${v.description}`}
+            disabled={!editor}
+            // Le curseur reste dans le texte : la frappe continue après la variable.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor?.chain().focus().insertContent(`{{${v.ecrit}}}`).run()}
+          >
+            {`{{${v.ecrit}}}`}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -47,6 +65,12 @@ export function ApercuTrame({ segments }: { segments: Segment[] }) {
           return (
             <span key={rang} className="apercu-blanc">
               {segment.indication || "…"}
+            </span>
+          );
+        if (segment.type === "variable")
+          return (
+            <span key={rang} className="apercu-blanc">
+              {VARIABLES.find((v) => v.nom === segment.nom)?.ecrit}
             </span>
           );
         return (
@@ -159,7 +183,8 @@ function EditeurTrame({
           />
           <span id={`${id}-syntaxe`} className="discret">
             <code>{"{droite | gauche}"}</code> choix unique · <code>{"{+ a | b | c}"}</code> choix multiple ·{" "}
-            <code>[durée]</code> blanc à compléter · gras, titres et listes restent à l’insertion
+            <code>[durée]</code> blanc à compléter · <code>{"{{prénom}}"}</code> variable remplie d’après le patient · gras, titres et listes
+            restent à l’insertion
           </span>
         </div>
       </div>
@@ -212,6 +237,132 @@ function EditeurTrame({
   );
 }
 
+const ETATS_IMPORT: Record<TrameImportee["etat"], string> = { nouvelle: "Nouvelle", identique: "Déjà là", differente: "Code déjà pris" };
+
+/** « 2 trames ajoutées, 1 remplacée, 1 déjà là ou gardée. » */
+export function bilanEnClair(b: BilanEchangeTrames): string {
+  const pluriel = (n: number, un: string, plusieurs: string) => `${n} ${n > 1 ? plusieurs : un}`;
+  const parties = [
+    b.ajoutees && pluriel(b.ajoutees, "trame ajoutée", "trames ajoutées"),
+    b.renommees && pluriel(b.renommees, "ajoutée sous un autre code", "ajoutées sous un autre code"),
+    b.remplacees && pluriel(b.remplacees, "remplacée", "remplacées"),
+    b.ignorees && pluriel(b.ignorees, "déjà là ou gardée", "déjà là ou gardées"),
+  ].filter(Boolean);
+  return parties.length ? `${parties.join(", ")}.` : "Aucune trame importée.";
+}
+
+/** Les trames d'un fichier d'échange, comparées aux siennes, avant de les importer. */
+function ImportTrames({
+  chemin,
+  trames,
+  caractere,
+  importer,
+  annuler,
+}: {
+  chemin: string;
+  trames: TrameImportee[];
+  caractere: CaractereTrames;
+  importer: (conflit: ConflitTrames) => Promise<void>;
+  annuler: () => void;
+}) {
+  const id = useId();
+  const [conflit, setConflit] = useState<ConflitTrames>("garder");
+  const [envoi, setEnvoi] = useState(false);
+  const compte = (etat: TrameImportee["etat"]) => trames.filter((t) => t.etat === etat).length;
+  const nom = chemin.split(/[\\/]/).pop();
+  const aImporter = compte("nouvelle") + (conflit === "garder" ? 0 : compte("differente"));
+  return (
+    <section className="carte" aria-labelledby={`${id}-titre`}>
+      <h2 id={`${id}-titre`}>Importer «&nbsp;{nom}&nbsp;»</h2>
+      <p className="discret">
+        {trames.length} trame{trames.length > 1 ? "s" : ""} dans le fichier&nbsp;: {compte("nouvelle")} nouvelle{compte("nouvelle") > 1 ? "s" : ""},{" "}
+        {compte("identique")} déjà là, {compte("differente")} dont le code est pris par une autre trame.
+      </p>
+      <div className="defilement-tableau">
+        <table className="tableau">
+          <thead>
+            <tr>
+              <th scope="col">Code</th>
+              <th scope="col">Titre</th>
+              <th scope="col">Texte</th>
+              <th scope="col">Dans votre cabinet</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trames.map((t) => (
+              <tr key={t.code}>
+                <td className="sans-retour">
+                  {caractere}
+                  {t.code}
+                </td>
+                <td>{t.titre}</td>
+                <td className="discret">{t.modele.length > 90 ? `${t.modele.slice(0, 90)}…` : t.modele}</td>
+                <td>
+                  <span className="etat-import-trame" data-etat={t.etat}>
+                    {ETATS_IMPORT[t.etat]}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {compte("differente") > 0 && (
+        <fieldset className="groupe">
+          <legend>Quand le code est déjà pris par une autre trame</legend>
+          {(
+            [
+              ["garder", "Garder la mienne, ignorer celle du fichier"],
+              ["renommer", "Ajouter celle du fichier sous un autre code (lomb-2…)"],
+              ["remplacer", "Remplacer la mienne par celle du fichier"],
+            ] as const
+          ).map(([valeur, libelle]) => (
+            <label key={valeur} className="case-simple">
+              <input type="radio" name={`${id}-conflit`} checked={conflit === valeur} onChange={() => setConflit(valeur)} />
+              {libelle}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <div className="rangee">
+        <button
+          type="button"
+          className="bouton bouton-principal"
+          disabled={envoi || aImporter === 0}
+          onClick={() => {
+            setEnvoi(true);
+            void importer(conflit).finally(() => setEnvoi(false));
+          }}
+        >
+          {aImporter === 0 ? "Rien de nouveau à importer" : `Importer ${aImporter} trame${aImporter > 1 ? "s" : ""}`}
+        </button>
+        <button type="button" className="bouton" onClick={annuler}>
+          Annuler
+        </button>
+      </div>
+    </section>
+  );
+}
+
+const ORDRE_CATEGORIES = ["Anamnèse", "Examen", "Tests", "Traitement", "Conseils"];
+const SANS_CATEGORIE = "Sans catégorie";
+
+/** Les trames rangées par catégorie : l'ordre de la consultation d'abord, les autres par nom, puis les sans catégorie. */
+export function parCategorie(trames: Trame[]): { categorie: string; trames: Trame[] }[] {
+  const groupes = new Map<string, Trame[]>();
+  for (const t of trames) {
+    const cle = t.categorie.trim() || SANS_CATEGORIE;
+    groupes.set(cle, [...(groupes.get(cle) ?? []), t]);
+  }
+  const rang = (c: string) => (c === SANS_CATEGORIE ? 1_000 : ORDRE_CATEGORIES.includes(c) ? ORDRE_CATEGORIES.indexOf(c) : 100);
+  return [...groupes.entries()]
+    .sort(([a], [b]) => rang(a) - rang(b) || a.localeCompare(b, "fr"))
+    .map(([categorie, liste]) => ({ categorie, trames: liste }));
+}
+
+/** Une patiente fictive pour essayer les variables. */
+const VARIABLES_ESSAI = { prenom: "Camille", nom: "Martin", age: "38 ans", date: dateEnLettres(dateDuJour()) };
+
 export function PageTrames({ coeur }: { coeur: Coeur }) {
   const [trames, setTrames] = useState<Trame[]>([]);
   const [caractere, setCaractere] = useState<CaractereTrames>("@");
@@ -220,6 +371,8 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
   const [nouvelle, setNouvelle] = useState(false);
   const [texteValide, setTexteValide] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [importation, setImportation] = useState<{ chemin: string; trames: TrameImportee[] } | null>(null);
 
   const recharger = useCallback(async () => {
     try {
@@ -242,6 +395,40 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
   }, [trames, recherche]);
 
   const trame = nouvelle ? null : (trames.find((t) => t.id === choisie) ?? null);
+  const groupes = useMemo(() => parCategorie(visibles), [visibles]);
+
+  async function agir(action: () => Promise<void>) {
+    setErreur(null);
+    setMessage(null);
+    try {
+      await action();
+    } catch (e) {
+      setErreur((e as Error).message);
+    }
+  }
+  const exporter = () =>
+    agir(async () => {
+      // Une recherche en cours : seules les trames affichées partent.
+      const ids = recherche.trim() ? visibles.map((t) => t.id) : null;
+      const chemin = await coeur.exporterTrames(ids);
+      const nombre = ids?.length ?? trames.length;
+      setMessage(`${nombre} trame${nombre > 1 ? "s" : ""} exportée${nombre > 1 ? "s" : ""} : ${chemin}`);
+    });
+  const choisirImport = () =>
+    agir(async () => {
+      const chemin = await coeur.choisirFichier("trames");
+      if (!chemin) return;
+      setImportation({ chemin, trames: await coeur.analyserTrames(chemin) });
+    });
+  const importer = (conflit: ConflitTrames) =>
+    agir(async () => {
+      if (!importation) return;
+      const bilan = await coeur.importerTrames(importation.chemin, conflit);
+      setImportation(null);
+      await recharger();
+      signalerTrames();
+      setMessage(`Import terminé : ${bilanEnClair(bilan)}`);
+    });
 
   return (
     <main className="page">
@@ -273,21 +460,44 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="bouton bouton-principal"
-          onClick={() => {
-            setNouvelle(true);
-            setChoisie(null);
-          }}
-        >
-          + Nouvelle trame
-        </button>
+        <div className="rangee">
+          <button type="button" className="bouton" onClick={() => void choisirImport()}>
+            Importer…
+          </button>
+          <button type="button" className="bouton" onClick={() => void exporter()} disabled={visibles.length === 0}>
+            {recherche.trim() ? `Exporter les ${visibles.length} affichées` : "Exporter"}
+          </button>
+          <button
+            type="button"
+            className="bouton bouton-principal"
+            onClick={() => {
+              setNouvelle(true);
+              setChoisie(null);
+            }}
+          >
+            + Nouvelle trame
+          </button>
+        </div>
       </div>
+      <p className="discret">
+        Les trames s’échangent en fichier entre praticiens.{" "}
+        <button type="button" className="lien-bouton" onClick={() => void agir(() => coeur.ouvrirCatalogueTrames())}>
+          Le catalogue de trames partagées
+        </button>{" "}
+        en propose d’autres, à importer.
+      </p>
       {erreur && (
         <p className="alerte" role="alert">
           {erreur}
         </p>
+      )}
+      {message && (
+        <p className="succes" role="status">
+          {message}
+        </p>
+      )}
+      {importation && (
+        <ImportTrames chemin={importation.chemin} trames={importation.trames} caractere={caractere} importer={importer} annuler={() => setImportation(null)} />
       )}
       <div className="trames-colonnes">
         <section className="carte trames-liste" aria-label="Mes trames">
@@ -299,8 +509,11 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
           />
-          <ul>
-            {visibles.map((t) => (
+          {groupes.map((g) => (
+            <div key={g.categorie} className="pile-serree">
+              <h3 className="trames-categorie">{g.categorie}</h3>
+          <ul aria-label={g.categorie}>
+            {g.trames.map((t) => (
               <li key={t.id}>
                 <button
                   type="button"
@@ -318,14 +531,18 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
                     </span>
                     <span className="trame-titre">{t.titre}</span>
                   </span>
-                  <span className="discret">
-                    {t.categorie || "Sans catégorie"} · utilisée {t.utilisations} fois
-                  </span>
+                  {(t.origine === "importee" || t.utilisations > 0) && (
+                    <span className="discret">
+                      {[t.origine === "importee" && "importée", t.utilisations > 0 && `utilisée ${t.utilisations} fois`].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
-            {visibles.length === 0 && <li className="discret">Aucune trame ne correspond.</li>}
           </ul>
+            </div>
+          ))}
+          {visibles.length === 0 && <p className="discret">Aucune trame ne correspond.</p>}
         </section>
 
         <div className="pile trames-detail">
@@ -333,9 +550,11 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
             <div className="pile-serree">
               <h2 id="titre-essai">Essai en séance</h2>
               <span className="discret">
-                Comme dans la fiche de séance&nbsp;: tapez {caractere}lomb, complétez, puis Valider. Rien n’est enregistré ici.
+                Comme dans la fiche de séance&nbsp;: tapez {caractere}lomb, complétez, puis Valider. Rien n’est enregistré ici. Les variables
+                prennent les valeurs d’une patiente fictive, Camille Martin, 38&nbsp;ans.
               </span>
             </div>
+            <FournisseurVariables valeurs={VARIABLES_ESSAI}>
             <ChampTrame
               key={caractere}
               miseEnForme
@@ -347,6 +566,7 @@ export function PageTrames({ coeur }: { coeur: Coeur }) {
               }}
               surValidation={setTexteValide}
             />
+            </FournisseurVariables>
             {texteValide !== null && (
               <div className="texte-valide">
                 <span className="champ-trame-libelle">Texte enregistré dans la séance</span>

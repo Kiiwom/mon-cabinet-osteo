@@ -3,13 +3,35 @@
  * - `{droite | gauche | bilatérale}` : choix unique, une pastille par option ;
  * - `{+ pauses | étirements | hydratation}` : choix multiple, écrit « pauses, étirements et hydratation » ;
  * - `[durée]` : blanc à compléter, l'indication s'affiche en grisé ;
+ * - `{{prénom}}`, `{{nom}}`, `{{âge}}`, `{{date}}` : variables remplies d'après le patient et la séance ;
  * - `\{`, `\}`, `\[`, `\]`, `\|` et `\\` écrivent ces caractères tels quels.
  */
+
+export type NomVariable = "prenom" | "nom" | "age" | "date";
+
+/** Les variables, avec le nom qui s'écrit dans la trame. */
+export const VARIABLES: { nom: NomVariable; ecrit: string; description: string }[] = [
+  { nom: "prenom", ecrit: "prénom", description: "le prénom du patient" },
+  { nom: "nom", ecrit: "nom", description: "son nom" },
+  { nom: "age", ecrit: "âge", description: "son âge, « 38 ans » ou « 8 mois »" },
+  { nom: "date", ecrit: "date", description: "la date de la séance, ou du jour hors séance" },
+];
+
+/** `Prénom` ou `prenom` donnent `prenom` ; `null` pour une variable inconnue. */
+export function nomDeVariable(texte: string): NomVariable | null {
+  const nom = texte
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return VARIABLES.some((v) => v.nom === nom) ? (nom as NomVariable) : null;
+}
 
 export type Segment =
   | { type: "texte"; texte: string }
   | { type: "choix"; options: string[]; multiple: boolean }
-  | { type: "blanc"; indication: string };
+  | { type: "blanc"; indication: string }
+  | { type: "variable"; nom: NomVariable };
 
 export type ResultatAnalyse = { ok: true; segments: Segment[] } | { ok: false; erreur: string; position: number };
 
@@ -53,6 +75,15 @@ export function analyserDetaille(modele: string): AnalyseDetaillee {
       texte += suivant;
       positions.push(i + 1);
       i += 2;
+    } else if (c === "{" && modele[i + 1] === "{") {
+      pousserTexte();
+      const fin = modele.indexOf("}}", i + 2);
+      if (fin < 0) return echec("Variable non refermée : il manque « }} ».", i);
+      const nom = nomDeVariable(modele.slice(i + 2, fin));
+      if (!nom) return echec("Variable inconnue : écrivez {{prénom}}, {{nom}}, {{âge}} ou {{date}}.", i);
+      segments.push({ type: "variable", nom });
+      origines.push(i);
+      i = fin + 2;
     } else if (c === "{") {
       pousserTexte();
       const debut = i;
@@ -118,6 +149,7 @@ export function ecrireModele(segments: Segment[]): string {
     .map((s) => {
       if (s.type === "texte") return proteger(s.texte);
       if (s.type === "blanc") return `[${s.indication}]`;
+      if (s.type === "variable") return `{{${VARIABLES.find((v) => v.nom === s.nom)!.ecrit}}}`;
       return `{${s.multiple ? "+ " : ""}${s.options.map(proteger).join(" | ")}}`;
     })
     .join("");

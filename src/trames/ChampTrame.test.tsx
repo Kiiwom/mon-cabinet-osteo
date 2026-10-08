@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import depart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
 import { texteDe } from "../lib/seances";
 import { ChampTrame } from "./ChampTrame";
+import { FournisseurVariables, variablesDuPatient } from "./contexte";
 import { filtrerTrames } from "./menu";
 import { insererTrame, nettoyer, type TrameResume } from "./valider";
 
@@ -84,11 +85,39 @@ describe("trame interactive", () => {
   });
 });
 
+describe("variables", () => {
+  it("remplit prénom, âge et date d'après le patient de la séance", async () => {
+    let editeur: Editor | null = null;
+    const valeurs = variablesDuPatient({ prenom: "Lucas", nom: "Martin", naissance: "2018-05-12" }, "2026-10-08");
+    render(
+      <FournisseurVariables valeurs={valeurs}>
+        <ChampTrame libelle="Motif" trames={TRAMES} caractere="@" surEditeur={(e) => (editeur = e)} />
+      </FournisseurVariables>,
+    );
+    await waitFor(() => expect(editeur).not.toBeNull());
+    const e = editeur as unknown as Editor;
+    await act(async () => {
+      e.commands.setContent("<p>@cr</p>");
+      insererTrame(e, { from: 1, to: 4 }, trame("cr"), valeurs);
+    });
+    fireEvent.change(screen.getByLabelText("À compléter : motif"), { target: { value: "une entorse" } });
+    fireEvent.click(screen.getByRole("button", { name: "Valider" }));
+    expect(e.getText()).toBe("Séance du 8 octobre 2026\u00a0: Lucas, 8 ans, consulte pour une entorse.");
+  });
+
+  it("sans patient, une variable devient un blanc à compléter", async () => {
+    await champAvec("cr");
+    expect(screen.getByLabelText("À compléter : prénom")).toBeInTheDocument();
+    expect(screen.getByLabelText("À compléter : âge")).toBeInTheDocument();
+  });
+});
+
 describe("menu des trames", () => {
   it("propose d'abord les codes qui commencent par la saisie, sans tenir compte des accents", () => {
-    expect(filtrerTrames(TRAMES, "lo").map((t) => t.code)).toEqual(["lomb"]);
+    // Le code d'abord, puis les titres qui contiennent la saisie (« douloureuse », « neurologique »).
+    expect(filtrerTrames(TRAMES, "lo").map((t) => t.code)).toEqual(["lomb", "epaule", "neuro"]);
     expect(filtrerTrames(TRAMES, "etat").map((t) => t.code)).toEqual(["eg"]);
-    expect(filtrerTrames(TRAMES, "").length).toBe(TRAMES.length);
+    expect(filtrerTrames(TRAMES, "").length).toBe(Math.min(8, TRAMES.length));
     expect(filtrerTrames(TRAMES, "zzz")).toEqual([]);
   });
 

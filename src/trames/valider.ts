@@ -3,7 +3,7 @@ import type { Node as NoeudPM, Schema } from "@tiptap/pm/model";
 
 import type { AttributsBlanc, AttributsChoix } from "./noeuds";
 import { allerAuSuivant } from "./noeuds";
-import { analyserDetaille, analyserModele, joindreChoix, nettoyer, type Segment } from "./syntaxe";
+import { analyserDetaille, analyserModele, joindreChoix, nettoyer, VARIABLES, type NomVariable, type Segment } from "./syntaxe";
 
 export { nettoyer };
 
@@ -17,12 +17,15 @@ export interface TrameResume {
   contenu?: JSONContent | null;
 }
 
+/** Les valeurs des variables là où la trame s'insère ; une variable sans valeur devient un blanc. */
+export type ValeursVariables = Partial<Record<NomVariable, string>>;
+
 type Marques = JSONContent["marks"];
 
 const memesMarques = (a: Marques, b: Marques) => JSON.stringify(a ?? []) === JSON.stringify(b ?? []);
 
 /** Un paragraphe ou un titre de la trame : sa syntaxe devient des pastilles et des blancs, sa mise en forme reste. */
-function convertirLigne(noeud: JSONContent): JSONContent {
+function convertirLigne(noeud: JSONContent, variables: ValeursVariables): JSONContent {
   let source = "";
   const marques: Marques[] = [];
   for (const enfant of noeud.content ?? []) {
@@ -65,16 +68,16 @@ function convertirLigne(noeud: JSONContent): JSONContent {
       vider();
     } else {
       const m = marques[origine as number];
-      const [noeudTrame] = segmentsVersContenu([segment]);
+      const [noeudTrame] = segmentsVersContenu([segment], variables);
       contenu.push(m?.length ? { ...noeudTrame, marks: m } : noeudTrame);
     }
   });
   return { ...noeud, content: contenu };
 }
 
-function convertirBloc(noeud: JSONContent): JSONContent {
-  if (noeud.type === "paragraph" || noeud.type === "heading") return convertirLigne(noeud);
-  return { ...noeud, content: (noeud.content ?? []).map(convertirBloc) };
+function convertirBloc(noeud: JSONContent, variables: ValeursVariables): JSONContent {
+  if (noeud.type === "paragraph" || noeud.type === "heading") return convertirLigne(noeud, variables);
+  return { ...noeud, content: (noeud.content ?? []).map((n) => convertirBloc(n, variables)) };
 }
 
 /**
@@ -82,8 +85,8 @@ function convertirBloc(noeud: JSONContent): JSONContent {
  * pastilles et des blancs, les titres, listes, gras et italiques restent. Lève une erreur si une ligne
  * a une syntaxe invalide (un groupe ne peut pas s'étendre sur deux lignes).
  */
-export function contenuVersInsertion(contenu: JSONContent): JSONContent[] {
-  return (contenu.content ?? []).map(convertirBloc);
+export function contenuVersInsertion(contenu: JSONContent, variables: ValeursVariables = {}): JSONContent[] {
+  return (contenu.content ?? []).map((n) => convertirBloc(n, variables));
 }
 
 /** Ce que l'éditeur ne connaît pas devient du texte simple : titres en paragraphes, listes à plat, marques retirées. */
@@ -105,20 +108,24 @@ export function adapterAuSchema(noeuds: JSONContent[], schema: Schema): JSONCont
   return sortie;
 }
 
-export function segmentsVersContenu(segments: Segment[]): JSONContent[] {
+export function segmentsVersContenu(segments: Segment[], variables: ValeursVariables = {}): JSONContent[] {
   return segments.map((segment) => {
     if (segment.type === "texte") return { type: "text", text: segment.texte };
     if (segment.type === "blanc") return { type: "blanc", attrs: { indication: segment.indication, valeur: "" } };
+    if (segment.type === "variable") {
+      const valeur = variables[segment.nom]?.trim();
+      return valeur ? { type: "text", text: valeur } : { type: "blanc", attrs: { indication: VARIABLES.find((v) => v.nom === segment.nom)!.ecrit, valeur: "" } };
+    }
     return { type: "choix", attrs: { options: segment.options, multiple: segment.multiple, retenus: [] } };
   });
 }
 
 /** Remplace « @code » par la trame, puis place le focus sur sa première pastille ou son premier blanc. */
-export function insererTrame(editor: Editor, plage: Range, trame: TrameResume): boolean {
+export function insererTrame(editor: Editor, plage: Range, trame: TrameResume, variables: ValeursVariables = {}): boolean {
   let contenu: JSONContent[];
   if (trame.contenu) {
     try {
-      const blocs = adapterAuSchema(contenuVersInsertion(trame.contenu), editor.schema);
+      const blocs = adapterAuSchema(contenuVersInsertion(trame.contenu, variables), editor.schema);
       // Une seule ligne : elle se glisse dans le paragraphe en cours au lieu de le couper.
       contenu = blocs.length === 1 && blocs[0].type === "paragraph" ? (blocs[0].content ?? []) : blocs;
     } catch {
@@ -127,7 +134,7 @@ export function insererTrame(editor: Editor, plage: Range, trame: TrameResume): 
   } else {
     const analyse = analyserModele(trame.modele);
     if (!analyse.ok) return false;
-    contenu = segmentsVersContenu(analyse.segments);
+    contenu = segmentsVersContenu(analyse.segments, variables);
   }
   editor.chain().focus().deleteRange(plage).insertContentAt(plage.from, contenu).run();
   focaliserQuandPret(editor, plage.from);

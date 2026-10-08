@@ -205,6 +205,17 @@ export interface PreferencesAccueil {
   pense_betes: PenseBete[];
 }
 
+/** Le catalogue de trames partagées, dans le dépôt du projet. */
+export const CATALOGUE_TRAMES = "https://github.com/Kiiwom/mon-cabinet-osteo/tree/main/catalogue/trames";
+
+/** Le fichier de trames d'un confrère, pour la démonstration : une trame identique, une sous un code pris, deux nouvelles. */
+const TRAMES_D_UN_CONFRERE: Omit<TrameImportee, "etat">[] = [
+  { code: "lomb", titre: "Douleur lombaire", categorie: "Anamnèse", modele: "Lombalgie {droite | gauche}, depuis [durée]." },
+  { code: "revoir", titre: "Revoir", categorie: "Conseils", modele: "À revoir dans [délai] {si les douleurs persistent | en suivi | si besoin}." },
+  { code: "atm", titre: "Mâchoire", categorie: "Examen", modele: "ATM {+ claquement | ressaut | limitation d’ouverture | sans particularité}." },
+  { code: "pied", titre: "Pied", categorie: "Examen", modele: "Appui {neutre | pronateur | supinateur}, voûte {normale | affaissée | creuse}." },
+];
+
 /** Un patient de l'aperçu d'import : les plus suivis d'abord. */
 export interface ApercuPatientImport {
   nom: string;
@@ -291,8 +302,28 @@ export interface Trame {
   modele: string;
   /** Le texte mis en forme ; absent (null) pour une trame en texte simple. */
   contenu: JSONContent | null;
-  origine: "depart" | "praticien";
+  origine: "depart" | "praticien" | "importee";
   utilisations: number;
+}
+
+/** Une trame d'un fichier d'échange, comparée à celles du cabinet. */
+export interface TrameImportee {
+  code: string;
+  titre: string;
+  categorie: string;
+  modele: string;
+  /** Nouvelle : code libre ; identique : déjà là ; differente : code pris par une autre trame. */
+  etat: "nouvelle" | "identique" | "differente";
+}
+
+/** Une trame du fichier dont le code est pris : garder la sienne, la remplacer, ou l'ajouter sous `lomb-2`. */
+export type ConflitTrames = "garder" | "remplacer" | "renommer";
+
+export interface BilanEchangeTrames {
+  ajoutees: number;
+  remplacees: number;
+  renommees: number;
+  ignorees: number;
 }
 
 export interface SaisieTrame {
@@ -655,6 +686,12 @@ export interface Coeur {
   noterUtilisationTrame(id: string): Promise<void>;
   caractereTrames(): Promise<CaractereTrames>;
   definirCaractereTrames(caractere: CaractereTrames): Promise<CaractereTrames>;
+  /** Fichier d'échange des trames choisies (toutes sans liste) dans Documents › Osteosphere › Exports ; rend son chemin. */
+  exporterTrames(ids: string[] | null): Promise<string>;
+  analyserTrames(chemin: string): Promise<TrameImportee[]>;
+  importerTrames(chemin: string, conflit: ConflitTrames): Promise<BilanEchangeTrames>;
+  /** Ouvre le catalogue de trames partagées du projet dans le navigateur. */
+  ouvrirCatalogueTrames(): Promise<void>;
   /** Pages SVG de la facture d'essai, à la date locale `AAAA-MM-JJ`. */
   apercuFactureEssai(date: string): Promise<string[]>;
   ouvrirFactureEssai(date: string): Promise<void>;
@@ -762,7 +799,7 @@ export interface Coeur {
   sauvegarderMaintenant(): Promise<FichierSauvegarde>;
   listerSauvegardes(): Promise<FichierSauvegarde[]>;
   /** Fenêtre de choix du système ; `null` si le praticien annule. */
-  choisirFichier(sorte: "sauvegarde" | "import"): Promise<string | null>;
+  choisirFichier(sorte: "sauvegarde" | "import" | "trames" | "modele"): Promise<string | null>;
   choisirDossier(): Promise<string | null>;
   /** Déchiffre et vérifie une sauvegarde, sans rien remplacer. */
   apercuRestauration(chemin: string, cle: string): Promise<ApercuSauvegarde>;
@@ -851,6 +888,10 @@ export const coeurTauri: Coeur = {
   noterUtilisationTrame: (id) => appeler("noter_utilisation_trame", { id }),
   caractereTrames: () => appeler("caractere_trames"),
   definirCaractereTrames: (caractere) => appeler("definir_caractere_trames", { caractere }),
+  exporterTrames: (ids) => appeler("exporter_trames", { ids }),
+  analyserTrames: (chemin) => appeler("analyser_trames", { chemin }),
+  importerTrames: (chemin, conflit) => appeler("importer_trames", { chemin, conflit }),
+  ouvrirCatalogueTrames: () => appeler("ouvrir_catalogue_trames"),
   apercuFactureEssai: (date) => appeler("apercu_facture_essai", { date }),
   ouvrirFactureEssai: (date) => appeler("ouvrir_facture_essai", { date }),
   identiteCabinet: () => appeler("identite_cabinet"),
@@ -1322,6 +1363,46 @@ export function creerCoeurDeDemonstration(
       caractere = nouveau;
       return caractere;
     },
+    async exporterTrames(ids) {
+      const nombre = ids ? ids.length : trames.length;
+      if (nombre === 0) throw new Error("Aucune trame à exporter");
+      return `C:\\Users\\Praticien\\Documents\\Osteosphere\\Exports\\Trames Osteosphere ${dateDuJour()}.json`;
+    },
+    async analyserTrames(chemin) {
+      if (!chemin.toLowerCase().endsWith(".json")) throw new Error("Ce fichier n’est pas un fichier de trames Osteosphere");
+      return TRAMES_D_UN_CONFRERE.map((t) => {
+        const existante = trames.find((x) => x.code === t.code);
+        const etat: TrameImportee["etat"] = !existante ? "nouvelle" : existante.modele === t.modele && existante.titre === t.titre && existante.categorie === t.categorie ? "identique" : "differente";
+        return { ...t, etat };
+      });
+    },
+    async importerTrames(chemin, conflit) {
+      const apercu = await coeur.analyserTrames(chemin);
+      const bilan: BilanEchangeTrames = { ajoutees: 0, remplacees: 0, renommees: 0, ignorees: 0 };
+      for (const t of apercu) {
+        const saisie: SaisieTrame = { code: t.code, titre: t.titre, categorie: t.categorie, modele: t.modele, contenu: null };
+        if (t.etat === "identique" || (t.etat === "differente" && conflit === "garder")) {
+          bilan.ignorees += 1;
+          continue;
+        }
+        const existante = trames.find((x) => x.code === t.code);
+        if (t.etat === "differente" && conflit === "remplacer" && existante) {
+          await coeur.enregistrerTrame(existante.id, saisie);
+          bilan.remplacees += 1;
+          continue;
+        }
+        let code = t.code;
+        for (let rang = 2; trames.some((x) => x.code === code); rang += 1) code = `${t.code.slice(0, 20 - String(rang).length - 1)}-${rang}`;
+        const nouvelle = await coeur.enregistrerTrame(null, { ...saisie, code });
+        trames = trames.map((x) => (x.id === nouvelle.id ? { ...x, origine: "importee" } : x));
+        if (t.etat === "nouvelle") bilan.ajoutees += 1;
+        else bilan.renommees += 1;
+      }
+      return bilan;
+    },
+    async ouvrirCatalogueTrames() {
+      window.open(CATALOGUE_TRAMES, "_blank", "noopener");
+    },
     async apercuFactureEssai() {
       throw new Error(SANS_PDF);
     },
@@ -1698,7 +1779,10 @@ export function creerCoeurDeDemonstration(
       return [...sauvegardesDemo].reverse();
     },
     async choisirFichier(sorte) {
-      return sorte === "sauvegarde" ? (sauvegardesDemo[0]?.chemin ?? null) : "C:\\Users\\Praticien\\Téléchargements\\export-mcl.zip";
+      if (sorte === "sauvegarde") return sauvegardesDemo[0]?.chemin ?? null;
+      if (sorte === "trames") return "C:\\Users\\Praticien\\Téléchargements\\Trames d’un confrère.json";
+      if (sorte === "modele") return "C:\\Users\\Praticien\\Téléchargements\\Modèle Sportif.json";
+      return "C:\\Users\\Praticien\\Téléchargements\\export-mcl.zip";
     },
     async choisirDossier() {
       return "D:\\Sauvegardes Osteosphere";
