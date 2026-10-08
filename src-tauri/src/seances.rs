@@ -32,6 +32,12 @@ pub fn lister_seances_periode(etat: State<'_, Arc<EtatCabinet>>, du: String, au:
     etat.avec_base(|base| seances::lister_periode(base, &du, &au).map_err(message))
 }
 
+/// Les dernières séances jusqu'à maintenant (`AAAA-MM-JJTHH:MM`, heure de l'ordinateur), pour l'accueil.
+#[tauri::command]
+pub fn dernieres_seances(etat: State<'_, Arc<EtatCabinet>>, jusqua: String, limite: u32) -> Result<Vec<ResumeSeance>, String> {
+    etat.avec_base(|base| seances::dernieres(base, &jusqua, limite.min(50)).map_err(message))
+}
+
 #[tauri::command]
 pub fn supprimer_seance(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Result<(), String> {
     etat.avec_base(|base| seances::supprimer(base, &id).map_err(message))

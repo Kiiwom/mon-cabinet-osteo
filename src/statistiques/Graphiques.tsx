@@ -4,13 +4,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 export const MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 export const MOIS_LONGS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
-/** Graduations rondes : 0, 1 000, 2 000… */
-export function graduations(maximum: number, nombre = 4): number[] {
+/** Graduations rondes : 0, 1 000, 2 000… ; `pasMinimum` à 1 pour compter des séances ou des patients. */
+export function graduations(maximum: number, nombre = 4, pasMinimum = 0): number[] {
   if (maximum <= 0) return [0, 1];
   const brut = maximum / (nombre + 1);
   const puissance = 10 ** Math.floor(Math.log10(brut));
   // Le plus petit pas rond qui tient en `nombre + 1` intervalles au plus.
-  const pas = [1, 2, 2.5, 5, 10, 20].map((f) => f * puissance).find((p) => Math.ceil(maximum / p) <= nombre + 1) ?? brut;
+  const pas = Math.max(pasMinimum, [1, 2, 2.5, 5, 10, 20].map((f) => f * puissance).find((p) => Math.ceil(maximum / p) <= nombre + 1) ?? brut);
   const fin = Math.ceil(maximum / pas) * pas;
   const valeurs: number[] = [];
   for (let v = 0; v <= fin + pas / 2; v += pas) valeurs.push(Math.round(v * 100) / 100);
@@ -54,18 +54,21 @@ export function ColonnesGroupees({
   format,
   formatAxe,
   description,
+  entiers = false,
 }: {
   categories: { cle: string; libelle: string; detail: string }[];
   series: Serie[];
   format: (v: number) => string;
   formatAxe: (v: number) => string;
   description: string;
+  /** Des nombres entiers (séances, patients) : pas de graduation à 0,5. */
+  entiers?: boolean;
 }) {
   const { ref, largeur } = useLargeur(720);
   const [survol, setSurvol] = useState<number | null>(null);
   const hauteur = 240;
   const marge = { haut: 12, droite: 8, bas: 28, gauche: 64 };
-  const graduation = graduations(Math.max(0, ...series.flatMap((s) => s.valeurs)));
+  const graduation = graduations(Math.max(0, ...series.flatMap((s) => s.valeurs)), 4, entiers ? 1 : 0);
   const maximum = graduation[graduation.length - 1] || 1;
   const largeurUtile = largeur - marge.gauche - marge.droite;
   const hauteurUtile = hauteur - marge.haut - marge.bas;
@@ -195,20 +198,77 @@ export function Repartition({ parts, famille, description, legende }: { parts: P
   );
 }
 
-/** Petites colonnes d'une seule série, avec leurs valeurs : le rythme de la semaine. */
-export function PetitesColonnes({ colonnes }: { colonnes: { libelle: string; valeur: number }[] }) {
-  const maximum = Math.max(1, ...colonnes.map((c) => c.valeur));
+const JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+/** Le créneau nettement le plus chargé : « le mardi à 10 h » ; `null` sans séance ou à égalité. */
+export function creneauLePlusCharge(creneaux: number[][]): { jour: string; heure: number; nombre: number } | null {
+  const cases = creneaux.flatMap((heures, j) => heures.map((nombre, heure) => ({ jour: JOURS_SEMAINE[j].toLocaleLowerCase("fr"), heure, nombre })));
+  const maximum = Math.max(0, ...cases.map((c) => c.nombre));
+  const premiers = cases.filter((c) => c.nombre === maximum);
+  return maximum > 0 && premiers.length === 1 ? premiers[0] : null;
+}
+
+/**
+ * Les séances par jour et par heure de début, en tableau : chaque case est teintée selon son nombre
+ * (le nombre reste écrit), avec les totaux par jour et par heure. Le dimanche n'apparaît que s'il
+ * est travaillé ; les heures vont de la première à la dernière occupée.
+ */
+export function GrilleCreneaux({ creneaux, description }: { creneaux: number[][]; description: string }) {
+  const occupees = creneaux.flatMap((heures) => heures.flatMap((n, h) => (n > 0 ? [h] : [])));
+  if (occupees.length === 0) return <p className="discret">Aucune séance sur cette période.</p>;
+  const premiere = Math.min(...occupees);
+  const derniere = Math.max(...occupees);
+  const heures = Array.from({ length: derniere - premiere + 1 }, (_, i) => premiere + i);
+  const jours = JOURS_SEMAINE.map((libelle, j) => ({ libelle, valeurs: creneaux[j] ?? [] })).filter((j, rang) => rang < 6 || j.valeurs.some((n) => n > 0));
+  const maximum = Math.max(1, ...creneaux.flat());
+  const teinte = (n: number) => {
+    if (n === 0) return undefined;
+    const part = n / maximum;
+    return { background: `rgba(42, 120, 214, ${(0.12 + 0.88 * part).toFixed(3)})`, color: part > 0.5 ? "#ffffff" : undefined };
+  };
   return (
-    <ul className="petites-colonnes">
-      {colonnes.map((c) => (
-        <li key={c.libelle} title={`${c.libelle} : ${c.valeur}`}>
-          <strong>{c.valeur}</strong>
-          <span className="petite-colonne-piste">
-            <span className="petite-colonne" style={{ height: `${(c.valeur / maximum) * 100}%` }} />
-          </span>
-          <span className="discret">{c.libelle.slice(0, 3)}.</span>
-        </li>
-      ))}
-    </ul>
+    <div className="defilement-horizontal">
+      <table className="grille-creneaux">
+        <caption className="visuellement-cache">{description}</caption>
+        <thead>
+          <tr>
+            <td />
+            {heures.map((h) => (
+              <th key={h} scope="col">
+                {h} h
+              </th>
+            ))}
+            <th scope="col" className="total-creneaux">
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {jours.map((j) => (
+            <tr key={j.libelle}>
+              <th scope="row">{j.libelle}</th>
+              {heures.map((h) => {
+                const n = j.valeurs[h] ?? 0;
+                return (
+                  <td key={h} style={teinte(n)} title={`${j.libelle} à ${h} h : ${n} séance${n > 1 ? "s" : ""}`}>
+                    {n > 0 ? n : <span className="visuellement-cache">0</span>}
+                  </td>
+                );
+              })}
+              <td className="total-creneaux">{j.valeurs.reduce((t, n) => t + n, 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">Total</th>
+            {heures.map((h) => (
+              <td key={h}>{creneaux.reduce((t, jour) => t + (jour[h] ?? 0), 0)}</td>
+            ))}
+            <td className="total-creneaux">{occupees.length ? creneaux.flat().reduce((t, n) => t + n, 0) : 0}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }

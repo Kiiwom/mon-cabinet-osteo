@@ -15,6 +15,25 @@ export interface MoisStatistiques {
   chiffre_precedent: number;
   seances: number;
   seances_precedent: number;
+  /** Premières séances du mois, les autres étant des suivis. */
+  premieres: number;
+  /** Patients dont la toute première séance tombe dans le mois. */
+  nouveaux: number;
+  nouveaux_precedent: number;
+}
+
+export interface SemaineStatistiques {
+  /** Le lundi, `AAAA-MM-JJ`, parfois avant le début de la période. */
+  lundi: string;
+  seances: number;
+  premieres: number;
+}
+
+/** Patients suivis selon leur dernière séance : dans l'année, il y a un à deux ans, au-delà. */
+export interface Recence {
+  actifs: number;
+  dormants: number;
+  inactifs: number;
 }
 
 export interface Compte {
@@ -38,7 +57,7 @@ export interface Statistiques {
   age_moyen: number | null;
   ages: Compte[];
   sexes: { femmes: number; hommes: number; non_renseigne: number };
-  recence: { moins_6_mois: number; de_6_a_12_mois: number; de_1_a_2_ans: number; plus_2_ans: number };
+  recence: Recence;
   seances_par_patient: number;
   premieres_seances: number;
   actes_gratuits: number;
@@ -47,6 +66,9 @@ export interface Statistiques {
   patients_suivis: { id: string; nom: string; prenom: string; seances: number }[];
   douleur: { seances: number; avant: number; apres: number } | null;
   jours: Compte[];
+  /** Séances par jour (du lundi au dimanche) et par heure de début (de 0 à 23 h). */
+  creneaux: number[][];
+  par_semaine: SemaineStatistiques[];
 }
 
 const TRANCHES: [number, string][] = [
@@ -115,6 +137,7 @@ export function calculerStatistiques(
     if (!premieres.has(s.patient_id) || d < premieres.get(s.patient_id)!) premieres.set(s.patient_id, d);
   }
   const nouveaux = (a: string, b: string) => [...premieres.values()].filter((d) => dans(d, a, b)).length;
+  const nouveauxDuMois = (cle: string, a: string, b: string) => [...premieres.values()].filter((d) => dans(d, a, b) && d.startsWith(cle)).length;
 
   const parMois: MoisStatistiques[] = [];
   let [annee, mois] = du.split("-").map(Number);
@@ -128,6 +151,9 @@ export function calculerStatistiques(
       chiffre_precedent: somme(caP.filter((x) => x.date.startsWith(cleP))),
       seances: liste.filter((s) => s.debut.startsWith(cle)).length,
       seances_precedent: listeP.filter((s) => s.debut.startsWith(cleP)).length,
+      premieres: liste.filter((s) => s.debut.startsWith(cle) && s.type === "premiere").length,
+      nouveaux: nouveauxDuMois(cle, du, au),
+      nouveaux_precedent: nouveauxDuMois(cleP, duP, auP),
     });
     [annee, mois] = mois === 12 ? [annee + 1, 1] : [annee, mois + 1];
   }
@@ -157,7 +183,9 @@ export function calculerStatistiques(
     }
     ages.set(tranche, (ages.get(tranche) ?? 0) + 1);
   }
-  const recence = { moins_6_mois: 0, de_6_a_12_mois: 0, de_1_a_2_ans: 0, plus_2_ans: 0 };
+  const recence: Recence = { actifs: 0, dormants: 0, inactifs: 0 };
+  const unAn = unAnAvant(au);
+  const deuxAns = unAnAvant(unAn);
   for (const p of donnees.patients.filter((p) => !p.archive && !p.decede)) {
     const derniere = vivantes
       .filter((s) => s.patient_id === p.id && s.debut.slice(0, 10) <= au)
@@ -165,11 +193,9 @@ export function calculerStatistiques(
       .sort()
       .pop();
     if (!derniere) continue;
-    const ecart = jours(au) - jours(derniere);
-    if (ecart < 183) recence.moins_6_mois += 1;
-    else if (ecart < 365) recence.de_6_a_12_mois += 1;
-    else if (ecart < 730) recence.de_1_a_2_ans += 1;
-    else recence.plus_2_ans += 1;
+    if (derniere >= unAn) recence.actifs += 1;
+    else if (derniere >= deuxAns) recence.dormants += 1;
+    else recence.inactifs += 1;
   }
   const villes = new Map<string, number>();
   for (const p of actifs) villes.set(p.ville.trim(), (villes.get(p.ville.trim()) ?? 0) + 1);
@@ -184,7 +210,21 @@ export function calculerStatistiques(
   }
   const notees = liste.filter((s) => s.douleur_avant !== null && s.douleur_apres !== null);
   const parJour = [0, 0, 0, 0, 0, 0, 0];
-  for (const s of liste) parJour[(jours(s.debut.slice(0, 10)) + 3) % 7] += 1;
+  const creneaux = JOURS.map(() => Array<number>(24).fill(0));
+  const lundi = (d: string) => jours(d) - ((jours(d) + 3) % 7);
+  const semaines = new Map<number, { seances: number; premieres: number }>();
+  for (const s of liste) {
+    const jour = (jours(s.debut.slice(0, 10)) + 3) % 7;
+    parJour[jour] += 1;
+    const heure = Number(s.debut.slice(11, 13));
+    if (Number.isInteger(heure) && heure >= 0 && heure < 24) creneaux[jour][heure] += 1;
+    const semaine = semaines.get(lundi(s.debut.slice(0, 10))) ?? { seances: 0, premieres: 0 };
+    semaines.set(lundi(s.debut.slice(0, 10)), { seances: semaine.seances + 1, premieres: semaine.premieres + (s.type === "premiere" ? 1 : 0) });
+  }
+  const parSemaine: SemaineStatistiques[] = [];
+  for (let l = lundi(du); l <= lundi(au); l += 7) {
+    parSemaine.push({ lundi: new Date(l * 86_400_000).toISOString().slice(0, 10), ...(semaines.get(l) ?? { seances: 0, premieres: 0 }) });
+  }
 
   return {
     du,
@@ -224,6 +264,8 @@ export function calculerStatistiques(
         }
       : null,
     jours: JOURS.map((libelle, i) => ({ libelle, nombre: parJour[i] })),
+    creneaux,
+    par_semaine: parSemaine,
   };
 }
 

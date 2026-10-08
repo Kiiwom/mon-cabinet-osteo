@@ -578,6 +578,16 @@ pub fn lister_a_facturer(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance>
     )
 }
 
+/// Les dernières séances commencées au plus tard à `jusqua` (`AAAA-MM-JJTHH:MM`, heure locale), de
+/// la plus récente à la plus ancienne, corbeille exclue.
+pub fn dernieres(base: &Base, jusqua: &str, limite: u32) -> Result<Vec<ResumeSeance>, ErreurSeance> {
+    lister_ou(
+        base,
+        "s.id IN (SELECT id FROM seances WHERE supprimee_le IS NULL AND debut <= ?1 ORDER BY debut DESC LIMIT ?2)",
+        &[&jusqua, &limite],
+    )
+}
+
 pub fn corbeille(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance> {
     lister_ou(base, "s.supprimee_le IS NOT NULL", &[])
 }
@@ -746,5 +756,11 @@ mod tests {
         }
         let octobre = lister_periode(&c.base, "2026-10-01", "2026-10-31").unwrap();
         assert_eq!(octobre.iter().map(|s| s.debut.as_str()).collect::<Vec<_>>(), ["2026-10-31T19:30", "2026-10-01T08:45"]);
+
+        // Les dernières, sans celles qui n'ont pas encore eu lieu ni la corbeille.
+        let jetee = creer(&c.base, &c.patient, &saisie(&c, "2026-10-31T20:00")).unwrap();
+        supprimer(&c.base, &jetee.id).unwrap();
+        let dernieres = dernieres(&c.base, "2026-10-31T20:00", 2).unwrap();
+        assert_eq!(dernieres.iter().map(|s| s.debut.as_str()).collect::<Vec<_>>(), ["2026-10-31T19:30", "2026-10-01T08:45"]);
     }
 }

@@ -133,6 +133,7 @@ pub fn run() {
             seances::enregistrer_seance,
             seances::lister_seances_patient,
             seances::lister_seances_periode,
+            seances::dernieres_seances,
             seances::supprimer_seance,
             seances::restaurer_seance,
             seances::corbeille_seances,

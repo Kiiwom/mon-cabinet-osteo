@@ -17,6 +17,27 @@ describe("accueil", () => {
     const attente = screen.getByRole("region", { name: "Paiements en attente" });
     expect(within(attente).getByRole("link", { name: "Voir les factures" })).toHaveAttribute("href", "#/facturation/en-attente");
     expect(screen.getByRole("region", { name: "Sauvegarde à jour" })).toHaveTextContent("Dernière sauvegarde le");
+
+    // Sous les séances du jour, celles des jours d'avant.
+    const dernieres = screen.getByRole("region", { name: "Dernières séances" });
+    const lignes = await within(dernieres).findAllByRole("link");
+    expect(lignes.map((l) => l.textContent)).toEqual([
+      "SamediLouis PetitBilan postural, scoliose à surveiller",
+      "12 sept.Camille MartinLombalgie aiguë après port de charge",
+      "3 juil.Camille MartinCervicalgie, céphalées de tension",
+      "18 févr.Camille MartinBilan de prévention annuel",
+      "5 mars 2025Martine AubertGonalgie droite",
+    ]);
+    expect(lignes[0]).toHaveAttribute("href", "#/seances/seance-5");
+  });
+
+  it("montre aussi les séances du jour dans les dernières quand leur bloc est masqué", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    await coeur.enregistrerAccueil({ ...(await coeur.accueil()), masques: ["seances_du_jour"] });
+    render(<Accueil coeur={coeur} cabinet={CABINET} aujourdhui={new Date(2026, 9, 7)} />);
+    const dernieres = await screen.findByRole("region", { name: "Dernières séances" });
+    expect(await within(dernieres).findByRole("link", { name: /^HierThomas Girard/ })).toBeInTheDocument();
+    expect(within(dernieres).getByRole("link", { name: "Toutes les séances" })).toHaveAttribute("href", "#/seances");
   });
 
   it("ajoute et retire des pense-bêtes, masque un bloc", async () => {
@@ -24,9 +45,21 @@ describe("accueil", () => {
     render(<Accueil coeur={coeur} cabinet={CABINET} aujourdhui={new Date(2026, 9, 7)} />);
     const notes = await screen.findByRole("region", { name: "Pense-bêtes" });
     fireEvent.change(within(notes).getByLabelText("Nouveau pense-bête"), { target: { value: "Rappeler le fournisseur de table" } });
+    const couleurs = within(notes).getByRole("radiogroup", { name: "Couleur du nouveau pense-bête" });
+    expect(within(couleurs).getByRole("radio", { name: "Jaune" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(within(couleurs).getByRole("radio", { name: "Vert" }));
     fireEvent.click(within(notes).getByRole("button", { name: "Ajouter" }));
     expect(await within(notes).findByText("Rappeler le fournisseur de table")).toBeInTheDocument();
-    expect((await coeur.accueil()).pense_betes[0]).toMatchObject({ texte: "Rappeler le fournisseur de table", le: "2026-10-07" });
+    expect(within(notes).getByText("Rappeler le fournisseur de table").closest("li")).toHaveAttribute("data-note", "vert");
+    expect((await coeur.accueil()).pense_betes[0]).toMatchObject({ texte: "Rappeler le fournisseur de table", le: "2026-10-07", couleur: "vert" });
+
+    // Modifié : texte et couleur.
+    fireEvent.click(within(notes).getByRole("button", { name: "Modifier : Renouveler l’assurance RCP avant le 30 novembre" }));
+    fireEvent.change(within(notes).getByLabelText("Texte du pense-bête"), { target: { value: "Renouveler l’assurance RCP avant le 15 novembre" } });
+    fireEvent.click(within(within(notes).getByRole("radiogroup", { name: "Couleur du pense-bête" })).getByRole("radio", { name: "Violet" }));
+    fireEvent.click(within(notes).getByRole("button", { name: "Enregistrer" }));
+    expect(await within(notes).findByText("Renouveler l’assurance RCP avant le 15 novembre", { selector: "p" })).toBeInTheDocument();
+    expect((await coeur.accueil()).pense_betes[2]).toMatchObject({ id: "pense-bete-b", couleur: "violet", le: "2026-09-15" });
     fireEvent.click(within(notes).getByRole("button", { name: "Fait : Commander des draps d’examen" }));
     await within(notes).findByText("Rappeler le fournisseur de table");
     expect(within(notes).queryByText("Commander des draps d’examen")).not.toBeInTheDocument();

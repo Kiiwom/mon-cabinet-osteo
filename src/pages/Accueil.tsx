@@ -7,6 +7,9 @@ import {
   type Coeur,
   type EtatSauvegardes,
   type IdentiteCabinet,
+  COULEURS_PENSE_BETES,
+  type CouleurPenseBete,
+  type PenseBete,
   type PreferencesAccueil,
   type ResumePatient,
   type ResumeSeance,
@@ -30,6 +33,7 @@ export function deOuD(mot: string): string {
 
 export const BLOCS: { cle: BlocAccueil; titre: string }[] = [
   { cle: "seances_du_jour", titre: "Séances du jour" },
+  { cle: "dernieres_seances", titre: "Dernières séances" },
   { cle: "a_facturer", titre: "À facturer" },
   { cle: "statistiques", titre: "Chiffres du mois" },
   { cle: "pense_betes", titre: "Pense-bêtes" },
@@ -91,49 +95,129 @@ function variation(valeur: number, precedent: number, format: (v: number) => str
   return `${ecart > 0 ? "+" : "−"}${format(Math.abs(ecart))} (${ecart > 0 ? "+" : "−"}${Math.abs(pourcent)} %) sur ${annee} à date`;
 }
 
+const NOMS_COULEURS: Record<CouleurPenseBete, string> = { jaune: "Jaune", vert: "Vert", bleu: "Bleu", rose: "Rose", violet: "Violet", orange: "Orange" };
+
+/** Les six couleurs d'un pense-bête, au clavier comme à la souris. */
+function ChoixCouleur({ couleur, changer, libelle }: { couleur: CouleurPenseBete; changer: (c: CouleurPenseBete) => void; libelle: string }) {
+  return (
+    <div className="choix-couleur-note" role="radiogroup" aria-label={libelle}>
+      {COULEURS_PENSE_BETES.map((c) => (
+        <button
+          key={c}
+          type="button"
+          role="radio"
+          aria-checked={couleur === c}
+          aria-label={NOMS_COULEURS[c]}
+          title={NOMS_COULEURS[c]}
+          className="pastille-note"
+          data-note={c}
+          onClick={() => changer(c)}
+        />
+      ))}
+    </div>
+  );
+}
+
 function PenseBetes({ preferences, enregistrer, aujourdhui }: { preferences: PreferencesAccueil; enregistrer: (p: PreferencesAccueil) => Promise<boolean>; aujourdhui: Date }) {
   const id = useId();
   const [texte, setTexte] = useState("");
+  const [couleur, setCouleur] = useState<CouleurPenseBete>("jaune");
+  const [edition, setEdition] = useState<PenseBete | null>(null);
+  const notes = preferences.pense_betes;
   const ajouter = (e: FormEvent) => {
     e.preventDefault();
     if (!texte.trim()) return;
-    void enregistrer({ ...preferences, pense_betes: [{ id: "", texte, le: iso(aujourdhui) }, ...preferences.pense_betes] }).then((ok) => ok && setTexte(""));
+    void enregistrer({ ...preferences, pense_betes: [{ id: "", texte, le: iso(aujourdhui), couleur }, ...notes] }).then((ok) => ok && setTexte(""));
+  };
+  const modifier = (e: FormEvent) => {
+    e.preventDefault();
+    if (!edition || !edition.texte.trim()) return;
+    void enregistrer({ ...preferences, pense_betes: notes.map((n) => (n.id === edition.id ? edition : n)) }).then((ok) => ok && setEdition(null));
   };
   return (
     <>
       <form className="ajout-pense-bete" onSubmit={ajouter}>
-        <label htmlFor={`${id}-texte`} className="visuellement-cache">
-          Nouveau pense-bête
-        </label>
-        <input id={`${id}-texte`} value={texte} maxLength={300} placeholder="Nouveau pense-bête" onChange={(e) => setTexte(e.target.value)} />
-        <button type="submit" className="bouton bouton-petit" disabled={!texte.trim()}>
-          Ajouter
-        </button>
+        <div className="rangee-ajout-note">
+          <label htmlFor={`${id}-texte`} className="visuellement-cache">
+            Nouveau pense-bête
+          </label>
+          <input id={`${id}-texte`} value={texte} maxLength={300} placeholder="Nouveau pense-bête" onChange={(e) => setTexte(e.target.value)} />
+          <button type="submit" className="bouton bouton-petit" disabled={!texte.trim()}>
+            Ajouter
+          </button>
+        </div>
+        <ChoixCouleur couleur={couleur} changer={setCouleur} libelle="Couleur du nouveau pense-bête" />
       </form>
-      {preferences.pense_betes.length === 0 ? (
+      {notes.length === 0 ? (
         <p className="discret">Rien à se rappeler pour l’instant.</p>
       ) : (
-        <ul className="liste-accueil">
-          {preferences.pense_betes.map((p) => (
-            <li key={p.id}>
-              <span className="pile-serree">
-                <span>{p.texte}</span>
-                <span className="discret">{dateCourte(p.le)}</span>
-              </span>
-              <button
-                type="button"
-                className="bouton bouton-petit"
-                aria-label={`Fait : ${p.texte}`}
-                onClick={() => void enregistrer({ ...preferences, pense_betes: preferences.pense_betes.filter((x) => x.id !== p.id) })}
-              >
-                Fait
-              </button>
-            </li>
-          ))}
+        <ul className="pense-betes">
+          {notes.map((p) =>
+            edition?.id === p.id ? (
+              <li key={p.id} className="pense-bete" data-note={edition.couleur}>
+                <form className="pile-serree" onSubmit={modifier}>
+                  <label htmlFor={`${id}-${p.id}`} className="visuellement-cache">
+                    Texte du pense-bête
+                  </label>
+                  <textarea
+                    id={`${id}-${p.id}`}
+                    rows={3}
+                    maxLength={300}
+                    value={edition.texte}
+                    autoFocus
+                    onChange={(e) => setEdition({ ...edition, texte: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setEdition(null);
+                    }}
+                  />
+                  <ChoixCouleur couleur={edition.couleur} changer={(c) => setEdition({ ...edition, couleur: c })} libelle="Couleur du pense-bête" />
+                  <div className="rangee">
+                    <button type="submit" className="bouton bouton-petit" disabled={!edition.texte.trim()}>
+                      Enregistrer
+                    </button>
+                    <button type="button" className="lien-bouton" onClick={() => setEdition(null)}>
+                      Annuler
+                    </button>
+                  </div>
+                </form>
+              </li>
+            ) : (
+              <li key={p.id} className="pense-bete" data-note={p.couleur}>
+                <p>{p.texte}</p>
+                <div className="pied-pense-bete">
+                  <span className="discret">{dateCourte(p.le)}</span>
+                  <span className="rangee">
+                    <button type="button" className="lien-bouton" aria-label={`Modifier : ${p.texte}`} onClick={() => setEdition(p)}>
+                      Modifier
+                    </button>
+                    <button
+                      type="button"
+                      className="bouton bouton-petit"
+                      aria-label={`Fait : ${p.texte}`}
+                      onClick={() => void enregistrer({ ...preferences, pense_betes: notes.filter((x) => x.id !== p.id) })}
+                    >
+                      Fait
+                    </button>
+                  </span>
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </>
   );
+}
+
+/** « Hier », « lundi », « 28 sept. » : quand a eu lieu une séance récente. */
+export function quandEnBref(debut: string, aujourdhui: Date): string {
+  const [a, m, j] = debut.slice(0, 10).split("-").map(Number);
+  const jour = new Date(a, m - 1, j);
+  const ecart = Math.round((new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate()).getTime() - jour.getTime()) / 86_400_000);
+  if (ecart === 0) return "Aujourd’hui";
+  if (ecart === 1) return "Hier";
+  if (ecart > 1 && ecart < 7) return JOURS[jour.getDay()].replace(/^./, (c) => c.toUpperCase());
+  return dateCourte(debut.slice(0, 10)).replace(new RegExp(` ${aujourdhui.getFullYear()}$`), "");
 }
 
 /** Nouvelle séance depuis l'accueil : le patient se choisit au clavier, la séance s'ouvre aussitôt. */
@@ -228,6 +312,7 @@ export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Co
   const [infos, setInfos] = useState<InfosApplication | null>(null);
   const [preferences, setPreferences] = useState<PreferencesAccueil | null>(null);
   const [duJour, setDuJour] = useState<ResumeSeance[]>([]);
+  const [dernieres, setDernieres] = useState<ResumeSeance[]>([]);
   const [aFacturer, setAFacturer] = useState<ResumeSeance[]>([]);
   const [stats, setStats] = useState<Statistiques | null>(null);
   const [attente, setAttente] = useState<ResumeFacture[]>([]);
@@ -252,6 +337,9 @@ export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Co
     const signaler = (e: Error) => actif && setErreur(e.message);
     coeur.accueil().then(garder(setPreferences), signaler);
     coeur.listerSeancesPeriode(jour, jour).then(garder((s: ResumeSeance[]) => setDuJour([...s].sort((a, b) => a.debut.localeCompare(b.debut)))), signaler);
+    const maintenant = new Date();
+    const heure = jour === iso(maintenant) ? `${String(maintenant.getHours()).padStart(2, "0")}:${String(maintenant.getMinutes()).padStart(2, "0")}` : "23:59";
+    coeur.dernieresSeances(`${jour}T${heure}`, 30).then(garder(setDernieres), signaler);
     coeur.seancesAFacturer().then(garder((s: ResumeSeance[]) => setAFacturer(s.filter((x) => !x.facture))), signaler);
     coeur.statistiques(debutDuMois, jour, "encaissement").then(garder(setStats), signaler);
     coeur.facturesEnAttente().then(garder(setAttente), signaler);
@@ -319,6 +407,35 @@ export function Accueil({ coeur, cabinet, aujourdhui = new Date() }: { coeur: Co
         )}
       </Bloc>,
     );
+  if (visible("dernieres_seances")) {
+    // Sous les séances du jour, celles des jours d'avant ; seules, toutes jusqu'à maintenant.
+    const avecLeJour = visible("seances_du_jour");
+    const recentes = dernieres.filter((s) => !avecLeJour || s.debut.slice(0, 10) < jour).slice(0, 6);
+    gauche.push(
+      <Bloc key="dernieres_seances" id={`${id}-dernieres`} titre="Dernières séances" lien={avecLeJour ? undefined : { href: adresse("seances"), texte: "Toutes les séances" }}>
+        {recentes.length === 0 ? (
+          <p className="discret">Aucune séance passée pour l’instant.</p>
+        ) : (
+          <ul className="liste-accueil">
+            {recentes.map((s) => (
+              <li key={s.id}>
+                <a href={adresse("seances", s.id)} className="ligne-accueil">
+                  <strong className="quand-accueil">{quandEnBref(s.debut, aujourdhui)}</strong>
+                  <span className="pile-serree">
+                    <span>
+                      {s.patient_prenom} {s.patient_nom}
+                    </span>
+                    {s.motif && <span className="discret">{s.motif}</span>}
+                  </span>
+                </a>
+                <EtatFacturation seance={s} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Bloc>,
+    );
+  }
   if (visible("a_facturer"))
     gauche.push(
       <Bloc key="a_facturer" id={`${id}-facturer`} titre="À facturer" lien={aFacturer.length ? { href: adresse("facturation", "a-facturer"), texte: `Facturer les ${aFacturer.length}` } : undefined}>

@@ -185,7 +185,10 @@ export interface AjoutDocuments {
   erreurs: string[];
 }
 
-export type BlocAccueil = "seances_du_jour" | "a_facturer" | "statistiques" | "pense_betes" | "en_attente" | "anniversaires" | "sauvegarde";
+export type BlocAccueil = "seances_du_jour" | "dernieres_seances" | "a_facturer" | "statistiques" | "pense_betes" | "en_attente" | "anniversaires" | "sauvegarde";
+
+export const COULEURS_PENSE_BETES = ["jaune", "vert", "bleu", "rose", "violet", "orange"] as const;
+export type CouleurPenseBete = (typeof COULEURS_PENSE_BETES)[number];
 
 export interface PenseBete {
   /** Vide pour un nouveau pense-bête : le cœur lui en donne un. */
@@ -193,6 +196,7 @@ export interface PenseBete {
   texte: string;
   /** `AAAA-MM-JJ`. */
   le: string;
+  couleur: CouleurPenseBete;
 }
 
 export interface PreferencesAccueil {
@@ -705,6 +709,8 @@ export interface Coeur {
   listerSeancesPatient(patientId: string): Promise<ResumeSeance[]>;
   /** Dates comprises, `AAAA-MM-JJ`. */
   listerSeancesPeriode(du: string, au: string): Promise<ResumeSeance[]>;
+  /** Les `limite` dernières séances commencées au plus tard à `jusqua` (`AAAA-MM-JJTHH:MM`), la plus récente d'abord. */
+  dernieresSeances(jusqua: string, limite: number): Promise<ResumeSeance[]>;
   supprimerSeance(id: string): Promise<void>;
   restaurerSeance(id: string): Promise<Seance>;
   corbeilleSeances(): Promise<ResumeSeance[]>;
@@ -887,6 +893,7 @@ export const coeurTauri: Coeur = {
   enregistrerSeance: (id, saisie) => appeler("enregistrer_seance", { id, saisie }),
   listerSeancesPatient: (patientId) => appeler("lister_seances_patient", { patientId }),
   listerSeancesPeriode: (du, au) => appeler("lister_seances_periode", { du, au }),
+  dernieresSeances: (jusqua, limite) => appeler("dernieres_seances", { jusqua, limite }),
   supprimerSeance: (id) => appeler("supprimer_seance", { id }),
   restaurerSeance: (id) => appeler("restaurer_seance", { id }),
   corbeilleSeances: () => appeler("corbeille_seances"),
@@ -1063,8 +1070,8 @@ export function creerCoeurDeDemonstration(
     masques: [],
     pense_betes: exemples
       ? [
-          { id: "pense-bete-a", texte: "Commander des draps d’examen", le: "2026-10-02" },
-          { id: "pense-bete-b", texte: "Renouveler l’assurance RCP avant le 30 novembre", le: "2026-09-15" },
+          { id: "pense-bete-a", texte: "Commander des draps d’examen", le: "2026-10-02", couleur: "jaune" },
+          { id: "pense-bete-b", texte: "Renouveler l’assurance RCP avant le 30 novembre", le: "2026-09-15", couleur: "rose" },
         ]
       : [],
   };
@@ -1585,6 +1592,9 @@ export function creerCoeurDeDemonstration(
     async listerSeancesPeriode(du, au) {
       return listerDemo((s) => s.supprimee_le === null && s.debut.slice(0, 10) >= du && s.debut.slice(0, 10) <= au);
     },
+    async dernieresSeances(jusqua, limite) {
+      return listerDemo((s) => s.supprimee_le === null && s.debut <= jusqua).slice(0, limite);
+    },
     async supprimerSeance(id) {
       trouverSeance(id);
       if (facturation.seanceFacturee(id)) throw new Error("Cette séance a été facturée : elle reste dans le dossier, avec ses factures");
@@ -1858,6 +1868,7 @@ export function creerCoeurDeDemonstration(
     },
     async enregistrerAccueil(nouveau) {
       if (nouveau.pense_betes.some((p) => !p.texte.trim())) throw new Error("Un pense-bête vide ne sert à rien.");
+      if (nouveau.pense_betes.some((p) => !COULEURS_PENSE_BETES.includes(p.couleur))) throw new Error("Couleur de pense-bête inconnue.");
       accueilDemo = {
         masques: [...new Set(nouveau.masques)],
         pense_betes: nouveau.pense_betes.map((p) => ({ ...p, texte: p.texte.trim().split(/\s+/).join(" "), id: p.id || `pense-bete-${(compteur += 1)}` })),

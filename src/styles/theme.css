@@ -3436,27 +3436,24 @@ kbd {
   --part: #a8a39a;
 }
 
-[data-famille="recence"][data-part="moins_6_mois"] {
+[data-famille="recence"][data-part="actifs"] {
   --part: #184f95;
 }
 
-[data-famille="recence"][data-part="de_6_a_12_mois"] {
-  --part: #2a78d6;
-}
-
-[data-famille="recence"][data-part="de_1_a_2_ans"] {
+[data-famille="recence"][data-part="dormants"] {
   --part: #5598e7;
 }
 
-[data-famille="recence"][data-part="plus_2_ans"] {
-  --part: #86b6ef;
+[data-famille="recence"][data-part="inactifs"] {
+  --part: #b9d3f4;
 }
 
 /* Texte blanc illisible sur les teintes claires : il passe à l'encre. */
 [data-famille="moyen"][data-part="especes"] .segment-texte,
 [data-famille="moyen"][data-part="virement"] .segment-texte,
 [data-famille="moyen"][data-part="autre"] .segment-texte,
-[data-famille="recence"][data-part="plus_2_ans"] .segment-texte,
+[data-famille="recence"][data-part="dormants"] .segment-texte,
+[data-famille="recence"][data-part="inactifs"] .segment-texte,
 [data-famille="sexe"][data-part="non_renseigne"] .segment-texte {
   color: var(--encre);
 }
@@ -3490,39 +3487,6 @@ kbd {
 
 .douleur-moyenne strong {
   font-size: 26px;
-}
-
-.petites-colonnes {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  text-align: center;
-  font-size: 13px;
-}
-
-.petites-colonnes li {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.petite-colonne-piste {
-  display: flex;
-  align-items: flex-end;
-  width: 20px;
-  height: 70px;
-}
-
-.petite-colonne {
-  display: block;
-  width: 100%;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
-  background: #2a78d6;
 }
 
 .classement {
@@ -3751,6 +3715,12 @@ kbd {
 }
 
 .ajout-pense-bete {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rangee-ajout-note {
   display: flex;
   gap: 8px;
 }
@@ -4316,4 +4286,179 @@ select.saisie-courte {
 .choix-seances {
   max-height: 260px;
   overflow-y: auto;
+}
+
+/* Lot 5 : pense-bêtes colorés, dernières séances, activité, fidélité, jours et heures. */
+.pense-betes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.pense-bete {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid var(--note-bord);
+  border-radius: 10px;
+  background: var(--note-fond);
+  color: var(--encre);
+  font-size: 14px;
+}
+
+.pense-bete p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pense-bete textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 6px 8px;
+  border: 1px solid var(--note-bord);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--encre);
+  font: inherit;
+  resize: vertical;
+}
+
+.pied-pense-bete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pense-bete .discret {
+  color: var(--encre-2);
+}
+
+.pense-bete .bouton {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+[data-note="jaune"] {
+  --note-fond: #fff3c2;
+  --note-bord: #ecd27a;
+}
+
+[data-note="vert"] {
+  --note-fond: #ddf1e4;
+  --note-bord: #9fd3b2;
+}
+
+[data-note="bleu"] {
+  --note-fond: #dde9fb;
+  --note-bord: #a5c3ee;
+}
+
+[data-note="rose"] {
+  --note-fond: #fbe0ea;
+  --note-bord: #eeaac3;
+}
+
+[data-note="violet"] {
+  --note-fond: #e9e4f8;
+  --note-bord: #bcaee8;
+}
+
+[data-note="orange"] {
+  --note-fond: #fde3cf;
+  --note-bord: #f1b588;
+}
+
+.choix-couleur-note {
+  display: flex;
+  gap: 6px;
+}
+
+.pastille-note {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--note-bord);
+  border-radius: 50%;
+  background: var(--note-fond);
+  cursor: pointer;
+}
+
+.pastille-note[aria-checked="true"] {
+  border-color: var(--encre);
+  box-shadow: 0 0 0 2px var(--fond-carte) inset;
+}
+
+.pastille-note:focus-visible {
+  outline: 2px solid var(--accent-fonce);
+  outline-offset: 2px;
+}
+
+.quand-accueil {
+  flex: none;
+  min-width: 88px;
+  font-variant-numeric: tabular-nums;
+}
+
+.resume-activite {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--encre-2);
+  font-size: 14px;
+}
+
+.defilement-tableau {
+  max-height: 380px;
+  overflow: auto;
+}
+
+.note-recence {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.grille-creneaux {
+  border-collapse: separate;
+  border-spacing: 3px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.grille-creneaux th {
+  padding: 2px 6px;
+  font-weight: 600;
+  color: var(--encre-2);
+  white-space: nowrap;
+}
+
+.grille-creneaux tbody th,
+.grille-creneaux tfoot th {
+  text-align: left;
+}
+
+.grille-creneaux td {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--fond);
+  text-align: center;
+  color: var(--encre);
+}
+
+.grille-creneaux tfoot td,
+.grille-creneaux .total-creneaux {
+  background: none;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+
+.grille-creneaux {
+  width: 100%;
 }

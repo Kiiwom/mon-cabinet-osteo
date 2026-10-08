@@ -22,7 +22,7 @@ const AGES: { valeur: FiltreAge; libelle: string; garder: (ans: number) => boole
   { valeur: "senior", libelle: "65 ans et plus", garder: (ans) => ans >= 65 },
 ];
 
-type FiltreVenue = "toutes" | "mois" | "trimestre" | "annee" | "plus_annee" | "jamais";
+export type FiltreVenue = "toutes" | "mois" | "trimestre" | "annee" | "plus_annee" | "dormants" | "inactifs" | "jamais";
 
 /** La date d'il y a `mois` mois, `AAAA-MM-JJ`. */
 function ilYa(mois: number, aujourdhui: Date): string {
@@ -34,8 +34,10 @@ export const VENUES: { valeur: FiltreVenue; libelle: string; garder: (derniere: 
   { valeur: "toutes", libelle: "Peu importe", garder: () => true },
   { valeur: "mois", libelle: "Dans le mois", garder: (d, a) => d !== null && d >= ilYa(1, a) },
   { valeur: "trimestre", libelle: "Dans les 3 mois", garder: (d, a) => d !== null && d >= ilYa(3, a) },
-  { valeur: "annee", libelle: "Dans l’année", garder: (d, a) => d !== null && d >= ilYa(12, a) },
+  { valeur: "annee", libelle: "Dans l’année (actifs)", garder: (d, a) => d !== null && d >= ilYa(12, a) },
   { valeur: "plus_annee", libelle: "Il y a plus d’un an", garder: (d, a) => d !== null && d < ilYa(12, a) },
+  { valeur: "dormants", libelle: "Il y a un à deux ans (dormants)", garder: (d, a) => d !== null && d < ilYa(12, a) && d >= ilYa(24, a) },
+  { valeur: "inactifs", libelle: "Il y a plus de deux ans (inactifs)", garder: (d, a) => d !== null && d < ilYa(24, a) },
   { valeur: "jamais", libelle: "Jamais venus", garder: (d) => d === null },
 ];
 
@@ -120,7 +122,10 @@ function telephone(p: ResumePatient): string {
   return p.portable || p.fixe;
 }
 
-export function PagePatients({ coeur }: { coeur: Coeur }) {
+/** Les patients actifs, dormants ou inactifs des statistiques : `#/patients/recence/dormants`. */
+export const RECENCE_VERS_FILTRE: Record<string, FiltreVenue> = { actifs: "annee", dormants: "dormants", inactifs: "inactifs" };
+
+export function PagePatients({ coeur, venueInitiale = "toutes" }: { coeur: Coeur; venueInitiale?: FiltreVenue }) {
   const id = useId();
   const [liste, setListe] = useState<ResumePatient[] | null>(null);
   const [statuts, setStatuts] = useState<string[]>([]);
@@ -130,7 +135,7 @@ export function PagePatients({ coeur }: { coeur: Coeur }) {
   const [texte, setTexte] = useState("");
   const [statut, setStatut] = useState("");
   const [groupe, setGroupe] = useState("");
-  const [venue, setVenue] = useState<FiltreVenue>("toutes");
+  const [venue, setVenue] = useState<FiltreVenue>(venueInitiale);
   const [filtreAge, setFiltreAge] = useState<FiltreAge>("tous");
   const [archives, setArchives] = useState(false);
   const [actif, setActif] = useState(0);

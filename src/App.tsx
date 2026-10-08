@@ -28,7 +28,7 @@ import { NouveauPatient } from "./pages/NouveauPatient";
 import { PageParametres } from "./pages/Parametres";
 import { PageCorbeille, PageSeances } from "./pages/Seances";
 import { PageStatistiques } from "./pages/Statistiques";
-import { PagePatients } from "./pages/Patients";
+import { PagePatients, RECENCE_VERS_FILTRE } from "./pages/Patients";
 import { FournisseurTrames } from "./trames/contexte";
 
 // L'éditeur de trames est lourd : il n'est chargé qu'à l'ouverture de l'écran, pour un démarrage rapide.
@@ -133,6 +133,7 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
 function EcranPatients({ coeur, segments }: { coeur: Coeur; segments: string[] }) {
   const [, id, suite, autre] = segments;
   if (id === "nouveau") return <NouveauPatient key={suite ?? ""} coeur={coeur} depuisRecherche={suite} />;
+  if (id === "recence") return <PagePatients key={suite ?? ""} coeur={coeur} venueInitiale={RECENCE_VERS_FILTRE[suite ?? ""] ?? "toutes"} />;
   if (id && suite === "fusion") return <PageFusion key={`${id}-${autre ?? ""}`} coeur={coeur} id={id} autreId={autre} />;
   if (id && suite === "effacement") return <PageEffacement key={id} coeur={coeur} id={id} />;
   if (id) return <DossierPatient coeur={coeur} id={id} onglet={ongletDepuis(suite)} />;

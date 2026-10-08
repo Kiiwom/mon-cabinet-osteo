@@ -36,6 +36,20 @@ pub struct Mois {
     pub chiffre_precedent: i64,
     pub seances: i64,
     pub seances_precedent: i64,
+    /// Premières séances du mois, les autres étant des suivis.
+    pub premieres: i64,
+    /// Patients dont la toute première séance tombe dans le mois.
+    pub nouveaux: i64,
+    pub nouveaux_precedent: i64,
+}
+
+/// Une semaine de la période, du lundi au dimanche.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Semaine {
+    /// Le lundi, `AAAA-MM-JJ`, parfois avant le début de la période.
+    pub lundi: String,
+    pub seances: i64,
+    pub premieres: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -58,13 +72,13 @@ pub struct Sexes {
     pub non_renseigne: i64,
 }
 
-/// Patients selon leur dernière séance, comptée depuis la fin de la période.
+/// Patients suivis (ni archivés ni décédés) selon leur dernière séance, comptée depuis la fin de la
+/// période : actifs s'ils sont venus dans l'année, dormants entre un et deux ans, inactifs au-delà.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Recence {
-    pub moins_6_mois: i64,
-    pub de_6_a_12_mois: i64,
-    pub de_1_a_2_ans: i64,
-    pub plus_2_ans: i64,
+    pub actifs: i64,
+    pub dormants: i64,
+    pub inactifs: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -115,6 +129,10 @@ pub struct Statistiques {
     pub douleur: Option<Douleur>,
     /// Séances par jour de la semaine, du lundi au dimanche.
     pub jours: Vec<Compte>,
+    /// Séances par jour (du lundi au dimanche) et par heure de début (de 0 à 23 h).
+    pub creneaux: Vec<[i64; 24]>,
+    /// Chaque semaine qui touche la période, dans l'ordre.
+    pub par_semaine: Vec<Semaine>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -214,6 +232,26 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
     let ca_p_decale: HashMap<String, i64> = ca_p.iter().map(|(m, v)| (decaler(m), *v)).collect();
     let sm_p_decale: HashMap<String, i64> = sm_p.iter().map(|(m, v)| (decaler(m), *v)).collect();
 
+    let liste = seances::lister_periode(base, du, au).map_err(|e| ErreurStatistiques::Donnees(e.to_string()))?;
+    let premieres: HashMap<String, String> = base
+        .connexion()
+        .prepare("SELECT patient_id, min(substr(debut, 1, 10)) FROM seances WHERE supprimee_le IS NULL GROUP BY patient_id")?
+        .query_map([], |l| Ok((l.get(0)?, l.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    let mut nouveaux_mois: HashMap<String, i64> = HashMap::new();
+    let mut nouveaux_mois_p: HashMap<String, i64> = HashMap::new();
+    for date in premieres.values() {
+        if date.as_str() >= du && date.as_str() <= au {
+            *nouveaux_mois.entry(date[..7].to_owned()).or_default() += 1;
+        } else if date.as_str() >= du_p.as_str() && date.as_str() <= au_p.as_str() {
+            *nouveaux_mois_p.entry(decaler(&date[..7])).or_default() += 1;
+        }
+    }
+    let mut premieres_mois: HashMap<String, i64> = HashMap::new();
+    for s in liste.iter().filter(|s| s.type_seance == TypeSeance::Premiere) {
+        *premieres_mois.entry(s.debut[..7].to_owned()).or_default() += 1;
+    }
+
     let mut par_mois = Vec::new();
     let (mut annee, mut mois) = (debut.annee(), debut.mois());
     while (annee, mois) <= (fin.annee(), fin.mois()) {
@@ -223,6 +261,9 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
             chiffre_precedent: ca_p_decale.get(&cle).copied().unwrap_or(0),
             seances: sm.get(&cle).copied().unwrap_or(0),
             seances_precedent: sm_p_decale.get(&cle).copied().unwrap_or(0),
+            premieres: premieres_mois.get(&cle).copied().unwrap_or(0),
+            nouveaux: nouveaux_mois.get(&cle).copied().unwrap_or(0),
+            nouveaux_precedent: nouveaux_mois_p.get(&cle).copied().unwrap_or(0),
             mois: cle,
         });
         if mois == 12 {
@@ -234,7 +275,6 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
     }
     let somme = |m: &HashMap<String, i64>| m.values().sum::<i64>();
 
-    let liste = seances::lister_periode(base, du, au).map_err(|e| ErreurStatistiques::Donnees(e.to_string()))?;
     let fin_p = format!("{au_p}T99");
     let seances_p: i64 =
         base.connexion().query_row("SELECT count(*) FROM seances WHERE supprimee_le IS NULL AND debut >= ?1 AND debut < ?2", [du_p.as_str(), fin_p.as_str()], |l| l.get(0))?;
@@ -245,12 +285,6 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
         |l| l.get(0),
     )?;
     let panier = |ca: i64, n: i64| if n > 0 { ca / n } else { 0 };
-
-    let premieres: HashMap<String, String> = base
-        .connexion()
-        .prepare("SELECT patient_id, min(substr(debut, 1, 10)) FROM seances WHERE supprimee_le IS NULL GROUP BY patient_id")?
-        .query_map([], |l| Ok((l.get(0)?, l.get(1)?)))?
-        .collect::<Result<_, _>>()?;
 
     let mut moyens: Vec<ParMoyen> = Vec::new();
     {
@@ -277,6 +311,8 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
     let mut sexes = Sexes::default();
     let mut villes: HashMap<String, i64> = HashMap::new();
     let mut recence = Recence::default();
+    let un_an = un_an_avant(fin);
+    let deux_ans = un_an_avant(un_an);
     let mut suivis = Vec::new();
     {
         let mut requete = base.connexion().prepare(
@@ -303,12 +339,12 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
                 && archive.is_none()
                 && !decede
             {
-                let jours = fin.jours_unix() - derniere.jours_unix();
-                match jours {
-                    ..183 => recence.moins_6_mois += 1,
-                    183..365 => recence.de_6_a_12_mois += 1,
-                    365..730 => recence.de_1_a_2_ans += 1,
-                    _ => recence.plus_2_ans += 1,
+                if derniere >= un_an {
+                    recence.actifs += 1;
+                } else if derniere >= deux_ans {
+                    recence.dormants += 1;
+                } else {
+                    recence.inactifs += 1;
                 }
             }
             if !actifs.contains(&id) {
@@ -361,11 +397,30 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
         apres: notees.iter().map(|d| d.1).sum::<f64>() / notees.len() as f64,
     });
     let mut jours = [0i64; 7];
+    let mut creneaux = vec![[0i64; 24]; 7];
+    let lundi = |d: Date| d.jours_unix() - (d.jours_unix() + 3).rem_euclid(7);
+    let mut semaines: HashMap<i64, (i64, i64)> = HashMap::new();
     for s in &liste {
         if let Ok(d) = Date::lire(&s.debut[..10.min(s.debut.len())]) {
-            jours[(d.jours_unix() + 3).rem_euclid(7) as usize] += 1;
+            let jour = (d.jours_unix() + 3).rem_euclid(7) as usize;
+            jours[jour] += 1;
+            if let Some(heure) = s.debut.get(11..13).and_then(|h| h.parse::<usize>().ok()).filter(|h| *h < 24) {
+                creneaux[jour][heure] += 1;
+            }
+            let semaine = semaines.entry(lundi(d)).or_default();
+            semaine.0 += 1;
+            if s.type_seance == TypeSeance::Premiere {
+                semaine.1 += 1;
+            }
         }
     }
+    let par_semaine: Vec<Semaine> = (lundi(debut)..=lundi(fin))
+        .step_by(7)
+        .map(|l| {
+            let (seances, premieres) = semaines.get(&l).copied().unwrap_or_default();
+            Semaine { lundi: Date::depuis_jours_unix(l).to_string(), seances, premieres }
+        })
+        .collect();
 
     let chiffre_total = somme(&ca);
     let chiffre_precedent = somme(&ca_p);
@@ -394,6 +449,8 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
         patients_suivis: suivis,
         douleur,
         jours: JOURS.iter().zip(jours).map(|(l, n)| Compte { libelle: (*l).to_owned(), nombre: n }).collect(),
+        creneaux,
+        par_semaine,
     })
 }
 
@@ -453,6 +510,7 @@ mod tests {
         let camille = patient("Martin", "F", "1988-03-14", "Fumel");
         let louis = patient("Petit", "M", "2014-09-20", "Fumel");
         let ancienne = patient("Aubert", "F", "1954-11-08", "Villeréal");
+        let dormant = patient("Girard", "M", "1979-06-02", "Monflanquin");
         let seance = |p: &str, debut: &str, avant: i64, apres: i64, facturer: bool| {
             let mut s = SaisieSeance { debut: debut.into(), modele_id: modele.id.clone(), modele_version: modele.version, ..Default::default() };
             s.valeurs.insert("douleur_avant".into(), json!(avant));
@@ -478,26 +536,36 @@ mod tests {
         seance(&camille, "2026-03-04T10:00", 7, 3, true);
         seance(&camille, "2026-03-18T10:00", 4, 1, true);
         seance(&louis, "2026-05-06T17:00", 2, 1, false);
+        seance(&dormant, "2025-06-02T08:30", 3, 1, false);
 
         let stats = calculer(&base, "2026-01-01", "2026-09-30", BaseChiffre::Encaissement).unwrap();
         assert_eq!((stats.du_precedent.as_str(), stats.au_precedent.as_str()), ("2025-01-01", "2025-09-30"));
         assert_eq!(stats.chiffre, Comparaison { valeur: 11_000, precedent: 5_500 });
-        assert_eq!(stats.seances, Comparaison { valeur: 3, precedent: 1 });
+        assert_eq!(stats.seances, Comparaison { valeur: 3, precedent: 2 });
         assert_eq!(stats.panier_moyen, Comparaison { valeur: 5_500, precedent: 5_500 });
-        assert_eq!(stats.nouveaux_patients, Comparaison { valeur: 1, precedent: 1 });
+        assert_eq!(stats.nouveaux_patients, Comparaison { valeur: 1, precedent: 2 });
         assert_eq!(stats.par_mois.len(), 9);
         assert_eq!((stats.par_mois[2].chiffre, stats.par_mois[2].chiffre_precedent, stats.par_mois[2].seances), (11_000, 5_500, 2));
+        // Louis vient pour la première fois en mai 2026 ; Camille et M. Girard étaient nouveaux en mars et juin 2025.
+        let nouveaux: Vec<(i64, i64)> = stats.par_mois.iter().map(|m| (m.nouveaux, m.nouveaux_precedent)).collect();
+        assert_eq!(nouveaux, [(0, 0), (0, 0), (0, 1), (0, 0), (1, 0), (0, 1), (0, 0), (0, 0), (0, 0)]);
         assert_eq!(stats.moyens, vec![ParMoyen { moyen: Moyen::Carte, montant: 11_000, nombre: 2 }]);
         assert_eq!(stats.patients_actifs, 2);
         assert_eq!(stats.sexes, Sexes { femmes: 1, hommes: 1, non_renseigne: 0 });
         assert_eq!(stats.ages.iter().map(|a| a.libelle.as_str()).collect::<Vec<_>>(), ["12 à 17 ans", "30 à 44 ans"]);
         assert_eq!(stats.villes, vec![Compte { libelle: "Fumel".into(), nombre: 2 }]);
-        assert_eq!(stats.recence, Recence { moins_6_mois: 1, de_6_a_12_mois: 1, de_1_a_2_ans: 0, plus_2_ans: 1 });
+        assert_eq!(stats.recence, Recence { actifs: 2, dormants: 1, inactifs: 1 });
         assert_eq!(stats.actes_gratuits, 1);
         assert_eq!(stats.patients_suivis[0].nom, "Martin");
         let douleur = stats.douleur.unwrap();
         assert_eq!((douleur.seances, douleur.avant, douleur.apres), (3, 13.0 / 3.0, 5.0 / 3.0));
         assert_eq!(stats.jours[2].nombre, 3);
+        assert_eq!((stats.creneaux[2][10], stats.creneaux[2][17], stats.creneaux[0][10]), (2, 1, 0));
+        // Du lundi 29 décembre 2025 au lundi 28 septembre 2026.
+        assert_eq!(stats.par_semaine.len(), 40);
+        assert_eq!((stats.par_semaine[0].lundi.as_str(), stats.par_semaine[39].lundi.as_str()), ("2025-12-29", "2026-09-28"));
+        let chargees: Vec<(&str, i64)> = stats.par_semaine.iter().filter(|s| s.seances > 0).map(|s| (s.lundi.as_str(), s.seances)).collect();
+        assert_eq!(chargees, [("2026-03-02", 1), ("2026-03-16", 1), ("2026-05-04", 1)]);
 
         let par_facture = calculer(&base, "2026-01-01", "2026-09-30", BaseChiffre::Facture).unwrap();
         assert_eq!(par_facture.chiffre.valeur, 11_000);

@@ -5,9 +5,9 @@ import { dateCourte } from "../lib/dates";
 import { euros, libelleMoyen, versCsv } from "../lib/facturation";
 import { adresse } from "../lib/navigation";
 import { bornesPeriode, type Periode } from "../lib/periodes";
-import { evolution, type BaseChiffre, type Comparaison, type Statistiques } from "../lib/statistiques";
+import { evolution, unAnAvant, type BaseChiffre, type Comparaison, type Recence, type SemaineStatistiques, type Statistiques } from "../lib/statistiques";
 import { colonne, type Feuille } from "../lib/tableur";
-import { BarresHorizontales, ColonnesGroupees, MOIS_COURTS, MOIS_LONGS, PetitesColonnes, Repartition } from "../statistiques/Graphiques";
+import { BarresHorizontales, ColonnesGroupees, creneauLePlusCharge, GrilleCreneaux, MOIS_COURTS, MOIS_LONGS, Repartition } from "../statistiques/Graphiques";
 import { ChoixPeriode } from "./Facturation";
 
 const nombreFr = (n: number, decimales = 0) => n.toLocaleString("fr-FR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
@@ -61,10 +61,6 @@ function ChiffreParMois({ stats }: { stats: Statistiques }) {
       : plusHauts === stats.par_mois.length
         ? `Chiffre d’affaires par mois : chaque mois dépasse ${anneeP}`
         : `Chiffre d’affaires par mois : ${plusHauts} mois sur ${stats.par_mois.length} au-dessus de ${anneeP}`;
-  const libelleMois = (m: string, long = false) => {
-    const [a, mo] = m.split("-").map(Number);
-    return long ? `${MOIS_LONGS[mo - 1]} ${a}` : MOIS_COURTS[mo - 1];
-  };
   return (
     <section className="carte" aria-labelledby="titre-ca-mois">
       <div className="entete-carte">
@@ -128,6 +124,255 @@ function ChiffreParMois({ stats }: { stats: Statistiques }) {
   );
 }
 
+const libelleMois = (m: string, long = false) => {
+  const [a, mo] = m.split("-").map(Number);
+  return long ? `${MOIS_LONGS[mo - 1]} ${a}` : MOIS_COURTS[mo - 1];
+};
+
+/** « 3 mars », « 1er juin » : le lundi d'une semaine, pour les axes. */
+function lundiCourt(date: string, annee = false): string {
+  const [a, m, j] = date.split("-").map(Number);
+  return `${j === 1 ? "1er" : j} ${annee ? MOIS_LONGS[m - 1] : MOIS_COURTS[m - 1]}${annee ? ` ${a}` : ""}`;
+}
+
+type VueActivite = "mois" | "semaine" | "nouveaux";
+
+/** La moyenne des semaines où il y a eu au moins une séance, et la plus chargée. */
+export function rythmeDesSemaines(semaines: SemaineStatistiques[]): { travaillees: number; moyenne: number; plusChargee: SemaineStatistiques | null } {
+  const travaillees = semaines.filter((s) => s.seances > 0);
+  return {
+    travaillees: travaillees.length,
+    moyenne: travaillees.length ? travaillees.reduce((t, s) => t + s.seances, 0) / travaillees.length : 0,
+    plusChargee: travaillees.reduce<SemaineStatistiques | null>((m, s) => (!m || s.seances > m.seances ? s : m), null),
+  };
+}
+
+const pluriel = (n: number, mot: string, motPluriel = `${mot}s`) => `${nombreFr(n)} ${n > 1 ? motPluriel : mot}`;
+
+/** Séances par mois et par semaine, nouveaux patients par mois : comparés à l'année précédente. */
+function Activite({ stats }: { stats: Statistiques }) {
+  const [vue, setVue] = useState<VueActivite>("mois");
+  const [tableau, setTableau] = useState(false);
+  const annee = stats.au.slice(0, 4);
+  const anneeP = stats.au_precedent.slice(0, 4);
+  const premieres = stats.par_mois.reduce((t, m) => t + m.premieres, 0);
+  const semaines = rythmeDesSemaines(stats.par_semaine);
+  const mois = stats.par_mois.map((m) => ({ cle: m.mois, libelle: libelleMois(m.mois), detail: libelleMois(m.mois, true) }));
+
+  const resume =
+    vue === "mois"
+      ? `${pluriel(stats.seances.valeur, "séance")}${stats.seances.valeur ? `, dont ${pluriel(premieres, "première")} (${Math.round((premieres / stats.seances.valeur) * 100)} %)` : ""} ; ${nombreFr(stats.seances.precedent)} en ${anneeP} sur la même période.`
+      : vue === "semaine"
+        ? semaines.plusChargee
+          ? `${nombreFr(semaines.moyenne, 1)} séance${semaines.moyenne >= 2 ? "s" : ""} par semaine en moyenne, sur ${pluriel(semaines.travaillees, "semaine travaillée", "semaines travaillées")} ; la plus chargée : ${pluriel(semaines.plusChargee.seances, "séance")}, semaine du ${lundiCourt(semaines.plusChargee.lundi, true)}.`
+          : "Aucune séance sur cette période."
+        : `${pluriel(stats.nouveaux_patients.valeur, "nouveau patient", "nouveaux patients")}, contre ${nombreFr(stats.nouveaux_patients.precedent)} en ${anneeP} sur la même période : leur toute première séance au cabinet.`;
+
+  const legende = (valeur: number, precedent: number) => (
+    <>
+      <span>
+        <span className="cle-rect" data-serie="courant" aria-hidden="true" /> {annee} · {nombreFr(valeur)}
+      </span>
+      {vue !== "semaine" && (
+        <span>
+          <span className="cle-rect" data-serie="precedent" aria-hidden="true" /> {anneeP} · {nombreFr(precedent)}
+        </span>
+      )}
+    </>
+  );
+
+  return (
+    <section className="carte" aria-labelledby="titre-activite">
+      <div className="entete-carte">
+        <h2 id="titre-activite">Activité</h2>
+        <div className="segments" role="group" aria-label="Activité affichée">
+          <button type="button" aria-pressed={vue === "mois"} onClick={() => setVue("mois")}>
+            Séances par mois
+          </button>
+          <button type="button" aria-pressed={vue === "semaine"} onClick={() => setVue("semaine")}>
+            Par semaine
+          </button>
+          <button type="button" aria-pressed={vue === "nouveaux"} onClick={() => setVue("nouveaux")}>
+            Nouveaux patients
+          </button>
+        </div>
+      </div>
+      <div className="entete-carte">
+        <p className="resume-activite">{resume}</p>
+        <div className="rangee legende-series">
+          {vue === "nouveaux" ? legende(stats.nouveaux_patients.valeur, stats.nouveaux_patients.precedent) : legende(stats.seances.valeur, stats.seances.precedent)}
+          <button type="button" className="lien-bouton" aria-pressed={tableau} onClick={() => setTableau((t) => !t)}>
+            {tableau ? "Voir en graphique" : "Voir en tableau"}
+          </button>
+        </div>
+      </div>
+      {tableau ? (
+        <div className="defilement-tableau">
+          {vue === "semaine" ? (
+            <table className="tableau">
+              <thead>
+                <tr>
+                  <th scope="col">Semaine du</th>
+                  <th scope="col" className="nombre">
+                    Séances
+                  </th>
+                  <th scope="col" className="nombre">
+                    Dont premières
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.par_semaine.map((s) => (
+                  <tr key={s.lundi}>
+                    <td>{lundiCourt(s.lundi, true)}</td>
+                    <td className="nombre">{s.seances}</td>
+                    <td className="nombre">{s.premieres}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="tableau">
+              <thead>
+                <tr>
+                  <th scope="col">Mois</th>
+                  <th scope="col" className="nombre">
+                    {vue === "mois" ? `Séances ${annee}` : annee}
+                  </th>
+                  {vue === "mois" && (
+                    <th scope="col" className="nombre">
+                      Dont premières
+                    </th>
+                  )}
+                  <th scope="col" className="nombre">
+                    {vue === "mois" ? `Séances ${anneeP}` : anneeP}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.par_mois.map((m) => (
+                  <tr key={m.mois}>
+                    <td>{libelleMois(m.mois, true)}</td>
+                    <td className="nombre">{vue === "mois" ? m.seances : m.nouveaux}</td>
+                    {vue === "mois" && <td className="nombre">{m.premieres}</td>}
+                    <td className="nombre">{vue === "mois" ? m.seances_precedent : m.nouveaux_precedent}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : vue === "semaine" ? (
+        <ColonnesGroupees
+          description={`Séances par semaine : ${resume}`}
+          categories={stats.par_semaine.map((s) => ({ cle: s.lundi, libelle: lundiCourt(s.lundi), detail: `Semaine du ${lundiCourt(s.lundi, true)}` }))}
+          series={[{ cle: "courant", libelle: "séances", valeurs: stats.par_semaine.map((s) => s.seances) }]}
+          format={(v) => nombreFr(v)}
+          formatAxe={(v) => nombreFr(v)}
+          entiers
+        />
+      ) : (
+        <ColonnesGroupees
+          description={`${vue === "mois" ? "Séances par mois" : "Nouveaux patients par mois"} : ${resume}`}
+          categories={mois}
+          series={
+            vue === "mois"
+              ? [
+                  { cle: "precedent", libelle: anneeP, valeurs: stats.par_mois.map((m) => m.seances_precedent) },
+                  { cle: "courant", libelle: annee, valeurs: stats.par_mois.map((m) => m.seances) },
+                ]
+              : [
+                  { cle: "precedent", libelle: anneeP, valeurs: stats.par_mois.map((m) => m.nouveaux_precedent) },
+                  { cle: "courant", libelle: annee, valeurs: stats.par_mois.map((m) => m.nouveaux) },
+                ]
+          }
+          format={(v) => nombreFr(v)}
+          formatAxe={(v) => nombreFr(v)}
+          entiers
+        />
+      )}
+    </section>
+  );
+}
+
+const RECENCES: { cle: keyof Recence; libelle: string; definition: string; filtre: string }[] = [
+  { cle: "actifs", libelle: "Actifs", definition: "venus dans l’année", filtre: "actifs" },
+  { cle: "dormants", libelle: "Dormants", definition: "il y a un à deux ans", filtre: "dormants" },
+  { cle: "inactifs", libelle: "Inactifs", definition: "il y a plus de deux ans", filtre: "inactifs" },
+];
+
+/** Actifs, dormants et inactifs ; la liste des patients s'ouvre sur chacun quand la période finit aujourd'hui. */
+function Fidelite({ stats, aujourdhui }: { stats: Statistiques; aujourdhui: string }) {
+  const r = stats.recence;
+  const total = r.actifs + r.dormants + r.inactifs;
+  const liens = stats.au === aujourdhui;
+  const depuis = unAnAvant(stats.au);
+  return (
+    <section className="carte" aria-labelledby="titre-recence">
+      <h2 id="titre-recence">Fidélité des patients</h2>
+      {total > 0 ? (
+        <>
+          <p className="discret">
+            {Math.round((r.actifs / total) * 100)} % des patients suivis sont actifs : venus depuis le {dateCourte(depuis)}.
+          </p>
+          <Repartition
+            famille="recence"
+            description="Patients actifs, dormants et inactifs"
+            parts={RECENCES.map((x) => ({ cle: x.cle, libelle: x.libelle, valeur: r[x.cle] }))}
+            legende={(p) => {
+              const x = RECENCES.find((y) => y.cle === p.cle)!;
+              const texte = `${p.libelle} · ${nombreFr(p.valeur)}`;
+              return (
+                <span>
+                  {liens && p.valeur > 0 ? <a href={adresse("patients", "recence", x.filtre)}>{texte}</a> : texte} <span className="discret">{x.definition}</span>
+                </span>
+              );
+            }}
+          />
+          <p className="discret note-recence">Comptés à la fin de la période, sans les dossiers archivés ni les patients décédés.</p>
+        </>
+      ) : (
+        <p className="discret">Aucune séance encore.</p>
+      )}
+      <dl className="chiffres-cles">
+        <div>
+          <dt>Séances par patient</dt>
+          <dd>{nombreFr(stats.seances_par_patient, 1)}</dd>
+        </div>
+        <div>
+          <dt>Premières séances</dt>
+          <dd>{stats.seances.valeur ? `${Math.round((stats.premieres_seances / stats.seances.valeur) * 100)} %` : "—"}</dd>
+        </div>
+        <div>
+          <dt>Actes gratuits</dt>
+          <dd>{stats.actes_gratuits}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+/** Jours et heures de début des séances. */
+function Rythme({ stats }: { stats: Statistiques }) {
+  const pic = creneauLePlusCharge(stats.creneaux);
+  const titre = pic ? `Jours et heures des séances : le plus souvent le ${pic.jour} à ${pic.heure} h` : "Jours et heures des séances";
+  const plus = Math.max(0, ...stats.jours.map((j) => j.nombre));
+  const jourPrefere = stats.jours.filter((j) => j.nombre === plus).length === 1 ? stats.jours.find((j) => j.nombre === plus) : undefined;
+  return (
+    <section className="carte" aria-labelledby="titre-rythme">
+      <div className="entete-carte">
+        <h2 id="titre-rythme">{titre}</h2>
+        {jourPrefere && (
+          <span className="discret">
+            Jour le plus chargé : {jourPrefere.libelle.toLocaleLowerCase("fr")}, {pluriel(jourPrefere.nombre, "séance")}
+          </span>
+        )}
+      </div>
+      <GrilleCreneaux creneaux={stats.creneaux} description="Séances par jour de la semaine et par heure de début" />
+    </section>
+  );
+}
+
 function Classement({ titre, lignes, vide, lien }: { titre: string; lignes: { libelle: string; nombre: number; id?: string }[]; vide: string; lien?: (id: string) => string }) {
   return (
     <section className="carte" aria-label={titre}>
@@ -173,21 +418,40 @@ function feuillesStatistiques(s: Statistiques): Feuille[] {
         colonne("Chiffre d’affaires", "montant"),
         colonne("Année précédente", "montant"),
         colonne("Séances", "nombre"),
+        colonne("Dont premières", "nombre"),
         colonne("Séances année précédente", "nombre"),
+        colonne("Nouveaux patients", "nombre"),
+        colonne("Nouveaux année précédente", "nombre"),
       ],
-      lignes: s.par_mois.map((m) => [m.mois, m.chiffre / 100, m.chiffre_precedent / 100, m.seances, m.seances_precedent]),
+      lignes: s.par_mois.map((m) => [m.mois, m.chiffre / 100, m.chiffre_precedent / 100, m.seances, m.premieres, m.seances_precedent, m.nouveaux, m.nouveaux_precedent]),
+    },
+    {
+      nom: "Par semaine",
+      colonnes: [colonne("Semaine du", "date"), colonne("Séances", "nombre"), colonne("Dont premières", "nombre")],
+      lignes: s.par_semaine.map((x) => [x.lundi, x.seances, x.premieres]),
     },
     {
       nom: "Moyens de paiement",
       colonnes: [colonne("Moyen"), colonne("Montant", "montant"), colonne("Règlements", "nombre")],
       lignes: s.moyens.map((m) => [libelleMoyen(m.moyen), m.montant / 100, m.nombre]),
     },
+    {
+      nom: "Fidélité",
+      colonnes: [colonne("Patients suivis"), colonne("Dernière séance"), colonne("Nombre", "nombre")],
+      lignes: RECENCES.map((x) => [x.libelle, x.definition, s.recence[x.cle]]),
+    },
     compte("Âges", "Tranche d’âge", s.ages),
     compte("Villes", "Ville", s.villes),
     compte("Antécédents", "Antécédent", s.antecedents),
-    { nom: "Jours", colonnes: [colonne("Jour"), colonne("Séances", "nombre")], lignes: s.jours.map((j) => [j.libelle, j.nombre]) },
+    {
+      nom: "Jours et heures",
+      colonnes: [colonne("Jour"), ...HEURES.map((h) => colonne(`${h} h`, "nombre")), colonne("Total", "nombre")],
+      lignes: s.jours.map((j, rang) => [j.libelle, ...HEURES.map((h) => s.creneaux[rang]?.[h] ?? 0), j.nombre]),
+    },
   ];
 }
+
+const HEURES = Array.from({ length: 24 }, (_, h) => h);
 
 function csvStatistiques(s: Statistiques): string {
   const lignes: (string | number)[][] = [
@@ -200,8 +464,14 @@ function csvStatistiques(s: Statistiques): string {
     ["Panier moyen (€)", s.panier_moyen.valeur / 100, s.panier_moyen.precedent / 100],
     ["Nouveaux patients", s.nouveaux_patients.valeur, s.nouveaux_patients.precedent],
     [],
-    ["Mois", "Chiffre d’affaires (€)", "Année précédente (€)", "Séances", "Séances année précédente"],
-    ...s.par_mois.map((m) => [m.mois, m.chiffre / 100, m.chiffre_precedent / 100, m.seances, m.seances_precedent]),
+    ["Mois", "Chiffre d’affaires (€)", "Année précédente (€)", "Séances", "Dont premières", "Séances année précédente", "Nouveaux patients", "Nouveaux année précédente"],
+    ...s.par_mois.map((m) => [m.mois, m.chiffre / 100, m.chiffre_precedent / 100, m.seances, m.premieres, m.seances_precedent, m.nouveaux, m.nouveaux_precedent]),
+    [],
+    ["Semaine du", "Séances", "Dont premières"],
+    ...s.par_semaine.map((x) => [x.lundi, x.seances, x.premieres]),
+    [],
+    ["Patients suivis", "Dernière séance", "Nombre"],
+    ...RECENCES.map((x) => [x.libelle, x.definition, s.recence[x.cle]]),
     [],
     ["Moyen de paiement", "Montant (€)", "Règlements"],
     ...s.moyens.map((m) => [libelleMoyen(m.moyen), m.montant / 100, m.nombre]),
@@ -215,8 +485,8 @@ function csvStatistiques(s: Statistiques): string {
     ["Antécédent", "Patients actifs"],
     ...s.antecedents.map((a) => [a.libelle, a.nombre]),
     [],
-    ["Jour", "Séances"],
-    ...s.jours.map((j) => [j.libelle, j.nombre]),
+    ["Jour", ...HEURES.map((h) => `${h} h`), "Total"],
+    ...s.jours.map((j, rang) => [j.libelle, ...HEURES.map((h) => s.creneaux[rang]?.[h] ?? 0), j.nombre]),
   ];
   return versCsv(["Statistiques Osteosphere"], lignes);
 }
@@ -256,8 +526,6 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
   }
 
   const annee = (stats?.au_precedent ?? au).slice(0, 4);
-  const r = stats?.recence;
-  const totalRecence = r ? r.moins_6_mois + r.de_6_a_12_mois + r.de_1_a_2_ans + r.plus_2_ans : 0;
 
   return (
     <main className="page page-large page-statistiques">
@@ -312,6 +580,8 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
 
           <ChiffreParMois stats={stats} />
 
+          <Activite stats={stats} />
+
           <div className="colonnes-statistiques">
             <section className="carte" aria-labelledby="titre-ages">
               <h2 id="titre-ages">Patients actifs par âge</h2>
@@ -338,43 +608,7 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
               )}
             </section>
 
-            <section className="carte" aria-labelledby="titre-recence">
-              <h2 id="titre-recence">Dernière visite des patients</h2>
-              {r && totalRecence > 0 ? (
-                <>
-                  <p className="discret">
-                    {Math.round((r.moins_6_mois / totalRecence) * 100)} % des patients sont venus dans les six derniers mois.
-                  </p>
-                  <Repartition
-                    famille="recence"
-                    description="Dernière visite des patients"
-                    parts={[
-                      { cle: "moins_6_mois", libelle: "Moins de 6 mois", valeur: r.moins_6_mois },
-                      { cle: "de_6_a_12_mois", libelle: "6 à 12 mois", valeur: r.de_6_a_12_mois },
-                      { cle: "de_1_a_2_ans", libelle: "1 à 2 ans", valeur: r.de_1_a_2_ans },
-                      { cle: "plus_2_ans", libelle: "Plus de 2 ans", valeur: r.plus_2_ans },
-                    ]}
-                    legende={(p) => `${p.libelle} · ${nombreFr(p.valeur)}`}
-                  />
-                </>
-              ) : (
-                <p className="discret">Aucune séance encore.</p>
-              )}
-              <dl className="chiffres-cles">
-                <div>
-                  <dt>Séances par patient</dt>
-                  <dd>{nombreFr(stats.seances_par_patient, 1)}</dd>
-                </div>
-                <div>
-                  <dt>Premières séances</dt>
-                  <dd>{stats.seances.valeur ? `${Math.round((stats.premieres_seances / stats.seances.valeur) * 100)} %` : "—"}</dd>
-                </div>
-                <div>
-                  <dt>Actes gratuits</dt>
-                  <dd>{stats.actes_gratuits}</dd>
-                </div>
-              </dl>
-            </section>
+            <Fidelite stats={stats} aujourdhui={today} />
           </div>
 
           <div className="colonnes-statistiques">
@@ -392,7 +626,7 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
               )}
             </section>
             <section className="carte" aria-labelledby="titre-douleur">
-              <h2 id="titre-douleur">Douleur et rythme</h2>
+              <h2 id="titre-douleur">Douleur avant et après la séance</h2>
               {stats.douleur ? (
                 <p className="douleur-moyenne">
                   <strong>
@@ -405,10 +639,10 @@ export function PageStatistiques({ coeur, aujourdhui }: { coeur: Coeur; aujourdh
               ) : (
                 <p className="discret">La douleur avant et après n’est notée dans aucune séance de la période.</p>
               )}
-              <h3>Séances par jour de la semaine</h3>
-              <PetitesColonnes colonnes={stats.jours.map((j) => ({ libelle: j.libelle, valeur: j.nombre }))} />
             </section>
           </div>
+
+          <Rythme stats={stats} />
 
           <div className="colonnes-trois">
             <Classement titre="Villes les plus représentées" lignes={stats.villes} vide="Aucune ville renseignée." />

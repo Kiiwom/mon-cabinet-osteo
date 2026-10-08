@@ -159,4 +159,13 @@ describe("patients", () => {
     expect(screen.getByLabelText("Nom")).toHaveValue("Durand");
     expect(screen.getByLabelText("Prénom")).toHaveValue("Léa");
   });
+
+  it("ouvre la liste sur les patients dormants depuis les statistiques", async () => {
+    demarrer();
+    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
+    await ouvrir("#/patients/recence/dormants");
+    await screen.findByRole("table");
+    expect(screen.getByDisplayValue("Il y a un à deux ans (dormants)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retirer les filtres" })).toBeInTheDocument();
+  });
 });
