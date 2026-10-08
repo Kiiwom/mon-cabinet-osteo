@@ -161,7 +161,7 @@ function Activite({ stats }: { stats: Statistiques }) {
 
   const resume =
     vue === "mois"
-      ? `${pluriel(stats.seances.valeur, "séance")}${stats.seances.valeur ? `, dont ${pluriel(premieres, "première")} (${Math.round((premieres / stats.seances.valeur) * 100)} %)` : ""} ; ${nombreFr(stats.seances.precedent)} en ${anneeP} sur la même période.`
+      ? `${pluriel(stats.seances.valeur, "séance")}${!stats.seances.valeur ? "" : premieres ? `, dont ${pluriel(premieres, "première")} (${Math.round((premieres / stats.seances.valeur) * 100)} %)` : ", dont aucune première séance"} ; ${nombreFr(stats.seances.precedent)} en ${anneeP} sur la même période.`
       : vue === "semaine"
         ? semaines.plusChargee
           ? `${nombreFr(semaines.moyenne, 1)} séance${semaines.moyenne >= 2 ? "s" : ""} par semaine en moyenne, sur ${pluriel(semaines.travaillees, "semaine travaillée", "semaines travaillées")} ; la plus chargée : ${pluriel(semaines.plusChargee.seances, "séance")}, semaine du ${lundiCourt(semaines.plusChargee.lundi, true)}.`
