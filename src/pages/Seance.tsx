@@ -10,6 +10,7 @@ import { Avatar } from "../patients/Avatar";
 import { ChampSeance, type ContexteSaisie } from "../seances/ChampSeance";
 import type { TrameResume } from "../trames/valider";
 import { descriptionPatient, PucesPatient } from "./Dossier";
+import { Documents } from "../documents/Documents";
 
 type EtatEnregistrement = { type: "enregistre"; a: Date } | { type: "en_cours" } | { type: "erreur"; message: string } | { type: "aucun" };
 
@@ -474,6 +475,7 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
             />
           )}
           <Reperes patient={patient} antecedents={antecedents} formulaire={formulaire} />
+          <Documents coeur={coeur} patientId={patient.id} seanceId={id} titre="Documents de la séance" />
           <SeancesPrecedentes coeur={coeur} patient={patient} precedentes={precedentes} definition={definition} reprendre={reprendre} />
         </div>
       </div>

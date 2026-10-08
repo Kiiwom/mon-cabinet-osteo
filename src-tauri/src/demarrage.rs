@@ -73,6 +73,12 @@ impl EtatCabinet {
         &self.cabinet
     }
 
+    /// Copies en clair des documents ouverts dans une autre application, effacées à chaque ouverture
+    /// et à la fermeture du cabinet.
+    pub fn dossier_copies(&self) -> PathBuf {
+        self.cabinet.chemin_base().with_file_name("documents-ouverts")
+    }
+
     /// Dossier des sauvegardes : celui choisi par le praticien, sinon celui proposé.
     pub fn dossier_sauvegardes(&self, preferences: &PreferencesSauvegarde) -> PathBuf {
         if preferences.dossier.is_empty() { self.dossier_sauvegardes_propose.clone() } else { PathBuf::from(&preferences.dossier) }
@@ -122,6 +128,7 @@ impl EtatCabinet {
     /// Ferme le cabinet : la base est relâchée, le mot de passe sera redemandé.
     pub fn fermer(&self) -> Result<(), String> {
         *self.ouvert.lock().map_err(message)? = None;
+        crate::pieces::effacer_copies_ouvertes(&self.dossier_copies());
         Ok(())
     }
 
@@ -142,8 +149,11 @@ impl EtatCabinet {
         trames::installer_bibliotheque_de_depart(&ouvert.base).map_err(message)?;
         modeles::installer_modeles_fournis(&ouvert.base).map_err(message)?;
         prestations::installer_prestations_de_depart(&ouvert.base).map_err(message)?;
-        // Les séances restées plus de 30 jours à la corbeille sont effacées à l'ouverture.
+        // Les séances et les documents restés plus de 30 jours à la corbeille sont effacés à l'ouverture.
         seances::vider_corbeille_ancienne(&ouvert.base).map_err(message)?;
+        osteosphere_core::documents::vider_corbeille_ancienne(&ouvert.base).map_err(message)?;
+        // Les copies en clair des documents ouverts à la dernière session sont effacées.
+        crate::pieces::effacer_copies_ouvertes(&self.dossier_copies());
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
         // Sauvegarde « du jour » ou « de la semaine » : à la première ouverture.
         self.sauvegarde_automatique(Moment::Ouverture);

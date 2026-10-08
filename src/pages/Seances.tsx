@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { Coeur, ResumeSeance } from "../lib/coeur";
+import type { Coeur, PieceJointe, ResumePatient, ResumeSeance } from "../lib/coeur";
 import { dateCourte, dateEnLettres } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
 import { rechercherPatients } from "../lib/recherche";
 import { jourEnLettres, libelleType } from "../lib/seances";
 import { DUREE_CORBEILLE_JOURS } from "../seances/corbeille";
 import { EtatFacturation } from "../seances/ListeSeances";
+import { tailleLisible } from "../documents/Documents";
 
 type Vue = "jour" | "semaine" | "mois";
 type Filtre = "toutes" | "a_facturer" | "gratuit";
@@ -246,9 +247,16 @@ export function PageSeances({ coeur, aujourdhui }: { coeur: Coeur; aujourdhui?: 
 
 export function PageCorbeille({ coeur }: { coeur: Coeur }) {
   const [seances, setSeances] = useState<ResumeSeance[] | null>(null);
+  const [documents, setDocuments] = useState<PieceJointe[] | null>(null);
+  const [patients, setPatients] = useState<ResumePatient[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = () => coeur.corbeilleSeances().then(setSeances, (e: Error) => setErreur(e.message));
+  const charger = () =>
+    Promise.all([
+      coeur.corbeilleSeances().then(setSeances),
+      coeur.corbeilleDocuments().then(setDocuments),
+      coeur.listerPatients().then(setPatients),
+    ]).catch((e: Error) => setErreur(e.message));
   useEffect(() => {
     void charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,6 +271,19 @@ export function PageCorbeille({ coeur }: { coeur: Coeur }) {
     }
   }
 
+  async function restaurerDocument(id: string) {
+    try {
+      await coeur.restaurerDocument(id);
+      await charger();
+    } catch (e) {
+      setErreur((e as Error).message);
+    }
+  }
+
+  const nomPatient = (id: string) => {
+    const p = patients.find((x) => x.id === id);
+    return p ? `${p.prenom} ${p.nom}` : "";
+  };
   return (
     <main className="page">
       <nav className="fil" aria-label="Fil d’Ariane">
@@ -270,7 +291,7 @@ export function PageCorbeille({ coeur }: { coeur: Coeur }) {
       </nav>
       <div>
         <h1 className="page-titre">Corbeille</h1>
-        <p className="page-sous-titre">Les séances supprimées restent ici {DUREE_CORBEILLE_JOURS} jours, puis sont effacées.</p>
+        <p className="page-sous-titre">Les séances et les documents supprimés restent ici {DUREE_CORBEILLE_JOURS} jours, puis sont effacés.</p>
       </div>
       {erreur && (
         <p className="alerte" role="alert">
@@ -297,6 +318,35 @@ export function PageCorbeille({ coeur }: { coeur: Coeur }) {
                     </span>
                   </span>
                   <button type="button" className="bouton bouton-petit" onClick={() => void restaurer(s.id)}>
+                    Restaurer
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+      <section className="carte" aria-labelledby="titre-corbeille-documents">
+        <h2 id="titre-corbeille-documents">Documents</h2>
+        {documents === null ? (
+          <p className="discret">Chargement…</p>
+        ) : documents.length === 0 ? (
+          <p className="discret">Aucun document à la corbeille.</p>
+        ) : (
+          <ul className="liste-seances" aria-label="Documents à la corbeille">
+            {documents.map((d) => {
+              const effacement = new Date(((d.supprime_le ?? 0) + DUREE_CORBEILLE_JOURS * 86_400) * 1000);
+              return (
+                <li key={d.id} className="ligne-corbeille">
+                  <span className="ligne-seance-texte">
+                    <strong>
+                      {d.nom} · {nomPatient(d.patient_id)}
+                    </strong>
+                    <span className="discret">
+                      {tailleLisible(d.taille)} · effacé le {dateEnLettres(iso(effacement))}
+                    </span>
+                  </span>
+                  <button type="button" className="bouton bouton-petit" onClick={() => void restaurerDocument(d.id)} aria-label={`Restaurer ${d.nom}`}>
                     Restaurer
                   </button>
                 </li>

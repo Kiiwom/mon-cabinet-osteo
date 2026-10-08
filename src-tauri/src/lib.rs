@@ -6,6 +6,7 @@ mod import;
 mod modeles;
 mod parametres;
 mod patients;
+mod pieces;
 mod sauvegardes;
 mod seances;
 mod statistiques;
@@ -168,6 +169,16 @@ pub fn run() {
             parametres::accueil,
             parametres::enregistrer_accueil,
             trames::definir_caractere_trames,
+            pieces::lister_documents,
+            pieces::ajouter_documents,
+            pieces::choisir_documents,
+            pieces::contenu_document,
+            pieces::modifier_document,
+            pieces::supprimer_document,
+            pieces::restaurer_document,
+            pieces::corbeille_documents,
+            pieces::ouvrir_document,
+            pieces::enregistrer_copie_document,
         ])
         .run(tauri::generate_context!())
         .expect("impossible de démarrer Osteosphere");

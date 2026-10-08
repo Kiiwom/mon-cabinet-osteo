@@ -389,6 +389,12 @@ const ACTIONS: Record<string, string> = {
   "cabinet.identite": "Identité du cabinet modifiée",
   "import.mcl": "Import depuis MonCabinetLibéral",
   "accueil.modifie": "Accueil personnalisé",
+  "trames.caractere": "Caractère d’appel des trames changé",
+  "document.ajoute": "Document ajouté",
+  "document.modifie": "Document renommé ou rattaché",
+  "document.supprime": "Document mis à la corbeille",
+  "document.restaure": "Document restauré",
+  "document.efface": "Document effacé de la corbeille",
 };
 
 /** Lien vers ce que concerne la ligne du journal, quand c'est possible. */

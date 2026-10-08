@@ -102,6 +102,24 @@ export interface LigneJournal {
   entite: string;
 }
 
+/** Une pièce jointe du dossier, sans son contenu. */
+export interface PieceJointe {
+  id: string;
+  patient_id: string;
+  seance_id: string | null;
+  nom: string;
+  type_mime: string;
+  taille: number;
+  ajoute_le: number;
+  supprime_le: number | null;
+}
+
+export interface AjoutDocuments {
+  ajoutes: PieceJointe[];
+  /** Un message par fichier refusé (trop gros, illisible…) ; les autres sont ajoutés. */
+  erreurs: string[];
+}
+
 export type BlocAccueil = "seances_du_jour" | "a_facturer" | "statistiques" | "pense_betes" | "en_attente" | "anniversaires" | "sauvegarde";
 
 export interface PenseBete {
@@ -566,6 +584,20 @@ export interface Coeur {
   /** Sauvegarde le cabinet, puis importe ce qui est choisi ; tout ou rien. */
   importerMcl(chemin: string, choix: ChoixImport): Promise<ResultatImport>;
   ouvrirRapportImport(chemin: string): Promise<void>;
+  listerDocuments(patientId: string): Promise<PieceJointe[]>;
+  /** Fichiers du disque (choisis ou déposés) ajoutés au dossier, et à la séance si elle est donnée. */
+  ajouterDocuments(patientId: string, seanceId: string | null, chemins: string[]): Promise<AjoutDocuments>;
+  /** Fenêtre du système ; vide si le praticien annule. */
+  choisirDocuments(): Promise<string[]>;
+  contenuDocument(id: string): Promise<ArrayBuffer>;
+  modifierDocument(id: string, nom: string, seanceId: string | null): Promise<PieceJointe>;
+  supprimerDocument(id: string): Promise<void>;
+  restaurerDocument(id: string): Promise<PieceJointe>;
+  corbeilleDocuments(): Promise<PieceJointe[]>;
+  /** Ouvre le document dans l'application du système. */
+  ouvrirDocument(id: string): Promise<void>;
+  /** Copie enregistrée où le praticien le choisit ; `null` s'il annule. */
+  enregistrerCopieDocument(id: string): Promise<string | null>;
   accueil(): Promise<PreferencesAccueil>;
   enregistrerAccueil(accueil: PreferencesAccueil): Promise<PreferencesAccueil>;
 }
@@ -686,6 +718,16 @@ export const coeurTauri: Coeur = {
   analyserImport: (chemin) => appeler("analyser_import", { chemin }),
   importerMcl: (chemin, choix) => appeler("importer_mcl", { chemin, choix }),
   ouvrirRapportImport: (chemin) => appeler("ouvrir_rapport_import", { chemin }),
+  listerDocuments: (patientId) => appeler("lister_documents", { patientId }),
+  ajouterDocuments: (patientId, seanceId, chemins) => appeler("ajouter_documents", { patientId, seanceId, chemins }),
+  choisirDocuments: () => appeler("choisir_documents"),
+  contenuDocument: (id) => appeler("contenu_document", { id }),
+  modifierDocument: (id, nom, seanceId) => appeler("modifier_document", { id, nom, seanceId }),
+  supprimerDocument: (id) => appeler("supprimer_document", { id }),
+  restaurerDocument: (id) => appeler("restaurer_document", { id }),
+  corbeilleDocuments: () => appeler("corbeille_documents"),
+  ouvrirDocument: (id) => appeler("ouvrir_document", { id }),
+  enregistrerCopieDocument: (id) => appeler("enregistrer_copie_document", { id }),
   accueil: () => appeler("accueil"),
   enregistrerAccueil: (accueil) => appeler("enregistrer_accueil", { accueil }),
 };
@@ -794,6 +836,20 @@ export function creerCoeurDeDemonstration(
         ]
       : [],
   };
+  const documentsDemo: PieceJointe[] = exemples
+    ? [
+        {
+          id: "document-radio",
+          patient_id: "patient-1",
+          seance_id: null,
+          nom: "Radiographie lombaire.png",
+          type_mime: "image/png",
+          taille: IMAGE_FICTIVE.length,
+          ajoute_le: 1_790_000_000,
+          supprime_le: null,
+        },
+      ]
+    : [];
   /** Patients créés par l'import de démonstration : un second import ne les recopie pas. */
   const importDemo: string[] = [];
   let patients: Patient[] = exemples
@@ -1281,6 +1337,62 @@ export function creerCoeurDeDemonstration(
     async ouvrirRapportImport() {
       throw new Error("Pas de rapport écrit dans la démonstration.");
     },
+    async listerDocuments(patientId) {
+      trouverPatient(patientId);
+      return documentsDemo.filter((d) => d.patient_id === patientId && d.supprime_le === null).sort((a, b) => b.ajoute_le - a.ajoute_le);
+    },
+    async ajouterDocuments(patientId, seanceId, chemins) {
+      trouverPatient(patientId);
+      const ajoutes: PieceJointe[] = [];
+      for (const chemin of chemins) {
+        const nom = chemin.split(/[\\/]/).pop() || "Document";
+        const document: PieceJointe = {
+          id: `document-${(compteur += 1)}`,
+          patient_id: patientId,
+          seance_id: seanceId,
+          nom,
+          type_mime: typeDocument(nom),
+          taille: IMAGE_FICTIVE.length,
+          ajoute_le: Math.floor(Date.now() / 1000) + compteur,
+          supprime_le: null,
+        };
+        documentsDemo.push(document);
+        ajoutes.push(document);
+      }
+      return { ajoutes, erreurs: [] };
+    },
+    async choisirDocuments() {
+      return ["C:\\Users\\Praticien\\Documents\\Radio du genou.png"];
+    },
+    async contenuDocument(id) {
+      if (!documentsDemo.some((d) => d.id === id)) throw new Error("Ce document n’existe plus");
+      return IMAGE_FICTIVE.slice().buffer;
+    },
+    async modifierDocument(id, nom, seanceId) {
+      const document = documentsDemo.find((d) => d.id === id);
+      if (!document) throw new Error("Ce document n’existe plus");
+      Object.assign(document, { nom: nom.trim() || "Document", type_mime: typeDocument(nom), seance_id: seanceId });
+      return { ...document };
+    },
+    async supprimerDocument(id) {
+      const document = documentsDemo.find((d) => d.id === id);
+      if (document) document.supprime_le = Math.floor(Date.now() / 1000);
+    },
+    async restaurerDocument(id) {
+      const document = documentsDemo.find((d) => d.id === id);
+      if (!document) throw new Error("Ce document n’existe plus");
+      document.supprime_le = null;
+      return { ...document };
+    },
+    async corbeilleDocuments() {
+      return documentsDemo.filter((d) => d.supprime_le !== null);
+    },
+    async ouvrirDocument() {
+      throw new Error("Dans la démonstration, les documents ne s’ouvrent pas dans une autre application.");
+    },
+    async enregistrerCopieDocument() {
+      return null;
+    },
     async accueil() {
       return structuredClone(accueilDemo);
     },
@@ -1294,6 +1406,18 @@ export function creerCoeurDeDemonstration(
     },
   };
   return coeur;
+}
+
+/** Image fictive des documents de démonstration : un carré de 1 pixel, en PNG. */
+const IMAGE_FICTIVE = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="),
+  (c) => c.charCodeAt(0),
+);
+
+function typeDocument(nom: string): string {
+  const extension = nom.split(".").pop()?.toLowerCase() ?? "";
+  const types: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+  return types[extension] ?? "application/octet-stream";
 }
 
 /** Patients fictifs de l'import de démonstration. */

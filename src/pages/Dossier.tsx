@@ -10,14 +10,16 @@ import { Avatar } from "../patients/Avatar";
 import { depuisBrouillon, FormulaireFiche, versBrouillon, type BrouillonFiche, type ErreursFiche } from "../patients/FormulaireFiche";
 import { ListeSeancesPatient } from "../seances/ListeSeances";
 import { creerSeanceMaintenant } from "../seances/nouvelleSeance";
+import { Documents } from "../documents/Documents";
 import { TexteRiche } from "../trames/TexteRiche";
 
-export type Onglet = "synthese" | "seances" | "antecedents" | "identite";
+export type Onglet = "synthese" | "seances" | "antecedents" | "documents" | "identite";
 
 const ONGLETS: { onglet: Onglet; libelle: string }[] = [
   { onglet: "synthese", libelle: "Synthèse" },
   { onglet: "seances", libelle: "Séances" },
   { onglet: "antecedents", libelle: "Antécédents" },
+  { onglet: "documents", libelle: "Documents" },
   { onglet: "identite", libelle: "Identité et contact" },
 ];
 
@@ -328,6 +330,8 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
         <OngletIdentite key={patient.id} patient={patient} coeur={coeur} misAJour={setPatient} />
       ) : onglet === "synthese" ? (
         <Synthese patient={patient} antecedents={antecedents} formulaire={formulaire} seances={seances} />
+      ) : onglet === "documents" ? (
+        <Documents coeur={coeur} patientId={patient.id} seances={seances.filter((s) => s.supprimee_le === null)} titre="Documents du dossier" />
       ) : onglet === "antecedents" ? (
         <OngletAntecedents
           patient={patient}

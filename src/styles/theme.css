@@ -3832,3 +3832,133 @@ kbd {
 .ligne-choix-patient:focus-visible {
   background: var(--fond-barre);
 }
+
+/* Pièces jointes */
+.documents[data-survol] {
+  outline: 2px dashed var(--accent-fonce);
+  outline-offset: 4px;
+}
+
+.zone-depot {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--bordure-champ);
+  border-radius: var(--rayon);
+  background: var(--fond);
+  color: var(--encre-discrete);
+  font-size: 14px;
+  text-align: center;
+}
+
+.documents[data-survol] .zone-depot {
+  border-color: var(--accent-fonce);
+  background: var(--accent-doux);
+  color: var(--encre);
+  font-weight: 600;
+}
+
+.liste-documents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ligne-document {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.ligne-document:last-child {
+  border-bottom: 0;
+}
+
+.vignette-document {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 8px;
+  background: var(--fond-barre);
+  color: var(--encre-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vignette-document img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.texte-document {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.nom-document {
+  padding: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.rattachement select {
+  min-height: 32px;
+  border: 1px solid var(--bordure-champ);
+  border-radius: 6px;
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 13px;
+}
+
+.actions-document {
+  flex: none;
+}
+
+/* Aperçu d'un document, par-dessus la page */
+.voile {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(30, 24, 18, 0.55);
+}
+
+.apercu-document {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.image-document {
+  max-width: 100%;
+  height: auto;
+  align-self: center;
+  border-radius: 8px;
+}
+
+.pages-pdf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.pages-pdf canvas {
+  max-width: 100%;
+  border: 1px solid var(--bordure);
+  box-shadow: var(--ombre-legere);
+}
