@@ -2,9 +2,10 @@
 // contenant « * » ou « # » ne change pas la mise en page. Le texte mis en forme arrive sous forme de
 // document de l'éditeur (paragraphes, intertitres, listes ; gras, italique, souligné).
 #let d = json(bytes(sys.inputs.donnees))
+#let hab = d.habillage
+#let accent = rgb(hab.couleur)
 #let discret = rgb("#555555")
 #let filet = rgb("#dddddd")
-#let accent = rgb("#6e5212")
 
 #set document(title: d.titre, author: d.praticien.nom_complet)
 #set text(font: "Figtree", size: 10.5pt, lang: "fr", fill: rgb("#222222"))
@@ -44,25 +45,28 @@
   }
 }
 
-#grid(
-  columns: (1fr, auto),
-  gutter: 1em,
-  [
-    #text(size: 12.5pt, weight: "bold", d.praticien.nom_complet) \
-    #d.praticien.profession
-    #for ligne in d.praticien.lignes [ \ #ligne ]
-  ],
-  align(right + bottom, text(fill: discret, d.lieu_date)),
-)
+#let identite = [
+  #text(size: 12.5pt, weight: "bold", d.praticien.nom_complet) \
+  #d.praticien.profession
+  #for ligne in d.praticien.lignes [ \ #ligne ]
+]
+#if hab.logo == "" {
+  grid(columns: (1fr, auto), gutter: 1em, identite, align(right + bottom, text(fill: discret, d.lieu_date)))
+} else if hab.logo_a_droite {
+  grid(columns: (1fr, auto), gutter: 1em, identite, align(right + top, image(hab.logo, height: 1.8cm)))
+  align(right, text(fill: discret, d.lieu_date))
+} else {
+  grid(columns: (auto, 1fr, auto), gutter: 1.2em, align(top, image(hab.logo, height: 1.8cm)), identite, align(right + bottom, text(fill: discret, d.lieu_date)))
+}
 
 #v(1.2em)
-#line(length: 100%, stroke: 0.8pt)
+#line(length: 100%, stroke: 0.8pt + accent)
 #v(-0.3em)
-#align(center, text(size: 13pt, weight: "bold", tracking: 0.02em, d.titre))
+#align(center, text(size: 13pt, weight: "bold", tracking: 0.02em, fill: accent, d.titre))
 #v(-0.5em)
 #align(center, text(fill: discret, d.sous_titre))
 #v(-0.3em)
-#line(length: 100%, stroke: 0.8pt)
+#line(length: 100%, stroke: 0.8pt + accent)
 #v(0.6em)
 
 #text(fill: discret)[Patient] #h(0.4em) #text(weight: "semibold", d.patient)
@@ -85,6 +89,7 @@
 
 #v(2em)
 #align(right)[
+  #if hab.signature != "" { image(hab.signature, height: 1.6cm) }
   #text(weight: "semibold", d.signataire) \
   #text(fill: discret, d.profession)
 ]

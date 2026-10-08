@@ -10,6 +10,7 @@ use serde_json::{Map, Value, json};
 
 use crate::entete::entete_praticien;
 use crate::facture::ErreurDocument;
+use crate::habillage::Habillage;
 use crate::monde;
 
 const MODELE: &str = include_str!("modeles/compte_rendu.typ");
@@ -25,6 +26,7 @@ pub struct DemandeCompteRendu<'a> {
     pub champs: Option<&'a [String]>,
     /// `AAAA-MM-JJ` : la date portée au bas du compte rendu.
     pub aujourdhui: &'a str,
+    pub habillage: &'a Habillage,
 }
 
 fn nombre(n: f64) -> String {
@@ -234,6 +236,7 @@ fn vue(demande: &DemandeCompteRendu) -> Result<Value, ErreurDocument> {
     }
 
     Ok(json!({
+        "habillage": demande.habillage.vue(),
         "titre": "COMPTE RENDU DE SÉANCE",
         "sous_titre": sous_titre,
         "praticien": entete_praticien(&praticien, false),
@@ -248,12 +251,12 @@ fn vue(demande: &DemandeCompteRendu) -> Result<Value, ErreurDocument> {
 }
 
 pub fn compte_rendu_pdf(demande: &DemandeCompteRendu) -> Result<Vec<u8>, ErreurDocument> {
-    Ok(monde::pdf(MODELE, vue(demande)?.to_string())?)
+    Ok(monde::pdf(MODELE, vue(demande)?.to_string(), &demande.habillage.fichiers())?)
 }
 
 /// Les pages en SVG, pour l'aperçu à l'écran : la même mise en page que le PDF.
 pub fn compte_rendu_svg(demande: &DemandeCompteRendu) -> Result<Vec<String>, ErreurDocument> {
-    Ok(monde::svg(MODELE, vue(demande)?.to_string())?)
+    Ok(monde::svg(MODELE, vue(demande)?.to_string(), &demande.habillage.fichiers())?)
 }
 
 #[cfg(test)]
@@ -345,7 +348,7 @@ mod tests {
     fn imprime_les_champs_remplis_et_choisis() {
         let (praticien, patient, seance, definition) = exemple();
         assert_eq!(champs_par_defaut(&definition, &seance), ["motif", "douleur", "mesures"]);
-        let demande = DemandeCompteRendu { praticien: &praticien, patient: &patient, seance: &seance, definition: &definition, champs: None, aujourdhui: "2026-10-08" };
+        let demande = DemandeCompteRendu { praticien: &praticien, patient: &patient, seance: &seance, definition: &definition, champs: None, aujourdhui: "2026-10-08", habillage: &Habillage::default() };
         let v = vue(&demande).unwrap();
         let libelles: Vec<&str> = v["sections"].as_array().unwrap().iter().map(|s| s["libelle"].as_str().unwrap()).collect();
         assert_eq!(libelles, ["Anamnèse", "Motif de consultation", "Douleur avant", "Examen", "Mesures"]);
@@ -368,7 +371,7 @@ mod tests {
     #[test]
     fn compose_le_pdf_sans_interpreter_le_texte() {
         let (praticien, patient, seance, definition) = exemple();
-        let demande = DemandeCompteRendu { praticien: &praticien, patient: &patient, seance: &seance, definition: &definition, champs: None, aujourdhui: "2026-10-08" };
+        let demande = DemandeCompteRendu { praticien: &praticien, patient: &patient, seance: &seance, definition: &definition, champs: None, aujourdhui: "2026-10-08", habillage: &Habillage::default() };
         let pdf = compte_rendu_pdf(&demande).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
         let pages = compte_rendu_svg(&demande).unwrap();

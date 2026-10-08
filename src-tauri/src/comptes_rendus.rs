@@ -23,8 +23,10 @@ fn composer<T>(base: &Base, seance_id: &str, champs: &[String], rendu: impl FnOn
     let patient = patients::lire(base, &seance.patient_id).map_err(message)?;
     let definition = modeles::lire_version(base, &seance.saisie.modele_id, seance.saisie.modele_version).map_err(message)?;
     let praticien: IdentiteCabinet = base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default();
+    let habillage = crate::documents::habillage(base)?;
     let jour = aujourdhui();
-    let demande = DemandeCompteRendu { praticien: &praticien, patient: &patient.fiche, seance: &seance, definition: &definition, champs: Some(champs), aujourdhui: &jour };
+    let demande =
+        DemandeCompteRendu { praticien: &praticien, patient: &patient.fiche, seance: &seance, definition: &definition, champs: Some(champs), aujourdhui: &jour, habillage: &habillage };
     let resultat = rendu(&demande)?;
     let nom = format!("{} {}", patient.fiche.prenom.trim(), patient.fiche.nom.trim());
     Ok((resultat, seance, nom))

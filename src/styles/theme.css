@@ -3986,3 +3986,69 @@ kbd {
 .case-simple[data-vide] {
   color: var(--encre-discrete);
 }
+
+/* Paramètres › Cabinet : présentation des documents */
+.images-documents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.image-document {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cadre-image {
+  height: 96px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border: 1px dashed var(--bordure-champ);
+  border-radius: var(--rayon);
+  background: #ffffff;
+  text-align: center;
+}
+
+.cadre-image img {
+  max-width: 100%;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+.nuancier {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.nuancier legend {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.teinte {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.echantillon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--fond-carte);
+  box-shadow: 0 0 0 1px var(--bordure-champ);
+}
+
+.teinte input:checked + .echantillon {
+  box-shadow: 0 0 0 2px var(--encre);
+}

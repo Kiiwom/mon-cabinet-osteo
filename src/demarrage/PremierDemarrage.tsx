@@ -4,6 +4,7 @@ import { Marque } from "../composants/Marque";
 import {
   IDENTITE_VIDE,
   type CaractereTrames,
+  type ChampTexteIdentite,
   type Coeur,
   type FrequenceSauvegarde,
   type IdentiteCabinet,
@@ -79,7 +80,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
     titre.current?.focus();
   }, [etape]);
 
-  const changerIdentite = (champ: keyof IdentiteCabinet) => (valeur: string) =>
+  const changerIdentite = (champ: ChampTexteIdentite) => (valeur: string) =>
     setIdentite((i) => ({ ...i, [champ]: valeur }));
 
   function etapeValide(): boolean {
@@ -339,7 +340,7 @@ export function ChampsIdentite({
 }: {
   identite: IdentiteCabinet;
   erreurs: ErreursIdentite;
-  changer: (champ: keyof IdentiteCabinet) => (valeur: string) => void;
+  changer: (champ: ChampTexteIdentite) => (valeur: string) => void;
 }) {
   return (
     <div className="champs">
@@ -364,7 +365,7 @@ function EtapeCabinet({
 }: {
   identite: IdentiteCabinet;
   erreurs: ErreursIdentite;
-  changer: (champ: keyof IdentiteCabinet) => (valeur: string) => void;
+  changer: (champ: ChampTexteIdentite) => (valeur: string) => void;
 }) {
   return (
     <div className="pile">

@@ -15,10 +15,11 @@ use serde_json::{Value, json};
 
 use crate::entete::entete_praticien;
 use crate::format::euros;
+use crate::habillage::Habillage;
 use crate::monde::{self, ErreurMiseEnPage};
 
 const MODELE: &str = include_str!("modeles/facture.typ");
-pub const MENTION_TVA: &str = "TVA non applicable, article 261-4-1° du CGI";
+pub use osteosphere_core::cabinet::MENTION_TVA;
 
 /// Ce qui barre la page d'un document sans valeur.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +66,7 @@ fn citer(renvoi: &Renvoi) -> Result<String, ErreurDocument> {
 /// Les valeurs affichées par le modèle, déjà mises en forme.
 ///
 /// `praticien` : l'identité gardée à l'émission ; pour un brouillon ou un essai, celle du jour.
-fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>) -> Result<Value, ErreurDocument> {
+fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>, habillage: &Habillage) -> Result<Value, ErreurDocument> {
     let praticien = praticien.verifier().map_err(|e| ErreurDocument::Donnee(e.to_string()))?;
     if filigrane.is_none() {
         if facture.etat == EtatFacture::Brouillon {
@@ -178,6 +179,7 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
     let titre = if avoir { "AVOIR" } else { "FACTURE" };
 
     Ok(json!({
+        "habillage": habillage.vue(),
         "filigrane": filigrane.map(Filigrane::texte).unwrap_or_default(),
         "titre": titre,
         "numero": facture.numero.clone().unwrap_or_else(|| "à attribuer".into()),
@@ -185,7 +187,7 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
         "annulation": annulation,
         "emission": emission,
         "seance": seance,
-        "praticien": entete_praticien(&praticien, true),
+        "praticien": entete_praticien(&praticien, !praticien.sans_ei),
         "destinataire": { "nom": nom_destinataire, "lignes": lignes_destinataire },
         "remise": remise,
         "lignes": lignes,
@@ -194,7 +196,8 @@ fn vue(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigra
         "commentaire": facture.saisie.commentaire_imprime.trim(),
         "lieu_date": lieu_date,
         "signataire": format!("{initiale}{}", praticien.nom),
-        "mentions": format!("SIRET {siret} · RPPS {rpps} · {MENTION_TVA}"),
+        "mentions": format!("SIRET {siret} · RPPS {rpps} · {}", praticien.mention_tva()),
+        "mentions_libres": praticien.mentions.clone(),
     }))
 }
 
@@ -251,13 +254,13 @@ pub fn exemple(date: &str) -> Facture {
 }
 
 /// Le PDF de la facture ou de l'avoir.
-pub fn facture_pdf(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>) -> Result<Vec<u8>, ErreurDocument> {
-    Ok(monde::pdf(MODELE, vue(facture, praticien, filigrane)?.to_string())?)
+pub fn facture_pdf(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>, habillage: &Habillage) -> Result<Vec<u8>, ErreurDocument> {
+    Ok(monde::pdf(MODELE, vue(facture, praticien, filigrane, habillage)?.to_string(), &habillage.fichiers())?)
 }
 
 /// Les pages de la facture en SVG, pour l'aperçu à l'écran : la même mise en page que le PDF.
-pub fn facture_svg(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>) -> Result<Vec<String>, ErreurDocument> {
-    Ok(monde::svg(MODELE, vue(facture, praticien, filigrane)?.to_string())?)
+pub fn facture_svg(facture: &Facture, praticien: &IdentiteCabinet, filigrane: Option<Filigrane>, habillage: &Habillage) -> Result<Vec<String>, ErreurDocument> {
+    Ok(monde::svg(MODELE, vue(facture, praticien, filigrane, habillage)?.to_string(), &habillage.fichiers())?)
 }
 
 #[cfg(test)]
@@ -276,6 +279,7 @@ mod tests {
             email: "cabinet@exemple.fr".into(),
             siret: "12345678900012".into(),
             rpps: "10000000000".into(),
+            ..Default::default()
         }
     }
 
@@ -335,7 +339,7 @@ mod tests {
 
     #[test]
     fn met_en_forme_les_mentions_et_les_montants() {
-        let v = vue(&facture_fictive(), &praticien(), None).unwrap();
+        let v = vue(&facture_fictive(), &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(v["titre"], "FACTURE");
         assert_eq!(v["praticien"]["nom_complet"], "Alexandre Roux EI");
         assert_eq!(v["emission"], "6 octobre 2026");
@@ -359,15 +363,15 @@ mod tests {
     fn la_facture_d_exemple_s_imprime_en_essai() {
         let exemple = exemple("2026-10-06");
         assert_eq!(exemple.numero.as_deref(), Some("2026-10-1772"));
-        assert!(facture_pdf(&exemple, &IdentiteCabinet { prenom: "A".into(), nom: "Roux".into(), ..Default::default() }, Some(Filigrane::Essai)).is_ok());
+        assert!(facture_pdf(&exemple, &IdentiteCabinet { prenom: "A".into(), nom: "Roux".into(), ..Default::default() }, Some(Filigrane::Essai), &Habillage::default()).is_ok());
     }
 
     #[test]
     fn produit_un_pdf_et_un_apercu() {
-        let pdf = facture_pdf(&facture_fictive(), &praticien(), None).unwrap();
+        let pdf = facture_pdf(&facture_fictive(), &praticien(), None, &Habillage::default()).unwrap();
         assert!(pdf.starts_with(b"%PDF-"));
         assert!(pdf.len() > 1000);
-        let pages = facture_svg(&facture_fictive(), &praticien(), None).unwrap();
+        let pages = facture_svg(&facture_fictive(), &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(pages.len(), 1);
         assert!(pages[0].starts_with("<svg"));
     }
@@ -375,11 +379,11 @@ mod tests {
     #[test]
     fn exige_les_mentions_hors_apercu_et_les_tolere_en_essai() {
         let sans_siret = IdentiteCabinet { siret: String::new(), ..praticien() };
-        assert!(matches!(facture_pdf(&facture_fictive(), &sans_siret, None), Err(ErreurDocument::MentionManquante("SIRET"))));
-        let v = vue(&facture_fictive(), &sans_siret, Some(Filigrane::Essai)).unwrap();
+        assert!(matches!(facture_pdf(&facture_fictive(), &sans_siret, None, &Habillage::default()), Err(ErreurDocument::MentionManquante("SIRET"))));
+        let v = vue(&facture_fictive(), &sans_siret, Some(Filigrane::Essai), &Habillage::default()).unwrap();
         assert!(v["mentions"].as_str().unwrap().starts_with("SIRET à compléter"));
         assert_eq!(v["filigrane"], "ESSAI — SANS VALEUR");
-        assert!(facture_pdf(&facture_fictive(), &sans_siret, Some(Filigrane::Essai)).unwrap().starts_with(b"%PDF-"));
+        assert!(facture_pdf(&facture_fictive(), &sans_siret, Some(Filigrane::Essai), &Habillage::default()).unwrap().starts_with(b"%PDF-"));
     }
 
     #[test]
@@ -390,8 +394,8 @@ mod tests {
         brouillon.date_emission = None;
         brouillon.reglements.clear();
         brouillon.regle_centimes = 0;
-        assert!(facture_pdf(&brouillon, &praticien(), None).is_err());
-        let v = vue(&brouillon, &praticien(), Some(Filigrane::Brouillon)).unwrap();
+        assert!(facture_pdf(&brouillon, &praticien(), None, &Habillage::default()).is_err());
+        let v = vue(&brouillon, &praticien(), Some(Filigrane::Brouillon), &Habillage::default()).unwrap();
         assert_eq!((v["numero"].as_str(), v["filigrane"].as_str()), (Some("à attribuer"), Some("BROUILLON — SANS VALEUR")));
         assert_eq!(v["reglements"][0], "En attente de règlement");
     }
@@ -401,7 +405,7 @@ mod tests {
         let mut facture = facture_fictive();
         facture.saisie.destinataire.nom = "*Martin* #panic() $x$ [lien] \\ _".into();
         facture.saisie.commentaire_imprime = "#import \"secret.typ\": *".into();
-        assert!(facture_pdf(&facture, &praticien(), None).unwrap().starts_with(b"%PDF-"));
+        assert!(facture_pdf(&facture, &praticien(), None, &Habillage::default()).unwrap().starts_with(b"%PDF-"));
     }
 
     #[test]
@@ -419,13 +423,13 @@ mod tests {
         cheque.saisie.reference = "0004512".into();
         cheque.saisie.payeur = "Paul Martin".into();
         facture.reglements = vec![cheque];
-        let v = vue(&facture, &praticien(), None).unwrap();
+        let v = vue(&facture, &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(v["remise"], true);
         assert_eq!(v["lignes"][1]["remise"], "-5,00\u{a0}€");
         assert_eq!(v["lignes"][1]["total"], "35,00\u{a0}€");
         assert_eq!(v["totaux"][2]["valeur"], "35,00\u{a0}€");
         assert_eq!(v["reglements"][0], "Réglé par chèque n° 0004512 le 6 octobre 2026 (Paul Martin) : 55,00\u{a0}€");
-        assert!(facture_pdf(&facture, &praticien(), None).unwrap().starts_with(b"%PDF-"));
+        assert!(facture_pdf(&facture, &praticien(), None, &Habillage::default()).unwrap().starts_with(b"%PDF-"));
     }
 
     #[test]
@@ -437,24 +441,24 @@ mod tests {
         avoir.reglements = vec![reglement(Moyen::Especes, -5500)];
         avoir.regle_centimes = -5500;
         avoir.origine = Some(origine.clone());
-        let v = vue(&avoir, &praticien(), None).unwrap();
+        let v = vue(&avoir, &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(v["titre"], "AVOIR");
         assert_eq!(v["mention"], "Avoir annulant la facture n° 2026-10-1771 du 5 octobre 2026");
         assert_eq!(v["lignes"][0]["total"], "-55,00\u{a0}€");
         assert_eq!(v["totaux"][0]["valeur"], "-55,00\u{a0}€");
         assert_eq!(v["totaux"][1]["valeur"], "55,00\u{a0}€");
         assert_eq!(v["reglements"][0], "Remboursé en espèces le 6 octobre 2026 : 55,00\u{a0}€");
-        assert!(facture_pdf(&avoir, &praticien(), None).unwrap().starts_with(b"%PDF-"));
+        assert!(facture_pdf(&avoir, &praticien(), None, &Habillage::default()).unwrap().starts_with(b"%PDF-"));
 
         let mut rectificative = facture_fictive();
         rectificative.origine = Some(origine);
-        let v = vue(&rectificative, &praticien(), None).unwrap();
+        let v = vue(&rectificative, &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(v["mention"], "Facture rectificative : annule et remplace la facture n° 2026-10-1771 du 5 octobre 2026");
 
         let mut annulee = facture_fictive();
         annulee.etat = EtatFacture::Annulee;
         annulee.avoir = Some(Renvoi { id: "a".into(), numero: "2026-10-1773".into(), date_emission: "2026-10-07".into() });
-        let v = vue(&annulee, &praticien(), None).unwrap();
+        let v = vue(&annulee, &praticien(), None, &Habillage::default()).unwrap();
         assert_eq!(v["annulation"], "Annulée par l’avoir n° 2026-10-1773 du 7 octobre 2026");
     }
 }

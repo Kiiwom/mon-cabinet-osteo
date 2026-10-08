@@ -5,6 +5,7 @@
 
 pub mod compte_rendu;
 mod entete;
+mod habillage;
 pub mod facture;
 mod format;
 mod monde;
@@ -12,3 +13,4 @@ mod monde;
 pub use compte_rendu::{ChampImprimable, DemandeCompteRendu, champs_imprimables, champs_par_defaut, compte_rendu_pdf, compte_rendu_svg};
 pub use facture::{ErreurDocument, Filigrane, exemple, facture_pdf, facture_svg};
 pub use format::euros;
+pub use habillage::Habillage;

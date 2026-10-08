@@ -37,9 +37,23 @@ pub struct IdentiteCabinet {
     pub email: String,
     pub siret: String,
     pub rpps: String,
+    /// Mention d'exonération de TVA ; vide, la mention légale des ostéopathes ([`MENTION_TVA`]).
+    pub mention_tva: String,
+    /// Le nom n'est pas suivi de « EI » (entrepreneur individuel) : une société d'exercice, par exemple.
+    pub sans_ei: bool,
+    /// Mentions libres en bas des factures : association agréée, assurance, médiation…
+    pub mentions: String,
 }
 
+/// Mention portée sur les factures des ostéopathes exonérés de TVA.
+pub const MENTION_TVA: &str = "TVA non applicable, article 261-4-1° du CGI";
+
 impl IdentiteCabinet {
+    /// La mention de TVA à imprimer.
+    pub fn mention_tva(&self) -> &str {
+        if self.mention_tva.trim().is_empty() { MENTION_TVA } else { self.mention_tva.trim() }
+    }
+
     /// Vérifie la saisie et renvoie l'identité nettoyée (espaces retirés autour et dans les numéros).
     pub fn verifier(&self) -> Result<Self, ErreurCabinet> {
         let propre = |t: &str| t.trim().to_owned();
@@ -55,7 +69,13 @@ impl IdentiteCabinet {
             email: propre(&self.email),
             siret: chiffres(&self.siret),
             rpps: chiffres(&self.rpps),
+            mention_tva: propre(&self.mention_tva),
+            sans_ei: self.sans_ei,
+            mentions: self.mentions.trim().replace("\r\n", "\n"),
         };
+        if identite.mention_tva.chars().count() > 200 || identite.mentions.chars().count() > 600 {
+            return Err(ErreurCabinet::Identite("les mentions tiennent en 200 caractères pour la TVA, 600 pour les mentions libres"));
+        }
         let que_des_chiffres = |t: &str, n: usize| t.is_empty() || (t.len() == n && t.bytes().all(|o| o.is_ascii_digit()));
         if identite.prenom.is_empty() || identite.nom.is_empty() {
             return Err(ErreurCabinet::Identite("indiquez votre prénom et votre nom"));

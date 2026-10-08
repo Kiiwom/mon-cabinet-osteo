@@ -19,6 +19,7 @@
 //! - [`import_mcl`] : reprise des données de MonCabinetLibéral.
 //! - [`accueil`] : blocs de l'accueil et pense-bêtes.
 //! - [`documents`] : pièces jointes du dossier, chiffrées dans la base, corbeille de 30 jours.
+//! - [`mise_en_page`] : logo, signature et couleur des factures et des comptes rendus.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -36,6 +37,7 @@ mod hexa;
 pub mod horloge;
 pub mod identifiant;
 pub mod import_mcl;
+pub mod mise_en_page;
 pub mod modeles;
 pub mod numerotation;
 pub mod patients;

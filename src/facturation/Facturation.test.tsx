@@ -162,6 +162,36 @@ describe("facturation", () => {
     expect(within(alerte).getByRole("link", { name: "Compléter maintenant" })).toHaveAttribute("href", "#/parametres/cabinet");
   });
 
+  it("règle les mentions, le logo, la signature et la couleur des documents", async () => {
+    const coeur = await demarrer();
+    await aller("#/parametres/cabinet");
+    const ei = await screen.findByRole("checkbox", { name: /Faire suivre mon nom de « EI »/ });
+    expect(ei).toBeChecked();
+    fireEvent.click(ei);
+    expect(screen.getByLabelText("Mention de TVA")).toHaveAttribute("placeholder", "TVA non applicable, article 261-4-1° du CGI");
+    fireEvent.change(screen.getByLabelText("Mentions libres en bas de page"), { target: { value: "  Membre d’une association agréée.  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    expect(await screen.findByText(/Identité enregistrée/)).toBeInTheDocument();
+    expect(await coeur.identiteCabinet()).toMatchObject({ sans_ei: true, mention_tva: "", mentions: "Membre d’une association agréée." });
+
+    const presentation = await screen.findByRole("region", { name: "Présentation des documents" });
+    expect(within(presentation).getByText("Aucun logo")).toBeInTheDocument();
+    fireEvent.click(within(presentation).getAllByRole("button", { name: "Choisir une image…" })[0]);
+    expect(await within(presentation).findByRole("img", { name: "Logo du cabinet" })).toBeInTheDocument();
+    expect(within(presentation).getByRole("status")).toHaveTextContent("Logo enregistré.");
+    fireEvent.click(within(presentation).getByRole("button", { name: "À droite" }));
+    await waitFor(async () => expect((await coeur.miseEnPage()).position_logo).toBe("droite"));
+    fireEvent.click(within(presentation).getByRole("radio", { name: "Bleu" }));
+    await waitFor(async () => expect((await coeur.miseEnPage()).couleur).toBe("#1f4e79"));
+    expect(within(presentation).getByRole("radio", { name: "Bleu" })).toBeChecked();
+    fireEvent.click(within(presentation).getByRole("checkbox", { name: "Imprimer le logo" }));
+    await waitFor(async () => expect((await coeur.miseEnPage()).logo).toBe(false));
+    expect(within(presentation).queryByRole("button", { name: "À droite" })).not.toBeInTheDocument();
+    fireEvent.click(within(presentation).getByRole("button", { name: "Retirer" }));
+    expect(await within(presentation).findByText("Aucun logo")).toBeInTheDocument();
+    expect((await coeur.imageDocuments("logo")).byteLength).toBe(0);
+  });
+
   it("règle les prestations et la numérotation", async () => {
     await demarrer();
     await aller("#/parametres/facturation");

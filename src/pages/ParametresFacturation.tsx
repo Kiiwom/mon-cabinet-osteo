@@ -3,7 +3,8 @@ import { useEffect, useId, useState } from "react";
 import { ChampsIdentite } from "../demarrage/PremierDemarrage";
 import { ChampMontant, PagesApercu } from "../facturation/composants";
 import { ErreurFacturation } from "../facturation/FinDeSeance";
-import { dateDuJour, type Coeur, type IdentiteCabinet } from "../lib/coeur";
+import { ReglagesMiseEnPage } from "../documents/MiseEnPage";
+import { dateDuJour, MENTION_TVA, type ChampTexteIdentite, type Coeur, type IdentiteCabinet } from "../lib/coeur";
 import { COULEURS_PRESTATION, euros, type Prestation, type ReglagesNumerotation, type SaisiePrestation } from "../lib/facturation";
 import { verifierIdentite, type ErreursIdentite } from "../lib/identite";
 import { adresse } from "../lib/navigation";
@@ -16,7 +17,7 @@ function Fil({ titre }: { titre: string }) {
   );
 }
 
-/** Identité et mentions imprimées sur les factures, avec l'aperçu d'une facture d'essai. */
+/** Identité, mentions et présentation des factures, avec l'aperçu d'une facture d'essai. */
 export function PageParametresCabinet({ coeur }: { coeur: Coeur }) {
   const [identite, setIdentite] = useState<IdentiteCabinet | null>(null);
   const [erreurs, setErreurs] = useState<ErreursIdentite>({});
@@ -30,10 +31,11 @@ export function PageParametresCabinet({ coeur }: { coeur: Coeur }) {
 
   if (!identite) return <main className="page">{erreur ? <ErreurFacturation message={erreur} /> : <p className="discret">Chargement…</p>}</main>;
 
-  const changer = (champ: keyof IdentiteCabinet) => (valeur: string) => {
-    setIdentite({ ...identite, [champ]: valeur });
+  const modifier = (champs: Partial<IdentiteCabinet>) => {
+    setIdentite({ ...identite, ...champs });
     setMessage(null);
   };
+  const changer = (champ: ChampTexteIdentite) => (valeur: string) => modifier({ [champ]: valeur });
   const manquantes = (
     [
       ["adresse", identite.adresse],
@@ -55,6 +57,7 @@ export function PageParametresCabinet({ coeur }: { coeur: Coeur }) {
     try {
       setIdentite(await coeur.enregistrerIdentiteCabinet(identite!));
       setMessage("Identité enregistrée. Les factures déjà émises gardent l’identité du jour de leur émission.");
+      if (apercu) void essayer();
     } catch (err) {
       setErreur((err as Error).message);
     }
@@ -74,14 +77,12 @@ export function PageParametresCabinet({ coeur }: { coeur: Coeur }) {
       <Fil titre="Cabinet et mentions légales" />
       <div>
         <h1 className="page-titre">Cabinet et mentions légales</h1>
-        <p className="page-sous-titre">Ce qui figure en tête et au pied de vos factures</p>
+        <p className="page-sous-titre">Ce qui figure en tête et au pied de vos factures et comptes rendus</p>
       </div>
-      <form className="carte" onSubmit={(e) => void enregistrer(e)}>
+      <form className="carte pile" onSubmit={(e) => void enregistrer(e)}>
         <ChampsIdentite identite={identite} erreurs={erreurs} changer={changer} />
         {manquantes.length > 0 && <p className="avertissement">À compléter avant la première facture : {manquantes.join(", ")}.</p>}
-        <p className="discret">
-          Mentions ajoutées d’office : votre nom suivi de « EI » (entrepreneur individuel) et « TVA non applicable, article 261-4-1° du CGI ».
-        </p>
+        <MentionsFactures identite={identite} modifier={modifier} />
         {erreur && <ErreurFacturation message={erreur} />}
         {message && (
           <p className="succes" role="status">
@@ -92,13 +93,65 @@ export function PageParametresCabinet({ coeur }: { coeur: Coeur }) {
           <button type="submit" className="bouton bouton-principal">
             Enregistrer
           </button>
-          <button type="button" className="bouton" onClick={() => void essayer()}>
-            Aperçu d’une facture d’essai
-          </button>
         </div>
       </form>
-      {apercu && <PagesApercu pages={apercu.pages} erreur={apercu.erreur} titre="Facture d’essai" />}
+      <ReglagesMiseEnPage coeur={coeur} surChangement={() => apercu && void essayer()} />
+      {apercu ? (
+        <PagesApercu pages={apercu.pages} erreur={apercu.erreur} titre="Facture d’essai" />
+      ) : (
+        <div className="rangee">
+          <button type="button" className="bouton" onClick={() => void essayer()}>
+            Voir le résultat sur une facture d’essai
+          </button>
+        </div>
+      )}
     </main>
+  );
+}
+
+/** « EI », mention de TVA et mentions libres : gardées avec l'identité sur chaque facture émise. */
+function MentionsFactures({ identite, modifier }: { identite: IdentiteCabinet; modifier: (champs: Partial<IdentiteCabinet>) => void }) {
+  const id = useId();
+  return (
+    <fieldset className="groupe-champs">
+      <legend>Mentions des factures</legend>
+      <div className="pile-serree">
+        <label className="case-simple">
+          <input type="checkbox" checked={!identite.sans_ei} onChange={(e) => modifier({ sans_ei: !e.target.checked })} />
+          Faire suivre mon nom de « EI » (entrepreneur individuel)
+        </label>
+        <span className="discret">Obligatoire en entreprise individuelle, micro-entreprise comprise. Décochez si vous exercez en société.</span>
+      </div>
+      <div className="champ champ-large">
+        <label htmlFor={`${id}-tva`}>Mention de TVA</label>
+        <input
+          id={`${id}-tva`}
+          value={identite.mention_tva}
+          placeholder={MENTION_TVA}
+          maxLength={200}
+          aria-describedby={`${id}-tva-aide`}
+          onChange={(e) => modifier({ mention_tva: e.target.value })}
+        />
+        <span id={`${id}-tva-aide`} className="discret">
+          Laissez vide pour la mention des ostéopathes exonérés : « {MENTION_TVA} ».
+        </span>
+      </div>
+      <div className="champ champ-large">
+        <label htmlFor={`${id}-mentions`}>Mentions libres en bas de page</label>
+        <textarea
+          id={`${id}-mentions`}
+          rows={3}
+          value={identite.mentions}
+          maxLength={600}
+          placeholder="Ex. : Membre d’une association agréée, le règlement des honoraires par chèque est accepté."
+          aria-describedby={`${id}-mentions-aide`}
+          onChange={(e) => modifier({ mentions: e.target.value })}
+        />
+        <span id={`${id}-mentions-aide`} className="discret">
+          Association agréée, assurance professionnelle, médiateur de la consommation… 600 caractères au plus.
+        </span>
+      </div>
+    </fieldset>
   );
 }
 

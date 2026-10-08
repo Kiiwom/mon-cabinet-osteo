@@ -32,7 +32,45 @@ export interface IdentiteCabinet {
   email: string;
   siret: string;
   rpps: string;
+  /** Vide : la mention légale des ostéopathes, {@link MENTION_TVA}. */
+  mention_tva: string;
+  /** Le nom n'est pas suivi de « EI » : exercice en société, par exemple. */
+  sans_ei: boolean;
+  /** Mentions libres en bas des factures. */
+  mentions: string;
 }
+
+/** Les champs de l'identité saisis en texte. */
+export type ChampTexteIdentite = Exclude<keyof IdentiteCabinet, "sans_ei">;
+
+export const MENTION_TVA = "TVA non applicable, article 261-4-1° du CGI";
+
+export type QuelleImage = "logo" | "signature";
+
+/** Présentation des factures et des comptes rendus. */
+export interface MiseEnPage {
+  /** `#rrggbb`, l'une de {@link COULEURS_DOCUMENTS}. */
+  couleur: string;
+  position_logo: "gauche" | "droite";
+  /** Imprimer le logo, s'il y en a un. */
+  logo: boolean;
+  /** Imprimer l'image de la signature, s'il y en a une ; sinon, le nom. */
+  signature: boolean;
+}
+
+/** Couleurs sombres, lisibles sur papier blanc et à l'impression en noir et blanc. */
+export const COULEURS_DOCUMENTS: { nom: string; valeur: string }[] = [
+  { nom: "Bronze", valeur: "#6e5212" },
+  { nom: "Bleu", valeur: "#1f4e79" },
+  { nom: "Vert", valeur: "#2f5d3a" },
+  { nom: "Sarcelle", valeur: "#16595a" },
+  { nom: "Prune", valeur: "#5b2d5e" },
+  { nom: "Bordeaux", valeur: "#7a2632" },
+  { nom: "Ardoise", valeur: "#3c4654" },
+  { nom: "Noir", valeur: "#222222" },
+];
+
+export const MISE_EN_PAGE_DEFAUT: MiseEnPage = { couleur: "#6e5212", position_logo: "gauche", logo: true, signature: true };
 
 export type CaractereTrames = "@" | "/";
 export type FrequenceSauvegarde = "fermeture" | "intervalle" | "jour" | "semaine" | "manuelle";
@@ -506,6 +544,13 @@ export interface Coeur {
   ouvrirFactureEssai(date: string): Promise<void>;
   identiteCabinet(): Promise<IdentiteCabinet>;
   enregistrerIdentiteCabinet(identite: IdentiteCabinet): Promise<IdentiteCabinet>;
+  miseEnPage(): Promise<MiseEnPage>;
+  enregistrerMiseEnPage(miseEnPage: MiseEnPage): Promise<MiseEnPage>;
+  /** Le logo ou la signature, vide s'il n'y en a pas. */
+  imageDocuments(quelle: QuelleImage): Promise<ArrayBuffer>;
+  /** Fenêtre du système pour choisir l'image ; `false` si le praticien annule. */
+  choisirImageDocuments(quelle: QuelleImage): Promise<boolean>;
+  supprimerImageDocuments(quelle: QuelleImage): Promise<void>;
   listerPatients(): Promise<ResumePatient[]>;
   lirePatient(id: string): Promise<Patient>;
   creerPatient(fiche: FichePatient): Promise<Patient>;
@@ -635,6 +680,9 @@ export const IDENTITE_VIDE: IdentiteCabinet = {
   email: "",
   siret: "",
   rpps: "",
+  mention_tva: "",
+  sans_ei: false,
+  mentions: "",
 };
 
 /** Les erreurs du cœur arrivent en texte ; elles deviennent des Error à message affichable. */
@@ -663,6 +711,11 @@ export const coeurTauri: Coeur = {
   ouvrirFactureEssai: (date) => appeler("ouvrir_facture_essai", { date }),
   identiteCabinet: () => appeler("identite_cabinet"),
   enregistrerIdentiteCabinet: (identite) => appeler("enregistrer_identite_cabinet", { identite }),
+  miseEnPage: () => appeler("mise_en_page"),
+  enregistrerMiseEnPage: (miseEnPage) => appeler("enregistrer_mise_en_page", { miseEnPage }),
+  imageDocuments: (quelle) => appeler("image_documents", { quelle }),
+  choisirImageDocuments: (quelle) => appeler("choisir_image_documents", { quelle }),
+  supprimerImageDocuments: (quelle) => appeler("supprimer_image_documents", { quelle }),
   listerPatients: () => appeler("lister_patients"),
   lirePatient: (id) => appeler("lire_patient", { id }),
   creerPatient: (fiche) => appeler("creer_patient", { fiche }),
@@ -845,6 +898,8 @@ export function creerCoeurDeDemonstration(
       }
     : { ...IDENTITE_VIDE, prenom: "Alexandre", nom: "Roux" };
   let caractere: CaractereTrames = "@";
+  let miseEnPage: MiseEnPage = { ...MISE_EN_PAGE_DEFAUT };
+  const images: Record<QuelleImage, boolean> = { logo: false, signature: false };
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, contenu: null, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
   let accueilDemo: PreferencesAccueil = {
@@ -1071,8 +1126,27 @@ export function creerCoeurDeDemonstration(
       if (propre.siret && !/^\d{14}$/.test(propre.siret)) throw new Error("Le SIRET compte 14 chiffres");
       if (propre.rpps && !/^\d{11}$/.test(propre.rpps)) throw new Error("Le numéro RPPS compte 11 chiffres");
       if (propre.code_postal && !/^\d{5}$/.test(propre.code_postal)) throw new Error("Le code postal compte 5 chiffres");
-      identite = propre;
+      if (propre.mention_tva.length > 200 || propre.mentions.length > 600) throw new Error("Les mentions tiennent en 200 caractères pour la TVA, 600 pour les mentions libres");
+      identite = { ...propre, mention_tva: propre.mention_tva.trim(), mentions: propre.mentions.trim() };
       return { ...identite };
+    },
+    async miseEnPage() {
+      return { ...miseEnPage };
+    },
+    async enregistrerMiseEnPage(saisie) {
+      if (!/^#[0-9a-f]{6}$/i.test(saisie.couleur.trim())) throw new Error("couleur inconnue : choisissez-en une dans la liste");
+      miseEnPage = { ...saisie, couleur: saisie.couleur.trim().toLowerCase() };
+      return { ...miseEnPage };
+    },
+    async imageDocuments(quelle) {
+      return images[quelle] ? IMAGE_FICTIVE.slice().buffer : new ArrayBuffer(0);
+    },
+    async choisirImageDocuments(quelle) {
+      images[quelle] = true;
+      return true;
+    },
+    async supprimerImageDocuments(quelle) {
+      images[quelle] = false;
     },
     async listerPatients() {
       return patients
