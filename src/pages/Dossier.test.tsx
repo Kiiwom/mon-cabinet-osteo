@@ -156,3 +156,31 @@ describe("effacement, historique, frise et dossier PDF", () => {
     expect(await within(fenetre).findByText(/Le dossier PDF est mis en page par le cœur/)).toBeInTheDocument();
   });
 });
+
+describe("séances du dossier par année", () => {
+  it("regroupe par année au-delà du seuil réglé dans les paramètres", async () => {
+    const coeur = await demarrer();
+    await ouvrir("#/patients/patient-1/seances");
+    const liste = await screen.findByRole("region", { name: "Séances du dossier" });
+    // Trois séances : sous le seuil de dix, une seule liste.
+    expect(await within(liste).findAllByRole("link")).toHaveLength(3);
+    expect(liste.querySelector("details")).toBeNull();
+
+    await ouvrir("#/parametres/saisie");
+    fireEvent.change(await screen.findByLabelText("Regrouper les séances par année"), { target: { value: "5" } });
+    expect(await screen.findByText("Préférence enregistrée")).toBeInTheDocument();
+    expect((await coeur.preferences()).regrouper_seances_au_dela).toBe(5);
+
+    // Trois séances de plus, en 2025 et 2024 : six en tout, au-delà de cinq.
+    const modele = (await coeur.listerModeles())[0];
+    for (const debut of ["2025-11-04T09:00", "2025-03-12T10:30", "2024-06-20T17:00"]) {
+      const saisie = { debut, modele_id: modele.id, modele_version: modele.version, type: "suivi" as const, titre: "", importante: false, valeurs: {}, facturation: "gratuit" as const, commentaire_gratuit: "" };
+      await coeur.creerSeance("patient-1", saisie);
+    }
+    await ouvrir("#/patients/patient-1/seances");
+    const parAnnee = await screen.findByRole("region", { name: "Séances du dossier" });
+    const annees = await within(parAnnee).findAllByRole("group");
+    expect(annees.map((a) => a.querySelector("summary")?.textContent)).toEqual(["20263 séances", "20252 séances", "20241 séance"]);
+    expect(annees.map((a) => a.hasAttribute("open"))).toEqual([true, false, false]);
+  });
+});

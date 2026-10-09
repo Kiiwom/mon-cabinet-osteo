@@ -205,7 +205,7 @@ function ReglagesChamp({
   );
 }
 
-function nombreDeChamps(m: Modele): string {
+function nombreDeChamps(m: Pick<Modele, "definition">): string {
   const n = m.definition.champs.filter((c) => c.visible).length;
   return `${n} champ${n > 1 ? "s" : ""}`;
 }
@@ -222,7 +222,7 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
   const [glisse, setGlisse] = useState<number | null>(null);
   const [trancheAutre, setTrancheAutre] = useState(false);
   /** Modèle demandé alors que le brouillon n'est pas enregistré : on demande avant d'abandonner. */
-  const [enAttente, setEnAttente] = useState<{ modele: Modele | null } | null>(null);
+  const [enAttente, setEnAttente] = useState<{ modele: Modele | null; importe?: SaisieModele } | null>(null);
 
   useEffect(() => {
     coeur.listerModeles().then(
@@ -238,19 +238,20 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
   const modele = modeles?.find((m) => m.id === selection) ?? null;
   const champsSauves = new Set(modele?.definition.champs.map((c) => c.id) ?? []);
 
-  function choisir(m: Modele | null, abandonner = false) {
+  /** Ouvre un modèle enregistré, un nouveau modèle, ou celui lu dans un fichier (pas encore enregistré). */
+  function choisir(m: Modele | null, abandonner = false, importe?: SaisieModele) {
     if (modifie && !abandonner) {
-      setEnAttente({ modele: m });
+      setEnAttente({ modele: m, importe });
       return;
     }
     setEnAttente(null);
     setSelection(m?.id ?? null);
-    const saisie = m ? saisieDe(m) : structuredClone(NOUVEAU);
+    const saisie = m ? saisieDe(m) : (importe ?? structuredClone(NOUVEAU));
     setBrouillon(saisie);
     setTrancheAutre(trancheDe(saisie) === "autre");
     setChampActif(saisie.definition.champs[0]?.id ?? null);
-    setModifie(false);
-    setMessage(null);
+    setModifie(Boolean(importe));
+    setMessage(importe ? `« ${importe.nom} » lu dans le fichier : relisez-le, puis enregistrez-le.` : null);
     setErreur(null);
   }
 
@@ -302,6 +303,30 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
     }
   }
 
+  async function importer() {
+    setErreur(null);
+    try {
+      const chemin = await coeur.choisirFichier("modele");
+      if (!chemin) return;
+      const lu = await coeur.lireModeleImporte(chemin);
+      // Un nom déjà pris reçoit « (importé) » : les deux modèles restent distincts.
+      const pris = (nom: string) => (modeles ?? []).some((m) => m.nom.toLocaleLowerCase("fr") === nom.toLocaleLowerCase("fr"));
+      choisir(null, false, { ...lu, nom: pris(lu.nom) ? `${lu.nom} (importé)` : lu.nom });
+    } catch (e) {
+      setErreur((e as Error).message);
+    }
+  }
+
+  async function exporter() {
+    if (!selection) return;
+    setErreur(null);
+    try {
+      setMessage(`Modèle exporté : ${await coeur.exporterModele(selection)}`);
+    } catch (e) {
+      setErreur((e as Error).message);
+    }
+  }
+
   async function parDefaut() {
     if (!selection) return;
     try {
@@ -329,15 +354,20 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
           <h1 className="page-titre">Modèles de consultation</h1>
           <p className="page-sous-titre">Les champs proposés à chaque séance, selon le patient</p>
         </div>
-        <button type="button" className="bouton bouton-principal" onClick={() => choisir(null)}>
-          <span aria-hidden="true">+</span> Nouveau modèle
-        </button>
+        <div className="rangee">
+          <button type="button" className="bouton" onClick={() => void importer()}>
+            Importer un modèle…
+          </button>
+          <button type="button" className="bouton bouton-principal" onClick={() => choisir(null)}>
+            <span aria-hidden="true">+</span> Nouveau modèle
+          </button>
+        </div>
       </div>
 
       {enAttente && (
         <div className="avertissement rangee abandon" role="alert">
           <span>Les modifications de « {brouillon.nom} » ne sont pas enregistrées.</span>
-          <button type="button" className="bouton" onClick={() => choisir(enAttente.modele, true)}>
+          <button type="button" className="bouton" onClick={() => choisir(enAttente.modele, true, enAttente.importe)}>
             Abandonner les modifications
           </button>
           <button type="button" className="bouton" onClick={() => setEnAttente(null)}>
@@ -370,7 +400,7 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
           {selection === null && (
             <button type="button" className="carte-modele" aria-current="true">
               <strong>{brouillon.nom || "Nouveau modèle"}</strong>
-              <span className="discret">pas encore enregistré</span>
+              <span className="discret">pas encore enregistré · {nombreDeChamps(brouillon)}</span>
             </button>
           )}
         </nav>
@@ -507,7 +537,7 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
           )}
           <div className="rangee barre-actions">
             <span className="discret" role="status">
-              {modifie ? "Modifications non enregistrées" : (message ?? "")}
+              {message ?? (modifie ? "Modifications non enregistrées" : "")}
             </span>
             <label className="case-simple">
               <input type="checkbox" checked={brouillon.actif} onChange={(e) => changer({ ...brouillon, actif: e.target.checked })} />
@@ -516,6 +546,11 @@ export function PageModeles({ coeur }: { coeur: Coeur }) {
             {modele && !modele.par_defaut && modele.actif && (
               <button type="button" className="bouton" onClick={() => void parDefaut()} disabled={modifie}>
                 Modèle par défaut
+              </button>
+            )}
+            {modele && (
+              <button type="button" className="bouton" onClick={() => void exporter()} disabled={modifie} title="Pour le partager avec un confrère">
+                Exporter
               </button>
             )}
             <button type="button" className="bouton bouton-principal" disabled={!modifie} onClick={() => void enregistrer()}>

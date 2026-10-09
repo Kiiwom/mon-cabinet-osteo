@@ -6,7 +6,7 @@ import type { TrameResume, ValeursVariables } from "./valider";
 
 const EVENEMENT_TRAMES = "osteosphere:trames";
 
-/** Prévient l'interface qu'une trame ou le caractère d'appel a changé. */
+/** Prévient l'interface qu'une trame, le caractère d'appel ou une préférence de saisie a changé. */
 export function signalerTrames() {
   window.dispatchEvent(new Event(EVENEMENT_TRAMES));
 }
@@ -15,22 +15,27 @@ interface ValeurTrames {
   trames: TrameResume[];
   caractere: CaractereTrames;
   noter: (trame: TrameResume) => void;
+  /** Le vocabulaire du praticien, pour proposer la fin des mots. */
+  mots: string[];
 }
 
 const ContexteTrames = createContext<ValeurTrames>({
   trames: [],
   caractere: "@",
   noter: () => undefined,
+  mots: [],
 });
 
 /** Les trames et le caractère d'appel, chargés une fois pour tous les champs texte de l'application. */
 export function FournisseurTrames({ coeur, children }: { coeur: Coeur; children: ReactNode }) {
   const [trames, setTrames] = useState<TrameResume[]>([]);
   const [caractere, setCaractere] = useState<CaractereTrames>("@");
+  const [mots, setMots] = useState<string[]>([]);
 
   const charger = useCallback(() => {
     coeur.listerTrames().then(setTrames, () => undefined);
     coeur.caractereTrames().then(setCaractere, () => undefined);
+    coeur.motsFrequents().then(setMots, () => setMots([]));
   }, [coeur]);
 
   useEffect(() => {
@@ -44,8 +49,9 @@ export function FournisseurTrames({ coeur, children }: { coeur: Coeur; children:
       trames,
       caractere,
       noter: (trame: TrameResume) => void coeur.noterUtilisationTrame(trame.id).catch(() => undefined),
+      mots,
     }),
-    [trames, caractere, coeur],
+    [trames, caractere, coeur, mots],
   );
   return <ContexteTrames.Provider value={valeur}>{children}</ContexteTrames.Provider>;
 }

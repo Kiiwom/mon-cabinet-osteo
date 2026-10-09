@@ -5,7 +5,8 @@ use std::sync::Arc;
 use osteosphere_core::modeles::{self, Definition, Modele, SaisieModele};
 use tauri::State;
 
-use crate::demarrage::{EtatCabinet, message};
+use crate::demarrage::{EtatCabinet, en_arriere_plan, message};
+use crate::trames::{ecrire_fichier_echange, lire_fichier_echange};
 
 #[tauri::command]
 pub fn lister_modeles(etat: State<'_, Arc<EtatCabinet>>) -> Result<Vec<Modele>, String> {
@@ -25,4 +26,21 @@ pub fn enregistrer_modele(etat: State<'_, Arc<EtatCabinet>>, id: Option<String>,
 #[tauri::command]
 pub fn definir_modele_par_defaut(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Result<Modele, String> {
     etat.avec_base(|base| modeles::definir_par_defaut(base, &id).map_err(message))
+}
+
+/// Le modèle en fichier d'échange, dans Documents › Osteosphere › Exports ; rend le chemin.
+#[tauri::command]
+pub async fn exporter_modele(etat: State<'_, Arc<EtatCabinet>>, id: String) -> Result<String, String> {
+    let etat = Arc::clone(&etat);
+    en_arriere_plan(move || {
+        let (nom, contenu) = etat.avec_base(|base| modeles::exporter(base, &id).map_err(message))?;
+        ecrire_fichier_echange(&etat, &format!("Modèle {nom}"), &contenu)
+    })
+    .await
+}
+
+/// Lit un fichier de modèle, sans rien enregistrer : il s'ouvre dans le constructeur.
+#[tauri::command]
+pub async fn lire_modele_importe(chemin: String) -> Result<SaisieModele, String> {
+    en_arriere_plan(move || modeles::lire_fichier(&lire_fichier_echange(&chemin)?).map_err(message)).await
 }

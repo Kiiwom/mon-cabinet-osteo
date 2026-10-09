@@ -4,8 +4,9 @@ import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useId, useRef, useState } from "react";
 
 import type { CaractereTrames } from "../lib/coeur";
-import { useVariablesTrames } from "./contexte";
+import { useTrames, useVariablesTrames } from "./contexte";
 import { MenuTrames } from "./menu";
+import { MotsFrequents } from "./motsFrequents";
 import { Blanc, Choix, NavigationTrames } from "./noeuds";
 import { compterACompleter, validerTrames, type TrameResume } from "./valider";
 
@@ -91,6 +92,9 @@ export function ChampTrame({ libelle, trames, caractere, surUtilisation, surVali
   const valeursVariables = useVariablesTrames();
   const variables = useRef(valeursVariables);
   variables.current = valeursVariables;
+  const { mots: motsDuPraticien } = useTrames();
+  const mots = useRef(motsDuPraticien);
+  mots.current = motsDuPraticien;
   const [etat, setEtat] = useState({ restants: 0, total: 0 });
 
   const editor = useEditor(
@@ -106,6 +110,7 @@ export function ChampTrame({ libelle, trames, caractere, surUtilisation, surVali
           surInsertion: (trame) => rappel.current?.(trame),
           variables: () => variables.current,
         }),
+        MotsFrequents.configure({ mots: () => mots.current }),
       ],
       content: valeur ?? "",
       editorProps: {
@@ -143,7 +148,7 @@ export function ChampTrame({ libelle, trames, caractere, surUtilisation, surVali
       <div className="champ-trame-pied">
         <span id={`${id}-aide`} className="discret">
           {etat.total === 0
-            ? `Tapez ${caractere} suivi du code d’une trame, par exemple ${caractere}lomb.`
+            ? `Tapez ${caractere} suivi du code d’une trame, par exemple ${caractere}lomb.${motsDuPraticien.length ? " Tab complète le mot proposé en grisé." : ""}`
             : "Tab passe d’une pastille à l’autre, Espace retient un choix, Ctrl+Entrée valide."}
         </span>
         <span className="champ-trame-etat" role="status">

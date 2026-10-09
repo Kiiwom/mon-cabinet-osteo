@@ -63,4 +63,25 @@ describe("constructeur de modèles", () => {
     fireEvent.click(screen.getByRole("button", { name: "Enregistrer le modèle" }));
     expect(await screen.findByRole("button", { name: /^SportifDe 12 à 17 ans/ })).toBeInTheDocument();
   });
+
+  it("importe le modèle d'un confrère dans le constructeur, puis exporte un modèle", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    render(<PageModeles coeur={coeur} />);
+    await screen.findByRole("navigation", { name: "Modèles" });
+    fireEvent.click(screen.getByRole("button", { name: "Importer un modèle…" }));
+    expect(await screen.findByText("« Sportif » lu dans le fichier : relisez-le, puis enregistrez-le.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nom du modèle")).toHaveValue("Sportif");
+    expect(screen.getByRole("button", { name: "Sport pratiqué" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer le modèle" }));
+    expect(await screen.findByRole("button", { name: /^SportifChoisi à la main · 5 champs/ })).toBeInTheDocument();
+    expect((await coeur.listerModeles()).filter((m) => m.nom === "Sportif")).toHaveLength(1);
+
+    // Un second import du même fichier ne prend pas le nom du premier.
+    fireEvent.click(screen.getByRole("button", { name: "Importer un modèle…" }));
+    expect(await screen.findByDisplayValue("Sportif (importé)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Adulte/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Abandonner les modifications" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exporter" }));
+    expect(await screen.findByText(/^Modèle exporté : .*Modèle Adulte/)).toBeInTheDocument();
+  });
 });

@@ -322,7 +322,12 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
   const [creation, setCreation] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [pdf, setPdf] = useState(false);
+  const [regrouperAuDela, setRegrouperAuDela] = useState<number | null>(null);
   const reglages = useReglagesFiche(coeur);
+
+  useEffect(() => {
+    coeur.preferences().then((p) => setRegrouperAuDela(p.regrouper_seances_au_dela), () => setRegrouperAuDela(null));
+  }, [coeur]);
 
   useEffect(() => {
     setPatient(null);
@@ -428,7 +433,7 @@ export function DossierPatient({ coeur, id, onglet }: { coeur: Coeur; id: string
         />
       ) : (
         <section className="carte" aria-label="Séances du dossier">
-          <ListeSeancesPatient seances={seances} />
+          <ListeSeancesPatient seances={seances} regrouperAuDela={regrouperAuDela} />
         </section>
       )}
       {pdf && <FenetreDossierPdf coeur={coeur} patient={patient} seances={seances} fermer={() => setPdf(false)} />}

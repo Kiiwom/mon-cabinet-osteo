@@ -395,6 +395,7 @@ export const ACTIONS: Record<string, string> = {
   "import.mcl": "Import depuis MonCabinetLibéral",
   "accueil.modifie": "Accueil personnalisé",
   "trames.caractere": "Caractère d’appel des trames changé",
+  "preferences.modifiees": "Préférences de saisie modifiées",
   "document.ajoute": "Document ajouté",
   "document.modifie": "Document renommé ou rattaché",
   "document.supprime": "Document mis à la corbeille",

@@ -1,12 +1,18 @@
-//! Commandes des paramètres du cabinet : identité et mentions imprimées sur les factures, accueil.
+//! Commandes des paramètres du cabinet : identité et mentions imprimées sur les factures, accueil,
+//! préférences de saisie et mots fréquents.
 
 use std::sync::Arc;
 
 use osteosphere_core::accueil::{self, Accueil};
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
+use osteosphere_core::preferences::{self, Preferences};
+use osteosphere_core::vocabulaire;
 use tauri::State;
 
-use crate::demarrage::{EtatCabinet, message};
+use crate::demarrage::{EtatCabinet, en_arriere_plan, message};
+
+/// Assez de mots pour un vocabulaire de cabinet, peu pour la mémoire de l'interface.
+const MOTS_FREQUENTS: usize = 5_000;
 
 #[tauri::command]
 pub fn identite_cabinet(etat: State<'_, Arc<EtatCabinet>>) -> Result<IdentiteCabinet, String> {
@@ -35,4 +41,29 @@ pub fn accueil(etat: State<'_, Arc<EtatCabinet>>) -> Result<Accueil, String> {
 #[tauri::command]
 pub fn enregistrer_accueil(etat: State<'_, Arc<EtatCabinet>>, accueil: Accueil) -> Result<Accueil, String> {
     etat.avec_base(|base| accueil::enregistrer(base, &accueil).map_err(message))
+}
+
+#[tauri::command]
+pub fn preferences(etat: State<'_, Arc<EtatCabinet>>) -> Result<Preferences, String> {
+    etat.avec_base(|base| preferences::lire(base).map_err(message))
+}
+
+#[tauri::command]
+pub fn enregistrer_preferences(etat: State<'_, Arc<EtatCabinet>>, preferences: Preferences) -> Result<Preferences, String> {
+    etat.avec_base(|base| preferences::enregistrer(base, &preferences).map_err(message))
+}
+
+/// Le vocabulaire du praticien, pour proposer la fin des mots ; vide si la préférence est coupée.
+#[tauri::command]
+pub async fn mots_frequents(etat: State<'_, Arc<EtatCabinet>>) -> Result<Vec<String>, String> {
+    let etat = Arc::clone(&etat);
+    en_arriere_plan(move || {
+        etat.avec_base(|base| {
+            if !preferences::lire(base).map_err(message)?.mots_frequents {
+                return Ok(Vec::new());
+            }
+            vocabulaire::mots_frequents(base, MOTS_FREQUENTS).map_err(message)
+        })
+    })
+    .await
 }

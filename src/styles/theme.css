@@ -4506,3 +4506,50 @@ select.saisie-courte {
   background: var(--alerte-fond);
   color: var(--alerte-texte);
 }
+
+/* Mots fréquents : la fin proposée, en grisé après le curseur. */
+.mot-propose {
+  color: var(--encre-discrete);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* Séances du dossier regroupées par année. */
+.annees-seances {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annee-seances > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: var(--rayon);
+  background: var(--fond);
+  cursor: pointer;
+  list-style: none;
+}
+
+.annee-seances > summary::-webkit-details-marker {
+  display: none;
+}
+
+.annee-seances > summary::before {
+  content: "▸";
+  color: var(--encre-discrete);
+}
+
+.annee-seances[open] > summary::before {
+  content: "▾";
+}
+
+.annee-seances > summary strong {
+  font-size: 16px;
+}
+
+.annee-seances[open] > summary {
+  margin-bottom: 4px;
+}

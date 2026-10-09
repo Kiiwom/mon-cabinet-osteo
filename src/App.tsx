@@ -13,6 +13,7 @@ import { ongletFacturation, PageFacturation } from "./pages/Facturation";
 import { PageFacture, PageNouvelleFacture } from "./pages/Facture";
 import { PageParametresCabinet, PageParametresFacturation } from "./pages/ParametresFacturation";
 import { PageParametresPatients } from "./pages/ParametresPatients";
+import { PageParametresSaisie } from "./pages/ParametresSaisie";
 import { PageEffacement } from "./patients/Effacement";
 import { PageFusion } from "./patients/Fusion";
 import {
@@ -175,6 +176,8 @@ function EcranParametres({
       return <PageParametresFacturation coeur={coeur} />;
     case "patients":
       return <PageParametresPatients coeur={coeur} />;
+    case "saisie":
+      return <PageParametresSaisie coeur={coeur} />;
     default:
       return <PageParametres />;
   }

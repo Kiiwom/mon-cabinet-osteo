@@ -14,6 +14,8 @@ use crate::identifiant;
 
 const MODELES_FOURNIS: &str = include_str!("modeles_fournis.json");
 const PARAMETRE_FOURNIS: &str = "modeles.fournis_installes";
+/// Format des fichiers d'échange d'un modèle de consultation.
+pub const FORMAT_ECHANGE: &str = "osteosphere.modele";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -352,6 +354,41 @@ pub fn installer_modeles_fournis(base: &Base) -> Result<usize, ErreurModele> {
     Ok(fournis.len())
 }
 
+/// Un modèle de consultation en fichier, pour le partager avec un confrère.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FichierModele {
+    pub format: String,
+    pub version: u32,
+    pub modele: SaisieModele,
+}
+
+/// Le modèle, dans sa version en cours, en fichier d'échange JSON ; rend aussi son nom.
+pub fn exporter(base: &Base, id: &str) -> Result<(String, String), ErreurModele> {
+    let modele = lire(base, id)?;
+    let fichier = FichierModele {
+        format: FORMAT_ECHANGE.to_owned(),
+        version: 1,
+        modele: SaisieModele { nom: modele.nom.clone(), age_min: modele.age_min, age_max: modele.age_max, actif: true, definition: modele.definition },
+    };
+    Ok((modele.nom, serde_json::to_string_pretty(&fichier)?))
+}
+
+/// Lit et vérifie un fichier de modèle, sans rien enregistrer : le praticien le relit dans le
+/// constructeur avant de l'enregistrer comme un nouveau modèle.
+pub fn lire_fichier(contenu: &str) -> Result<SaisieModele, ErreurModele> {
+    let format = || invalide("ce fichier n'est pas un modèle de consultation Osteosphere");
+    let valeur: serde_json::Value = serde_json::from_str(contenu).map_err(|_| format())?;
+    if valeur.get("format").and_then(serde_json::Value::as_str) != Some(FORMAT_ECHANGE) {
+        return Err(format());
+    }
+    let fichier: FichierModele = serde_json::from_value(valeur).map_err(|_| format())?;
+    if fichier.modele.definition.champs.len() > 200 {
+        return Err(invalide("deux cents champs au plus par modèle"));
+    }
+    let saisie = SaisieModele { actif: true, ..fichier.modele }.verifier()?;
+    Ok(saisie)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,5 +509,24 @@ mod tests {
         assert!(modele.par_defaut);
         let action: String = base.connexion().query_row("SELECT action FROM journal ORDER BY id DESC LIMIT 1", [], |l| l.get(0)).unwrap();
         assert_eq!(action, "modele.cree");
+    }
+
+    #[test]
+    fn exporte_un_modele_et_le_relit() {
+        let dossier = tempfile::tempdir().unwrap();
+        let base = Base::ouvrir(&dossier.path().join("essai.osteosphere"), &crate::chiffrement::CleDonnees::generer().unwrap()).unwrap();
+        installer_modeles_fournis(&base).unwrap();
+        let adulte = lister(&base).unwrap().into_iter().find(|m| m.nom == "Adulte").unwrap();
+        let (nom, fichier) = exporter(&base, &adulte.id).unwrap();
+        assert_eq!(nom, "Adulte");
+        assert!(fichier.contains("\"format\": \"osteosphere.modele\""));
+        let relu = lire_fichier(&fichier).unwrap();
+        assert_eq!((relu.nom.as_str(), relu.definition.champs.len()), ("Adulte", adulte.definition.champs.len()));
+        assert_eq!(relu.definition, adulte.definition);
+
+        assert!(matches!(lire_fichier("{\"format\": \"osteosphere.trames\"}"), Err(ErreurModele::Invalide(_))));
+        assert!(matches!(lire_fichier("pas du json"), Err(ErreurModele::Invalide(_))));
+        let sans_champ = fichier.replacen("\"champs\": [", "\"champs\": [], \"autres\": [", 1);
+        assert!(matches!(lire_fichier(&sans_champ), Err(ErreurModele::Invalide(m)) if m.contains("au moins un champ")));
     }
 }

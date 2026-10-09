@@ -21,7 +21,7 @@ import type {
 } from "./facturation";
 import { MODELE_EMAIL_DEFAUT } from "./emails";
 import { feuilleVersCsv, type Feuille } from "./tableur";
-import { document, estVide, resumer } from "./seances";
+import { document, estVide, resumer, texteDe } from "./seances";
 import { calculerStatistiques, type BaseChiffre, type Statistiques } from "./statistiques";
 
 export interface IdentiteCabinet {
@@ -199,6 +199,34 @@ export interface PenseBete {
   couleur: CouleurPenseBete;
 }
 
+/** Préférences de saisie et d'affichage du praticien. */
+export interface Preferences {
+  /** Les séances du dossier se regroupent par année au-delà de ce nombre ; jamais si `null`. */
+  regrouper_seances_au_dela: number | null;
+  /** Proposer la fin des mots déjà saisis dans les séances et les trames. */
+  mots_frequents: boolean;
+}
+
+export const PREFERENCES_PAR_DEFAUT: Preferences = { regrouper_seances_au_dela: 10, mots_frequents: true };
+
+/** Le même calcul que le cœur : les mots de six lettres et plus écrits deux fois dans les séances, et ceux des trames. */
+export function motsDuVocabulaire(textesSeances: string[], textesTrames: string[], limite = 5000): string[] {
+  const decouper = (texte: string) =>
+    texte
+      .split(/[^\p{L}-]+/u)
+      .map((m) => m.replace(/^-+|-+$/g, ""))
+      .filter((m) => [...m].length >= 6 && [...m].length <= 40 && !m.includes("--"))
+      .map((m) => m.toLocaleLowerCase("fr"));
+  const comptes = new Map<string, number>();
+  for (const texte of textesSeances) for (const mot of decouper(texte)) comptes.set(mot, (comptes.get(mot) ?? 0) + 1);
+  const mots = [...comptes.entries()].filter(([, n]) => n >= 2);
+  for (const texte of textesTrames) for (const mot of decouper(texte)) if (!mots.some(([m]) => m === mot)) mots.push([mot, 1]);
+  return mots
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .slice(0, limite)
+    .map(([mot]) => mot);
+}
+
 export interface PreferencesAccueil {
   masques: BlocAccueil[];
   /** Le plus récent en premier. */
@@ -207,6 +235,23 @@ export interface PreferencesAccueil {
 
 /** Le catalogue de trames partagées, dans le dépôt du projet. */
 export const CATALOGUE_TRAMES = "https://github.com/Kiiwom/mon-cabinet-osteo/tree/main/catalogue/trames";
+
+/** Le modèle d'un confrère, pour la démonstration de l'import. */
+const MODELE_D_UN_CONFRERE: SaisieModele = {
+  nom: "Sportif",
+  age_min: null,
+  age_max: null,
+  actif: true,
+  definition: {
+    champs: [
+      completerChamp({ id: "motif", type: "texte_enrichi", libelle: "Motif et contexte sportif", role: "motif" }),
+      completerChamp({ id: "sport", type: "liste", libelle: "Sport pratiqué", options: ["Course à pied", "Rugby", "Football", "Tennis", "Natation", "Autre"] }),
+      completerChamp({ id: "douleur_avant", type: "curseur", libelle: "Douleur avant", role: "douleur_avant", min: 0, max: 10, pas: 1 }),
+      completerChamp({ id: "tests", type: "texte_enrichi", libelle: "Tests et examen" }),
+      completerChamp({ id: "douleur_apres", type: "curseur", libelle: "Douleur après", role: "douleur_apres", min: 0, max: 10, pas: 1 }),
+    ],
+  },
+};
 
 /** Le fichier de trames d'un confrère, pour la démonstration : une trame identique, une sous un code pris, deux nouvelles. */
 const TRAMES_D_UN_CONFRERE: Omit<TrameImportee, "etat">[] = [
@@ -739,6 +784,10 @@ export interface Coeur {
   lireVersionModele(id: string, version: number): Promise<Definition>;
   enregistrerModele(id: string | null, saisie: SaisieModele): Promise<Modele>;
   definirModeleParDefaut(id: string): Promise<Modele>;
+  /** Le modèle en fichier d'échange dans Documents › Osteosphere › Exports ; rend le chemin. */
+  exporterModele(id: string): Promise<string>;
+  /** Lit un fichier de modèle sans rien enregistrer : il s'ouvre dans le constructeur. */
+  lireModeleImporte(chemin: string): Promise<SaisieModele>;
   creerSeance(patientId: string, saisie: SaisieSeance): Promise<Seance>;
   lireSeance(id: string): Promise<Seance>;
   /** Appelé au fil de la saisie : enregistre la séance telle qu'elle est à l'écran. */
@@ -841,6 +890,10 @@ export interface Coeur {
   /** Copie enregistrée où le praticien le choisit ; `null` s'il annule. */
   enregistrerCopieDocument(id: string): Promise<string | null>;
   accueil(): Promise<PreferencesAccueil>;
+  preferences(): Promise<Preferences>;
+  enregistrerPreferences(preferences: Preferences): Promise<Preferences>;
+  /** Le vocabulaire du praticien, du plus fréquent au moins fréquent ; vide si la préférence est coupée. */
+  motsFrequents(): Promise<string[]>;
   enregistrerAccueil(accueil: PreferencesAccueil): Promise<PreferencesAccueil>;
 }
 
@@ -929,6 +982,8 @@ export const coeurTauri: Coeur = {
   lireVersionModele: (id, version) => appeler("lire_version_modele", { id, version }),
   enregistrerModele: (id, saisie) => appeler("enregistrer_modele", { id, saisie }),
   definirModeleParDefaut: (id) => appeler("definir_modele_par_defaut", { id }),
+  exporterModele: (id) => appeler("exporter_modele", { id }),
+  lireModeleImporte: (chemin) => appeler("lire_modele_importe", { chemin }),
   creerSeance: (patientId, saisie) => appeler("creer_seance", { patientId, saisie }),
   lireSeance: (id) => appeler("lire_seance", { id }),
   enregistrerSeance: (id, saisie) => appeler("enregistrer_seance", { id, saisie }),
@@ -1005,6 +1060,9 @@ export const coeurTauri: Coeur = {
   ouvrirDocument: (id) => appeler("ouvrir_document", { id }),
   enregistrerCopieDocument: (id) => appeler("enregistrer_copie_document", { id }),
   accueil: () => appeler("accueil"),
+  preferences: () => appeler("preferences"),
+  enregistrerPreferences: (preferences) => appeler("enregistrer_preferences", { preferences }),
+  motsFrequents: () => appeler("mots_frequents"),
   enregistrerAccueil: (accueil) => appeler("enregistrer_accueil", { accueil }),
 };
 
@@ -1107,6 +1165,7 @@ export function creerCoeurDeDemonstration(
   const images: Record<QuelleImage, boolean> = { logo: false, signature: false };
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, contenu: null, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
+  let preferencesDemo: Preferences = { ...PREFERENCES_PAR_DEFAUT };
   let accueilDemo: PreferencesAccueil = {
     masques: [],
     pense_betes: exemples
@@ -1695,6 +1754,13 @@ export function creerCoeurDeDemonstration(
       modeles = modeles.map((m) => ({ ...m, par_defaut: m.id === id }));
       return trouverModele(id);
     },
+    async exporterModele(id) {
+      return `C:\\Users\\Praticien\\Documents\\Osteosphere\\Exports\\Modèle ${trouverModele(id).nom} ${dateDuJour()}.json`;
+    },
+    async lireModeleImporte(chemin) {
+      if (!chemin.toLowerCase().endsWith(".json")) throw new Error("Ce fichier n’est pas un modèle de consultation Osteosphere");
+      return structuredClone(MODELE_D_UN_CONFRERE);
+    },
     listerPrestations: facturation.listerPrestations,
     enregistrerPrestation: facturation.enregistrerPrestation,
     reglagesNumerotation: facturation.reglagesNumerotation,
@@ -1949,6 +2015,22 @@ export function creerCoeurDeDemonstration(
     },
     async accueil() {
       return structuredClone(accueilDemo);
+    },
+    async preferences() {
+      return { ...preferencesDemo };
+    },
+    async enregistrerPreferences(nouvelles) {
+      const seuil = nouvelles.regrouper_seances_au_dela;
+      if (seuil !== null && (!Number.isInteger(seuil) || seuil < 1 || seuil > 1000)) throw new Error("Le regroupement par année se règle entre 1 et 1 000 séances");
+      preferencesDemo = { ...nouvelles };
+      return { ...preferencesDemo };
+    },
+    async motsFrequents() {
+      if (!preferencesDemo.mots_frequents) return [];
+      return motsDuVocabulaire(
+        seances.filter((s) => s.supprimee_le === null).flatMap((s) => Object.values(s.valeurs).flatMap((v) => (Array.isArray(v) ? v.map(texteDe) : [texteDe(v)]))),
+        trames.map((t) => t.modele),
+      );
     },
     async enregistrerAccueil(nouveau) {
       if (nouveau.pense_betes.some((p) => !p.texte.trim())) throw new Error("Un pense-bête vide ne sert à rien.");

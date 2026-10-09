@@ -48,12 +48,14 @@ pub mod mise_en_page;
 pub mod modeles;
 pub mod numerotation;
 pub mod patients;
+pub mod preferences;
 pub mod prestations;
 pub mod sauvegardes;
 pub mod seances;
 pub mod statistiques;
 pub mod trames;
 pub mod trousseau;
+pub mod vocabulaire;
 
 /// Version du cœur, affichée dans « À propos ».
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
