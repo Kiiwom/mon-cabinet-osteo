@@ -2408,7 +2408,7 @@ const ANALYSE_LIBREOSTEO_FICTIVE: AnalyseLibreOsteo = {
   ],
   deja_importes: 0,
   doublons: [],
-  points: ["11 facture(s) de LibreOsteo ne sont pas reprises : gardez la sauvegarde de LibreOsteo, les pièces comptables se conservent dix ans."],
+  points: ["11 facture(s) de LibreOsteo ne sont pas reprises : gardez la sauvegarde de LibreOsteo pour pouvoir les consulter."],
   apercu: [
     { nom: "Roussel", prenom: "Paul", naissance: "1958-05-12", ville: "Monflanquin", seances: 7 },
     { nom: "Fabre", prenom: "Inès", naissance: "2001-07-30", ville: "Penne-d’Agenais", seances: 4 },

@@ -346,7 +346,7 @@ pub fn analyser(base: &Base, contenu: &[u8]) -> Result<AnalyseLibreOsteo, Erreur
     let factures = sauvegarde.objets("invoice").len() as i64;
     if factures > 0 {
         points.push(format!(
-            "{factures} facture(s) de LibreOsteo ne sont pas reprises : gardez la sauvegarde de LibreOsteo, les pièces comptables se conservent dix ans."
+            "{factures} facture(s) de LibreOsteo ne sont pas reprises : gardez la sauvegarde de LibreOsteo pour pouvoir les consulter."
         ));
     }
 
@@ -659,7 +659,7 @@ pub fn importer(base: &Base, contenu: &[u8], choix: ChoixLibreOsteo) -> Result<R
         }
         let factures = sauvegarde.objets("invoice").len();
         if factures > 0 {
-            rapport.avertissements.push(format!("{factures} facture(s) de LibreOsteo non reprise(s) : gardez sa sauvegarde, les pièces comptables se conservent dix ans."));
+            rapport.avertissements.push(format!("{factures} facture(s) de LibreOsteo non reprise(s) : gardez sa sauvegarde pour pouvoir les consulter."));
         }
         let resume = serde_json::to_string(&rapport).map_err(donnees)?;
         base.journaliser("import.libreosteo", SOURCE, None, Some(&resume))?;

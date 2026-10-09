@@ -204,8 +204,7 @@ export function ImportLibreOsteo({ coeur }: { coeur: Coeur }) {
             l’archive&nbsp;»&nbsp;: vous recevez un fichier qui contient toute la base et les documents joints. Choisissez-le ici tel quel.
           </p>
           <p className="discret">
-            Patients, séances et documents joints sont repris. Les factures restent dans LibreOsteo&nbsp;: gardez sa sauvegarde, les pièces
-            comptables se conservent dix ans.
+            Patients, séances et documents joints sont repris. Les factures restent dans LibreOsteo&nbsp;: gardez sa sauvegarde pour pouvoir les consulter.
           </p>
           <div className="rangee">
             <button type="button" className="bouton bouton-principal" onClick={choisir} disabled={lecture}>
