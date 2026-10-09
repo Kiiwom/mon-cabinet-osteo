@@ -6,12 +6,13 @@ use std::sync::{Arc, Mutex};
 
 use osteosphere_core::base::Base;
 use osteosphere_core::cabinet::{
-    Cabinet, CabinetOuvert, CaractereTrames, IdentiteCabinet, Ouverture, PARAMETRE_IDENTITE, PARAMETRE_SAUVEGARDES,
+    Cabinet, CabinetOuvert, CaractereTrames, ErreurCabinet, IdentiteCabinet, Ouverture, PARAMETRE_IDENTITE, PARAMETRE_SAUVEGARDES,
     PARAMETRE_TRAMES, PreferencesSauvegarde,
 };
-use osteosphere_core::chiffrement::CleDonnees;
+use osteosphere_core::chiffrement::{CleDonnees, Enveloppe};
 use osteosphere_core::cle_de_secours::CleDeSecours;
 use osteosphere_core::sauvegardes::{self, Entete, FichierSauvegarde, Moment};
+use osteosphere_core::verrouillage::{self, ESSAIS_CODE_COURT};
 use osteosphere_core::{modeles, prestations, seances, trames};
 use osteosphere_core::trousseau::ProtectionSession;
 use osteosphere_session::SessionOrdinateur;
@@ -48,6 +49,13 @@ pub struct EtatCabinet {
     pub restauration: Mutex<Option<Restauration>>,
     /// Dernière erreur de la sauvegarde automatique, montrée dans les paramètres.
     pub erreur_sauvegarde: Mutex<Option<String>>,
+    /// Cabinet verrouillé avec un code court : la clé scellée par le code, jamais la clé elle-même.
+    pub veille: Mutex<Option<Veille>>,
+}
+
+pub struct Veille {
+    pub enveloppe: Enveloppe,
+    pub essais_restants: u8,
 }
 
 pub struct Restauration {
@@ -66,6 +74,7 @@ impl EtatCabinet {
             cle_en_attente: Mutex::new(None),
             restauration: Mutex::new(None),
             erreur_sauvegarde: Mutex::new(None),
+            veille: Mutex::new(None),
         })
     }
 
@@ -125,6 +134,17 @@ impl EtatCabinet {
         }
     }
 
+    /// Verrouille le cabinet ouvert : la base est fermée et sa clé quitte la mémoire. Avec un code court,
+    /// seule la clé scellée par ce code reste, pour rouvrir sans le mot de passe. Rend vrai dans ce cas.
+    pub fn verrouiller(&self) -> Result<bool, String> {
+        let enveloppe = self.avec_base(|base| Ok(verrouillage::lire(base).map_err(message)?.code_court))?;
+        self.sauvegarde_automatique(Moment::Fermeture);
+        self.fermer()?;
+        let code_court = enveloppe.is_some();
+        *self.veille.lock().map_err(message)? = enveloppe.map(|enveloppe| Veille { enveloppe, essais_restants: ESSAIS_CODE_COURT });
+        Ok(code_court)
+    }
+
     /// Ferme le cabinet : la base est relâchée, le mot de passe sera redemandé.
     pub fn fermer(&self) -> Result<(), String> {
         *self.ouvert.lock().map_err(message)? = None;
@@ -155,6 +175,8 @@ impl EtatCabinet {
         // Les copies en clair des documents ouverts à la dernière session sont effacées.
         crate::pieces::effacer_copies_ouvertes(&self.dossier_copies());
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
+        // Ouvert par n'importe quel moyen : le code court du verrouillage précédent ne sert plus.
+        *self.veille.lock().map_err(message)? = None;
         // Sauvegarde « du jour » ou « de la semaine » : à la première ouverture.
         self.sauvegarde_automatique(Moment::Ouverture);
         Ok(identite)
@@ -199,7 +221,8 @@ pub async fn en_arriere_plan<T: Send + 'static>(
 #[serde(tag = "etat", rename_all = "snake_case")]
 pub enum EtatDemarrage {
     PremierDemarrage,
-    MotDePasseRequis,
+    /// `code_court` : le cabinet a été verrouillé pendant la session et le code court le rouvre.
+    MotDePasseRequis { code_court: bool },
     CleDeSecoursRequise,
     Ouvert { cabinet: Box<IdentiteCabinet> },
 }
@@ -214,7 +237,7 @@ pub async fn etat_demarrage(etat: State<'_, Arc<EtatCabinet>>) -> Result<EtatDem
         }
         Ok(match etat.cabinet.ouvrir_automatiquement(&Session).map_err(message)? {
             Ouverture::PremierDemarrage => EtatDemarrage::PremierDemarrage,
-            Ouverture::MotDePasseRequis => EtatDemarrage::MotDePasseRequis,
+            Ouverture::MotDePasseRequis => EtatDemarrage::MotDePasseRequis { code_court: etat.veille.lock().map_err(message)?.is_some() },
             Ouverture::CleDeSecoursRequise => EtatDemarrage::CleDeSecoursRequise,
             Ouverture::Ouvert(ouvert) => EtatDemarrage::Ouvert { cabinet: Box::new(etat.garder_ouvert(ouvert)?) },
         })
@@ -265,6 +288,22 @@ pub struct ChoixPremierDemarrage {
     cle_notee: bool,
     caractere_trames: CaractereTrames,
     sauvegardes: PreferencesSauvegarde,
+    #[serde(default)]
+    pratique: PratiqueDeDepart,
+}
+
+/// Étape « Votre pratique » : le modèle de toutes les séances, et les modèles nourrisson et grossesse.
+#[derive(Deserialize)]
+#[serde(default)]
+pub struct PratiqueDeDepart {
+    modele: String,
+    modeles_specifiques: bool,
+}
+
+impl Default for PratiqueDeDepart {
+    fn default() -> Self {
+        Self { modele: "Adulte".into(), modeles_specifiques: true }
+    }
 }
 
 #[tauri::command]
@@ -279,6 +318,9 @@ pub async fn terminer_premier_demarrage(
         }
         let identite = choix.identite.verifier().map_err(message)?;
         let sauvegardes = choix.sauvegardes.verifier().map_err(message)?;
+        if !modeles::MODELES_PRINCIPAUX.contains(&choix.pratique.modele.as_str()) {
+            return Err("Choisissez le modèle de vos séances parmi ceux proposés.".into());
+        }
         let mot_de_passe = choix.mot_de_passe.map(Zeroizing::new);
         if mot_de_passe.as_ref().is_some_and(|m| m.is_empty()) {
             return Err("Choisissez un mot de passe, ou gardez l'ouverture directe.".into());
@@ -298,7 +340,12 @@ pub async fn terminer_premier_demarrage(
         ouvert.base.ecrire_parametre(PARAMETRE_TRAMES, &choix.caractere_trames).map_err(message)?;
         ouvert.base.ecrire_parametre(PARAMETRE_SAUVEGARDES, &sauvegardes).map_err(message)?;
         *etat.cle_en_attente.lock().map_err(message)? = None;
-        etat.garder_ouvert(ouvert)
+        let identite = etat.garder_ouvert(ouvert)?;
+        // Les modèles fournis viennent d'être installés : le choix de l'assistant s'y applique.
+        etat.avec_base(|base| {
+            modeles::choisir_pratique_de_depart(base, &choix.pratique.modele, choix.pratique.modeles_specifiques).map_err(message)
+        })?;
+        Ok(identite)
     })
     .await
 }
@@ -322,6 +369,42 @@ pub async fn ouvrir_avec_cle_de_secours(etat: State<'_, Arc<EtatCabinet>>, cle: 
         let cle = CleDeSecours::lire(&cle).map_err(message)?;
         let ouvert = etat.cabinet.ouvrir_avec_cle_de_secours(&cle, &Session).map_err(message)?;
         etat.garder_ouvert(ouvert)
+    })
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(tag = "etat", rename_all = "snake_case")]
+pub enum ReponseCodeCourt {
+    Ouvert { cabinet: Box<IdentiteCabinet> },
+    /// Code faux. À zéro essai restant, seul le mot de passe (ou la clé de secours) rouvre le cabinet.
+    Incorrect { essais_restants: u8 },
+}
+
+/// Rouvre le cabinet verrouillé avec le code court.
+#[tauri::command]
+pub async fn deverrouiller_avec_code(etat: State<'_, Arc<EtatCabinet>>, code: String) -> Result<ReponseCodeCourt, String> {
+    let etat = Arc::clone(&etat);
+    let code = Zeroizing::new(code);
+    en_arriere_plan(move || {
+        let enveloppe = match etat.veille.lock().map_err(message)?.as_ref() {
+            Some(veille) => veille.enveloppe.clone(),
+            None => return Ok(ReponseCodeCourt::Incorrect { essais_restants: 0 }),
+        };
+        // La dérivation du code prend une demi-seconde : le verrou n'est pas tenu pendant ce temps.
+        match etat.cabinet.ouvrir_avec_code_court(&enveloppe, &code) {
+            Ok(ouvert) => Ok(ReponseCodeCourt::Ouvert { cabinet: Box::new(etat.garder_ouvert(ouvert)?) }),
+            Err(ErreurCabinet::CodeCourtIncorrect) => {
+                let mut veille = etat.veille.lock().map_err(message)?;
+                let essais_restants = veille.as_ref().map_or(0, |v| v.essais_restants.saturating_sub(1));
+                match veille.as_mut() {
+                    Some(v) if essais_restants > 0 => v.essais_restants = essais_restants,
+                    _ => *veille = None,
+                }
+                Ok(ReponseCodeCourt::Incorrect { essais_restants })
+            }
+            Err(autre) => Err(message(autre)),
+        }
     })
     .await
 }

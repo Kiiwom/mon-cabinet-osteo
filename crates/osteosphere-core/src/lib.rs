@@ -23,6 +23,8 @@
 //! - [`accueil`] : blocs de l'accueil et pense-bêtes.
 //! - [`documents`] : pièces jointes du dossier, chiffrées dans la base, corbeille de 30 jours.
 //! - [`mise_en_page`] : logo, signature et couleur des factures et des comptes rendus.
+//! - [`preferences`] : préférences de saisie et apparence.
+//! - [`verrouillage`] : verrouillage après inactivité et code court, avec le mot de passe.
 //!
 //! Ce code ne manipule que des données fictives dans ses tests.
 
@@ -55,6 +57,7 @@ pub mod seances;
 pub mod statistiques;
 pub mod trames;
 pub mod trousseau;
+pub mod verrouillage;
 pub mod vocabulaire;
 
 /// Version du cœur, affichée dans « À propos ».

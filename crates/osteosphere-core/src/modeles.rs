@@ -354,6 +354,51 @@ pub fn installer_modeles_fournis(base: &Base) -> Result<usize, ErreurModele> {
     Ok(fournis.len())
 }
 
+/// Modèles fournis proposés au premier démarrage pour toutes les séances ; « Adulte » par défaut.
+pub const MODELES_PRINCIPAUX: [&str; 3] = ["Adulte", "Examen par sphères", "Note libre"];
+/// Modèles fournis pour les nourrissons et les femmes enceintes.
+pub const MODELES_SPECIFIQUES: [&str; 2] = ["Nourrisson", "Femme enceinte"];
+
+/// Choix du premier démarrage, appliqué aux modèles fournis : le modèle de toutes les séances, et les
+/// modèles des nourrissons et des femmes enceintes. Un autre modèle qu'« Adulte » devient le modèle
+/// par défaut et prend sa place, « Adulte » étant désactivé ; tout reste modifiable ensuite.
+pub fn choisir_pratique_de_depart(base: &Base, principal: &str, specifiques: bool) -> Result<(), ErreurModele> {
+    if !MODELES_PRINCIPAUX.contains(&principal) {
+        return Err(invalide("Modèle de séance non proposé."));
+    }
+    let modeles = lister(base)?;
+    let fourni = |nom: &str| modeles.iter().find(|m| m.origine == "fourni" && m.nom == nom);
+    let activer = |modele: &Modele, actif: bool| -> Result<(), ErreurModele> {
+        if modele.actif != actif {
+            let saisie = SaisieModele {
+                nom: modele.nom.clone(),
+                age_min: modele.age_min,
+                age_max: modele.age_max,
+                actif,
+                definition: modele.definition.clone(),
+            };
+            enregistrer(base, Some(&modele.id), &saisie)?;
+        }
+        Ok(())
+    };
+    base.atomique(|| {
+        if principal != "Adulte" {
+            let choisi = fourni(principal).ok_or(ErreurModele::Introuvable)?;
+            activer(choisi, true)?;
+            definir_par_defaut(base, &choisi.id)?;
+            if let Some(adulte) = fourni("Adulte") {
+                activer(adulte, false)?;
+            }
+        }
+        for nom in MODELES_SPECIFIQUES {
+            if let Some(modele) = fourni(nom) {
+                activer(modele, specifiques)?;
+            }
+        }
+        Ok(())
+    })
+}
+
 /// Un modèle de consultation en fichier, pour le partager avec un confrère.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FichierModele {
@@ -528,5 +573,26 @@ mod tests {
         assert!(matches!(lire_fichier("pas du json"), Err(ErreurModele::Invalide(_))));
         let sans_champ = fichier.replacen("\"champs\": [", "\"champs\": [], \"autres\": [", 1);
         assert!(matches!(lire_fichier(&sans_champ), Err(ErreurModele::Invalide(m)) if m.contains("au moins un champ")));
+    }
+
+    #[test]
+    fn applique_le_choix_du_premier_demarrage() {
+        let (_dossier, base) = base();
+        installer_modeles_fournis(&base).unwrap();
+        choisir_pratique_de_depart(&base, "Examen par sphères", false).unwrap();
+        let etat = |nom: &str| lister(&base).unwrap().into_iter().find(|m| m.nom == nom).map(|m| (m.actif, m.par_defaut)).unwrap();
+        assert_eq!(etat("Examen par sphères"), (true, true));
+        assert_eq!(etat("Adulte"), (false, false));
+        assert_eq!(etat("Nourrisson"), (false, false));
+        assert_eq!(etat("Femme enceinte"), (false, false));
+        assert_eq!(etat("Note libre"), (true, false));
+        assert!(matches!(choisir_pratique_de_depart(&base, "Biokinergie", true), Err(ErreurModele::Invalide(_))));
+
+        let (_autre, base) = super::tests::base();
+        installer_modeles_fournis(&base).unwrap();
+        choisir_pratique_de_depart(&base, "Adulte", true).unwrap();
+        let modeles = lister(&base).unwrap();
+        assert!(modeles.iter().all(|m| m.actif == (m.nom != "Examen par sphères")));
+        assert_eq!(modeles.iter().find(|m| m.par_defaut).unwrap().nom, "Adulte");
     }
 }

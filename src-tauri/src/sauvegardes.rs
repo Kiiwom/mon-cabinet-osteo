@@ -9,6 +9,7 @@ use osteosphere_core::cle_de_secours::CleDeSecours;
 use osteosphere_core::export::{self, LigneJournal};
 use osteosphere_core::facturation;
 use osteosphere_core::sauvegardes::{self, Apercu, DerniereSauvegarde, EXTENSION, FichierSauvegarde};
+use osteosphere_core::verrouillage::{self, EtatVerrouillage};
 use osteosphere_session::SessionOrdinateur;
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -140,6 +141,8 @@ pub struct Securite {
     /// Faux si la session ne peut pas protéger la clé (Linux sans trousseau).
     session_protegee: bool,
     systeme: &'static str,
+    /// Verrouillage après inactivité et code court : réglés même sans mot de passe, appliqués avec lui.
+    verrouillage: EtatVerrouillage,
 }
 
 #[tauri::command]
@@ -150,9 +153,36 @@ pub async fn securite(etat: State<'_, Arc<EtatCabinet>>) -> Result<Securite, Str
             mot_de_passe_actif: etat.cabinet().mot_de_passe_actif().map_err(message)?,
             session_protegee: SessionOrdinateur::protection_disponible(),
             systeme: std::env::consts::OS,
+            verrouillage: etat.avec_base(|base| verrouillage::etat(base).map_err(message))?,
         })
     })
     .await
+}
+
+/// Minutes d'inactivité avant le verrouillage automatique : aucune sans mot de passe ou si « jamais ».
+#[tauri::command]
+pub fn verrouillage_automatique(etat: State<'_, Arc<EtatCabinet>>) -> Result<Option<u32>, String> {
+    if !etat.cabinet().mot_de_passe_actif().map_err(message)? {
+        return Ok(None);
+    }
+    etat.avec_base(|base| Ok(verrouillage::lire(base).map_err(message)?.inactivite_minutes))
+}
+
+#[tauri::command]
+pub fn regler_verrouillage_automatique(etat: State<'_, Arc<EtatCabinet>>, minutes: Option<u32>) -> Result<EtatVerrouillage, String> {
+    etat.avec_base(|base| verrouillage::regler_inactivite(base, minutes).map_err(message))
+}
+
+#[tauri::command]
+pub async fn definir_code_court(etat: State<'_, Arc<EtatCabinet>>, code: String) -> Result<(), String> {
+    let etat = Arc::clone(&etat);
+    let code = Zeroizing::new(code);
+    en_arriere_plan(move || etat.avec_ouvert(|ouvert| etat.cabinet().definir_code_court(ouvert, &code).map_err(message))).await
+}
+
+#[tauri::command]
+pub fn retirer_code_court(etat: State<'_, Arc<EtatCabinet>>) -> Result<(), String> {
+    etat.avec_base(|base| verrouillage::retirer_code_court(base).map_err(message))
 }
 
 #[tauri::command]
@@ -174,16 +204,21 @@ pub async fn retirer_mot_de_passe(etat: State<'_, Arc<EtatCabinet>>) -> Result<(
     en_arriere_plan(move || etat.avec_ouvert(|ouvert| etat.cabinet().retirer_mot_de_passe(ouvert, &Session).map_err(message))).await
 }
 
-/// Verrouille le cabinet : la base est fermée, le mot de passe sera redemandé.
+#[derive(Serialize)]
+pub struct Verrouille {
+    /// Vrai si le code court rouvrira le cabinet.
+    code_court: bool,
+}
+
+/// Verrouille le cabinet : la base est fermée, le mot de passe ou le code court sera demandé.
 #[tauri::command]
-pub async fn verrouiller(etat: State<'_, Arc<EtatCabinet>>) -> Result<(), String> {
+pub async fn verrouiller(etat: State<'_, Arc<EtatCabinet>>) -> Result<Verrouille, String> {
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
         if !etat.cabinet().mot_de_passe_actif().map_err(message)? {
             return Err("Sans mot de passe, utilisez le verrouillage de votre ordinateur.".into());
         }
-        etat.sauvegarde_automatique(sauvegardes::Moment::Fermeture);
-        etat.fermer()
+        Ok(Verrouille { code_court: etat.verrouiller()? })
     })
     .await
 }

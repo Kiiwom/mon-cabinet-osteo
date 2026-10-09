@@ -11,9 +11,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::base::{Base, ErreurBase};
-use crate::chiffrement::{CleDonnees, Enveloppe, ErreurChiffrement, ReglagesDerivation};
+use crate::chiffrement::{self, CleDonnees, Enveloppe, ErreurChiffrement, ReglagesDerivation};
 use crate::cle_de_secours::CleDeSecours;
 use crate::trousseau::{ErreurTrousseau, ProtectionSession, Trousseau};
+use crate::verrouillage::{self, ErreurVerrouillage};
 
 pub const FICHIER_BASE: &str = "cabinet.osteosphere";
 pub const FICHIER_TROUSSEAU: &str = "trousseau.json";
@@ -197,6 +198,12 @@ pub enum ErreurCabinet {
     MotDePasseIncorrect,
     #[error("clé de secours incorrecte")]
     CleDeSecoursIncorrecte,
+    #[error("code incorrect")]
+    CodeCourtIncorrect,
+    #[error("le code court ne s'utilise qu'avec le mot de passe activé")]
+    CodeCourtSansMotDePasse,
+    #[error(transparent)]
+    Verrouillage(#[from] ErreurVerrouillage),
     #[error("{0}")]
     Identite(&'static str),
     #[error(transparent)]
@@ -341,11 +348,33 @@ impl Cabinet {
     }
 
     /// Retire le mot de passe : le logiciel s'ouvrira directement avec la session de l'ordinateur.
+    /// Le code court, qui n'a de sens qu'avec le mot de passe, disparaît avec lui.
     pub fn retirer_mot_de_passe(&self, ouvert: &CabinetOuvert, protection: &dyn ProtectionSession) -> Result<(), ErreurCabinet> {
         let mut trousseau = Trousseau::charger(&self.chemin_trousseau())?;
         trousseau.retirer_mot_de_passe(&ouvert.cle, protection)?;
         trousseau.enregistrer(&self.chemin_trousseau())?;
+        verrouillage::retirer_code_court(&ouvert.base)?;
         Ok(())
+    }
+
+    /// Choisit ou change le code court : la clé de la base, scellée par ce code, est rangée dans la base.
+    pub fn definir_code_court(&self, ouvert: &CabinetOuvert, code: &str) -> Result<(), ErreurCabinet> {
+        if !self.mot_de_passe_actif()? {
+            return Err(ErreurCabinet::CodeCourtSansMotDePasse);
+        }
+        verrouillage::verifier_code(code)?;
+        let enveloppe = chiffrement::sceller(&ouvert.cle, code.as_bytes(), self.reglages).map_err(ErreurTrousseau::from)?;
+        verrouillage::enregistrer_code_court(&ouvert.base, enveloppe)?;
+        Ok(())
+    }
+
+    /// Rouvre le cabinet verrouillé avec le code court, dont l'enveloppe a été lue avant le verrouillage.
+    pub fn ouvrir_avec_code_court(&self, enveloppe: &Enveloppe, code: &str) -> Result<CabinetOuvert, ErreurCabinet> {
+        let cle = chiffrement::ouvrir(enveloppe, code.as_bytes()).map_err(|erreur| match erreur {
+            ErreurChiffrement::SecretIncorrect => ErreurCabinet::CodeCourtIncorrect,
+            autre => ErreurTrousseau::from(autre).into(),
+        })?;
+        self.ouvrir_base(cle)
     }
 
     /// Remplace les données du cabinet par une sauvegarde déchiffrée (`copie`, rangée dans le dossier du
@@ -492,6 +521,30 @@ mod tests {
         assert!(!cabinet.mot_de_passe_actif().unwrap());
         let Ouverture::Ouvert(rouvert) = cabinet.ouvrir_automatiquement(&SessionFactice(1)).unwrap() else { panic!() };
         assert_eq!(nombre_de_patients(&rouvert), 1);
+    }
+
+    #[test]
+    fn le_code_court_rouvre_le_cabinet_verrouille_et_part_avec_le_mot_de_passe() {
+        let dossier = tempfile::tempdir().unwrap();
+        let cabinet = Cabinet::pour_tests(dossier.path());
+        let ouvert = cabinet.creer(&CleDeSecours::generer().unwrap(), None, &SessionFactice(1)).unwrap();
+        ecrire_un_patient(&ouvert);
+        assert!(matches!(cabinet.definir_code_court(&ouvert, "2468"), Err(ErreurCabinet::CodeCourtSansMotDePasse)));
+
+        cabinet.definir_mot_de_passe(&ouvert, "mot de passe fictif").unwrap();
+        assert!(matches!(cabinet.definir_code_court(&ouvert, "1234"), Err(ErreurCabinet::Verrouillage(ErreurVerrouillage::CodeFacile))));
+        cabinet.definir_code_court(&ouvert, "2468").unwrap();
+        assert!(verrouillage::etat(&ouvert.base).unwrap().code_court);
+
+        // Verrouillage : l'enveloppe est lue, la base fermée.
+        let enveloppe = verrouillage::lire(&ouvert.base).unwrap().code_court.unwrap();
+        drop(ouvert);
+        assert!(matches!(cabinet.ouvrir_avec_code_court(&enveloppe, "1357"), Err(ErreurCabinet::CodeCourtIncorrect)));
+        let rouvert = cabinet.ouvrir_avec_code_court(&enveloppe, "2468").unwrap();
+        assert_eq!(nombre_de_patients(&rouvert), 1);
+
+        cabinet.retirer_mot_de_passe(&rouvert, &SessionFactice(1)).unwrap();
+        assert!(!verrouillage::etat(&rouvert.base).unwrap().code_court);
     }
 
     #[test]

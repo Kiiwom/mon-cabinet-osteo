@@ -99,7 +99,8 @@ describe("sauvegardes", () => {
     await screen.findByRole("heading", { name: "Cabinet protégé" });
     fireEvent.change(screen.getByLabelText("Mot de passe", { selector: "input" }), { target: { value: "mot de passe fictif" } });
     fireEvent.click(screen.getByRole("button", { name: "Déverrouiller" }));
-    await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
+    // Le cabinet rouvre sur l'écran quitté.
+    await screen.findByRole("heading", { name: "Sécurité et mot de passe", level: 1 });
   });
 
   it("affiche le journal et l'export complet", async () => {

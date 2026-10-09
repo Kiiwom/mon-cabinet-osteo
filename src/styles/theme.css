@@ -4693,6 +4693,24 @@ select.saisie-courte {
   margin-bottom: 4px;
 }
 
+/* Verrouillage : code court et pavé numérique, au doigt comme au clavier. */
+.saisie-code {
+  font-size: 24px;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+.pave-numerique {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pave-numerique .bouton {
+  min-height: 56px;
+  font-size: 20px;
+}
+
 /* Paramètres › Apparence : la taille du texte ne prend pas toute la largeur. */
 .pile > .segments {
   align-self: flex-start;

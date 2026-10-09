@@ -5,6 +5,7 @@ import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque
 import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
 import modelesFournis from "../../crates/osteosphere-core/src/modeles_fournis.json";
 import { ACCENTS, APPARENCE_PAR_DEFAUT, TAILLES_TEXTE, type Apparence } from "./apparence";
+import { DELAIS_INACTIVITE, ESSAIS_CODE_COURT, erreurDeCode } from "./verrouillage";
 import { creerFacturationDeDemonstration } from "./demoFacturation";
 import type {
   CouleurPrestation,
@@ -109,6 +110,14 @@ export interface ChoixPremierDemarrage {
   cle_notee: boolean;
   caractere_trames: CaractereTrames;
   sauvegardes: PreferencesSauvegarde;
+  pratique: PratiqueDeDepart;
+}
+
+/** Étape « Votre pratique » : le modèle de toutes les séances, et les modèles nourrisson et grossesse. */
+export interface PratiqueDeDepart {
+  /** « Adulte », « Examen par sphères » ou « Note libre » : les modèles fournis. */
+  modele: string;
+  modeles_specifiques: boolean;
 }
 
 export interface DerniereSauvegarde {
@@ -149,7 +158,20 @@ export interface Securite {
   mot_de_passe_actif: boolean;
   session_protegee: boolean;
   systeme: string;
+  /** Réglés même sans mot de passe, appliqués avec lui. */
+  verrouillage: EtatVerrouillage;
 }
+
+export interface EtatVerrouillage {
+  /** Minutes sans activité avant le verrouillage ; jamais si `null`. */
+  inactivite_minutes: number | null;
+  code_court: boolean;
+}
+
+export type ReponseCodeCourt =
+  | { etat: "ouvert"; cabinet: IdentiteCabinet }
+  /** À zéro essai restant, seul le mot de passe ou la clé de secours rouvre le cabinet. */
+  | { etat: "incorrect"; essais_restants: number };
 
 export interface LigneJournal {
   id: number;
@@ -336,7 +358,8 @@ export interface PreparationPremierDemarrage {
 
 export type EtatDemarrage =
   | { etat: "premier_demarrage" }
-  | { etat: "mot_de_passe_requis" }
+  /** `code_court` : verrouillé pendant la session, le code court rouvre le cabinet. */
+  | { etat: "mot_de_passe_requis"; code_court?: boolean }
   | { etat: "cle_de_secours_requise" }
   | { etat: "ouvert"; cabinet: IdentiteCabinet };
 
@@ -725,6 +748,7 @@ export interface Coeur {
   preparerPremierDemarrage(): Promise<PreparationPremierDemarrage>;
   terminerPremierDemarrage(choix: ChoixPremierDemarrage): Promise<IdentiteCabinet>;
   deverrouiller(motDePasse: string): Promise<IdentiteCabinet>;
+  deverrouillerAvecCode(code: string): Promise<ReponseCodeCourt>;
   ouvrirAvecCleDeSecours(cle: string): Promise<IdentiteCabinet>;
   listerTrames(): Promise<Trame[]>;
   enregistrerTrame(id: string | null, saisie: SaisieTrame): Promise<Trame>;
@@ -859,7 +883,13 @@ export interface Coeur {
   securite(): Promise<Securite>;
   definirMotDePasse(motDePasse: string): Promise<void>;
   retirerMotDePasse(): Promise<void>;
-  verrouiller(): Promise<void>;
+  /** Ferme la base ; `code_court` dit si le code court la rouvrira. */
+  verrouiller(): Promise<{ code_court: boolean }>;
+  /** Minutes d'inactivité avant le verrouillage : `null` sans mot de passe ou si « jamais ». */
+  verrouillageAutomatique(): Promise<number | null>;
+  reglerVerrouillageAutomatique(minutes: number | null): Promise<EtatVerrouillage>;
+  definirCodeCourt(code: string): Promise<void>;
+  retirerCodeCourt(): Promise<void>;
   /** Export complet en clair (CSV et JSON) dans Documents › Osteosphere › Exports ; rend le dossier. */
   exporterTout(): Promise<string>;
   journal(limite: number, avant: number | null): Promise<LigneJournal[]>;
@@ -937,6 +967,7 @@ export const coeurTauri: Coeur = {
   preparerPremierDemarrage: () => appeler("preparer_premier_demarrage"),
   terminerPremierDemarrage: (choix) => appeler("terminer_premier_demarrage", { choix }),
   deverrouiller: (motDePasse) => appeler("deverrouiller", { motDePasse }),
+  deverrouillerAvecCode: (code) => appeler("deverrouiller_avec_code", { code }),
   ouvrirAvecCleDeSecours: (cle) => appeler("ouvrir_avec_cle_de_secours", { cle }),
   listerTrames: () => appeler("lister_trames"),
   enregistrerTrame: (id, saisie) => appeler("enregistrer_trame", { id, saisie }),
@@ -1042,6 +1073,10 @@ export const coeurTauri: Coeur = {
   definirMotDePasse: (motDePasse) => appeler("definir_mot_de_passe", { motDePasse }),
   retirerMotDePasse: () => appeler("retirer_mot_de_passe"),
   verrouiller: () => appeler("verrouiller"),
+  verrouillageAutomatique: () => appeler("verrouillage_automatique"),
+  reglerVerrouillageAutomatique: (minutes) => appeler("regler_verrouillage_automatique", { minutes }),
+  definirCodeCourt: (code) => appeler("definir_code_court", { code }),
+  retirerCodeCourt: () => appeler("retirer_code_court"),
   exporterTout: () => appeler("exporter_tout"),
   journal: (limite, avant) => appeler("journal", { limite, avant }),
   statistiques: (du, au, base) => appeler("statistiques", { du, au, base }),
@@ -1150,6 +1185,10 @@ export function creerCoeurDeDemonstration(
 ): Coeur {
   let etat = depart;
   let motDePasse: string | null = depart === "mot_de_passe_requis" ? "motdepasse" : null;
+  let inactivite: number | null = 15;
+  let codeCourt: string | null = null;
+  /** Verrouillé avec un code court : essais restants. */
+  let veille: number | null = null;
   let identite: IdentiteCabinet = exemples
     ? {
         ...IDENTITE_VIDE,
@@ -1366,6 +1405,7 @@ export function creerCoeurDeDemonstration(
   const coeur: Coeur = {
     reel: false,
     async etatDemarrage() {
+      if (etat === "mot_de_passe_requis") return { etat, code_court: veille !== null };
       return etat === "ouvert" ? { etat, cabinet: identite } : { etat };
     },
     async preparerPremierDemarrage() {
@@ -1378,20 +1418,44 @@ export function creerCoeurDeDemonstration(
     },
     async terminerPremierDemarrage(choix) {
       if (!choix.cle_notee) throw new Error("Cochez la case qui confirme que la clé de secours est notée ou imprimée.");
+      const { modele: principal, modeles_specifiques } = choix.pratique;
+      if (!["Adulte", "Examen par sphères", "Note libre"].includes(principal)) throw new Error("Choisissez le modèle de vos séances parmi ceux proposés.");
       identite = choix.identite;
       motDePasse = choix.mot_de_passe;
       caractere = choix.caractere_trames;
+      // Comme le cœur : un autre modèle qu'« Adulte » le remplace, nourrisson et grossesse selon le choix.
+      modeles = modeles.map((m) => {
+        if (m.origine !== "fourni") return m;
+        if (principal !== "Adulte" && m.nom === principal) return { ...m, actif: true, par_defaut: true };
+        if (principal !== "Adulte" && m.nom === "Adulte") return { ...m, actif: false, par_defaut: false };
+        if (["Nourrisson", "Femme enceinte"].includes(m.nom)) return { ...m, actif: modeles_specifiques };
+        return principal !== "Adulte" ? { ...m, par_defaut: false } : m;
+      });
       etat = "ouvert";
       return identite;
     },
     async deverrouiller(saisie) {
       if (saisie !== motDePasse) throw new Error("Mot de passe incorrect");
       etat = "ouvert";
+      veille = null;
       return identite;
+    },
+    async deverrouillerAvecCode(code) {
+      if (veille === null) return { etat: "incorrect", essais_restants: 0 };
+      if (code === codeCourt) {
+        etat = "ouvert";
+        veille = null;
+        return { etat: "ouvert", cabinet: identite };
+      }
+      veille -= 1;
+      const essais_restants = veille;
+      if (veille <= 0) veille = null;
+      return { etat: "incorrect", essais_restants };
     },
     async ouvrirAvecCleDeSecours(cle) {
       if (normaliser(cle) !== normaliser(CLE_DE_DEMONSTRATION)) throw new Error("Clé de secours incorrecte");
       etat = "ouvert";
+      veille = null;
       return identite;
     },
     async listerTrames() {
@@ -1885,7 +1949,7 @@ export function creerCoeurDeDemonstration(
       restaurationDemo = null;
     },
     async securite() {
-      return { mot_de_passe_actif: motDePasse !== null, session_protegee: true, systeme: "windows" };
+      return { mot_de_passe_actif: motDePasse !== null, session_protegee: true, systeme: "windows", verrouillage: { inactivite_minutes: inactivite, code_court: codeCourt !== null } };
     },
     async definirMotDePasse(nouveau) {
       if (nouveau.length < 8) throw new Error("Choisissez un mot de passe d’au moins 8 caractères.");
@@ -1893,10 +1957,30 @@ export function creerCoeurDeDemonstration(
     },
     async retirerMotDePasse() {
       motDePasse = null;
+      codeCourt = null;
     },
     async verrouiller() {
       if (motDePasse === null) throw new Error("Sans mot de passe, utilisez le verrouillage de votre ordinateur.");
       etat = "mot_de_passe_requis";
+      veille = codeCourt === null ? null : ESSAIS_CODE_COURT;
+      return { code_court: veille !== null };
+    },
+    async verrouillageAutomatique() {
+      return motDePasse === null ? null : inactivite;
+    },
+    async reglerVerrouillageAutomatique(minutes) {
+      if (minutes !== null && !DELAIS_INACTIVITE.includes(minutes)) throw new Error(`Durée d’inactivité non proposée : ${minutes} minutes`);
+      inactivite = minutes;
+      return { inactivite_minutes: inactivite, code_court: codeCourt !== null };
+    },
+    async definirCodeCourt(code) {
+      if (motDePasse === null) throw new Error("Le code court ne s’utilise qu’avec le mot de passe activé");
+      const erreur = erreurDeCode(code);
+      if (erreur) throw new Error(erreur);
+      codeCourt = code;
+    },
+    async retirerCodeCourt() {
+      codeCourt = null;
     },
     async exporterTout() {
       return "C:\\Users\\Praticien\\Documents\\Osteosphere\\Exports\\Export Osteosphere (démonstration)";

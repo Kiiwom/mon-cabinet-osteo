@@ -91,11 +91,18 @@ describe("sauvegardes", () => {
     expect(screen.getByRole("radio", { name: /Régulièrement, pendant l’utilisation/ })).toBeChecked();
     continuer();
     await screen.findByRole("heading", { name: "Votre pratique" });
+    expect(screen.getByRole("radio", { name: /^Adulte/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /^Examen par sphères/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /modèles Nourrisson/ }));
     continuer();
     await screen.findByRole("heading", { name: "Reprendre vos données ?" });
     fireEvent.click(screen.getByRole("button", { name: "Créer mon cabinet" }));
     await screen.findByRole("heading", { name: /^Bonjour Alexandre/ });
     expect(choix[0].sauvegardes).toMatchObject({ frequence: "intervalle", intervalle_minutes: 30 });
+    expect(choix[0].pratique).toEqual({ modele: "Examen par sphères", modeles_specifiques: false });
+    const modeles = await demonstration.listerModeles();
+    expect(modeles.find((m) => m.par_defaut)?.nom).toBe("Examen par sphères");
+    expect(modeles.filter((m) => m.actif).map((m) => m.nom).sort()).toEqual(["Examen par sphères", "Note libre"]);
   });
 });
 

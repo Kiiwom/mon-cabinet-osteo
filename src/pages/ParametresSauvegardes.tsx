@@ -4,6 +4,7 @@ import { CarteChoix, FREQUENCES, INTERVALLES } from "../demarrage/PremierDemarra
 import type { Coeur, EtatSauvegardes, FichierSauvegarde, IdentiteCabinet, LigneJournal, PreferencesSauvegarde, Securite } from "../lib/coeur";
 import { ImportMcl } from "../import/ImportMcl";
 import { adresse } from "../lib/navigation";
+import { DELAIS_INACTIVITE, erreurDeCode, signalerReglagesVerrouillage } from "../lib/verrouillage";
 import { momentEnLettres, RestaurationSauvegarde } from "../sauvegardes/Restauration";
 
 function Fil({ titre }: { titre: string }) {
@@ -228,7 +229,7 @@ export function PageParametresSauvegardes({ coeur, surRestauration }: { coeur: C
 }
 
 /** Mot de passe facultatif, verrouillage, clé de secours. */
-export function PageParametresSecurite({ coeur, surVerrouillage }: { coeur: Coeur; surVerrouillage: () => void }) {
+export function PageParametresSecurite({ coeur, verrouiller }: { coeur: Coeur; verrouiller: () => Promise<boolean> }) {
   const id = useId();
   const [securite, setSecurite] = useState<Securite | null>(null);
   const [edition, setEdition] = useState(false);
@@ -254,6 +255,8 @@ export function PageParametresSecurite({ coeur, surVerrouillage }: { coeur: Coeu
       setMotDePasse("");
       setConfirmation("");
       await charger();
+      // Avec ou sans mot de passe, le verrouillage automatique change : la minuterie relit ses réglages.
+      signalerReglagesVerrouillage();
     } catch (e) {
       setErreur((e as Error).message);
     } finally {
@@ -330,7 +333,10 @@ export function PageParametresSecurite({ coeur, surVerrouillage }: { coeur: Coeu
                   type="button"
                   className="bouton"
                   onClick={() =>
-                    void coeur.verrouiller().then(surVerrouillage, (e: Error) => setErreur(e.message))
+                    void verrouiller().then(
+                      (fait) => fait || setErreur("La séance ouverte n’a pas pu être enregistrée : le cabinet reste ouvert."),
+                      (e: Error) => setErreur(e.message),
+                    )
                   }
                 >
                   Verrouiller maintenant <kbd>Ctrl</kbd>+<kbd>L</kbd>
@@ -343,6 +349,7 @@ export function PageParametresSecurite({ coeur, surVerrouillage }: { coeur: Coeu
         <Message texte={message} />
         <Message texte={erreur} erreur />
       </section>
+      <ReglagesVerrouillage coeur={coeur} securite={securite} recharger={charger} />
       <section className="carte" aria-labelledby={`${id}-cle`}>
         <h2 id={`${id}-cle`}>Clé de secours</h2>
         <p>
@@ -351,6 +358,129 @@ export function PageParametresSecurite({ coeur, surVerrouillage }: { coeur: Coeu
         </p>
       </section>
     </main>
+  );
+}
+
+/** Verrouillage après inactivité et code court : réservés au cabinet protégé par un mot de passe. */
+function ReglagesVerrouillage({ coeur, securite, recharger }: { coeur: Coeur; securite: Securite; recharger: () => Promise<unknown> }) {
+  const id = useId();
+  const [edition, setEdition] = useState(false);
+  const [code, setCode] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  const { inactivite_minutes, code_court } = securite.verrouillage;
+
+  if (!securite.mot_de_passe_actif) {
+    return (
+      <section className="carte" aria-labelledby={`${id}-titre`}>
+        <h2 id={`${id}-titre`}>Verrouillage</h2>
+        <p className="discret">
+          Avec un mot de passe, Osteosphere peut se verrouiller seul après un temps sans activité, et se rouvrir entre deux patients avec
+          un code court de 4 à 6 chiffres.
+        </p>
+      </section>
+    );
+  }
+
+  async function agir(action: () => Promise<unknown>, texte: string) {
+    setEnvoi(true);
+    setErreur(null);
+    setMessage(null);
+    try {
+      await action();
+      setMessage(texte);
+      setEdition(false);
+      setCode("");
+      setConfirmation("");
+      await recharger();
+      signalerReglagesVerrouillage();
+    } catch (e) {
+      setErreur((e as Error).message);
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  const chiffres = (valeur: string) => valeur.replace(/[^0-9]/g, "").slice(0, 6);
+
+  return (
+    <section className="carte pile" aria-labelledby={`${id}-titre`}>
+      <h2 id={`${id}-titre`}>Verrouillage</h2>
+      <div className="champ">
+        <label htmlFor={`${id}-delai`}>Verrouiller le cabinet</label>
+        <select
+          id={`${id}-delai`}
+          className="saisie-courte"
+          value={inactivite_minutes ?? "jamais"}
+          disabled={envoi}
+          onChange={(e) => {
+            const minutes = e.target.value === "jamais" ? null : Number(e.target.value);
+            void agir(() => coeur.reglerVerrouillageAutomatique(minutes), minutes ? `Verrouillage après ${minutes} minutes sans activité.` : "Verrouillage automatique coupé.");
+          }}
+        >
+          {DELAIS_INACTIVITE.map((m) => (
+            <option key={m} value={m}>
+              Après {m === 60 ? "une heure" : `${m} minutes`} sans activité
+            </option>
+          ))}
+          <option value="jamais">Seulement avec Ctrl + L</option>
+        </select>
+        <span className="discret">La séance ouverte est enregistrée avant le verrouillage : rien de saisi ne se perd.</span>
+      </div>
+
+      <h3>Code court</h3>
+      <p className="discret">
+        {code_court ? <strong>Activé. </strong> : null}
+        Entre deux patients, un code de 4 à 6 chiffres rouvre le cabinet verrouillé sans retaper le mot de passe. Au lancement
+        d’Osteosphere, ou après cinq codes faux, le mot de passe reste demandé.
+      </p>
+      {edition ? (
+        <form
+          className="pile-serree"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const probleme = erreurDeCode(code) ?? (code !== confirmation ? "Les deux codes ne sont pas identiques." : null);
+            if (probleme) return setErreur(probleme);
+            void agir(() => coeur.definirCodeCourt(code), "Code court enregistré : il servira au prochain verrouillage.");
+          }}
+        >
+          <div className="champs">
+            <div className="champ">
+              <label htmlFor={`${id}-code`}>Code court</label>
+              <input id={`${id}-code`} className="saisie-courte" type="password" inputMode="numeric" autoComplete="off" value={code} onChange={(e) => setCode(chiffres(e.target.value))} />
+              <span className="discret">Pas de suite comme 1234, ni de chiffre répété.</span>
+            </div>
+            <div className="champ">
+              <label htmlFor={`${id}-confirmation`}>Confirmation</label>
+              <input id={`${id}-confirmation`} className="saisie-courte" type="password" inputMode="numeric" autoComplete="off" value={confirmation} onChange={(e) => setConfirmation(chiffres(e.target.value))} />
+            </div>
+          </div>
+          <div className="rangee">
+            <button type="submit" className="bouton bouton-principal" disabled={envoi}>
+              Enregistrer le code court
+            </button>
+            <button type="button" className="lien-bouton" onClick={() => setEdition(false)}>
+              Annuler
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="rangee">
+          <button type="button" className="bouton" onClick={() => setEdition(true)}>
+            {code_court ? "Changer le code court" : "Choisir un code court"}
+          </button>
+          {code_court && (
+            <button type="button" className="bouton" disabled={envoi} onClick={() => void agir(() => coeur.retirerCodeCourt(), "Code court retiré : le mot de passe sera demandé.")}>
+              Retirer le code court
+            </button>
+          )}
+        </div>
+      )}
+      <Message texte={message} />
+      <Message texte={erreur} erreur />
+    </section>
   );
 }
 
@@ -396,6 +526,10 @@ export const ACTIONS: Record<string, string> = {
   "accueil.modifie": "Accueil personnalisé",
   "trames.caractere": "Caractère d’appel des trames changé",
   "preferences.modifiees": "Préférences de saisie modifiées",
+  "apparence.modifiee": "Apparence modifiée",
+  "verrouillage.inactivite": "Verrouillage automatique réglé",
+  "verrouillage.code_court_defini": "Code court choisi",
+  "verrouillage.code_court_retire": "Code court retiré",
   "document.ajoute": "Document ajouté",
   "document.modifie": "Document renommé ou rattaché",
   "document.supprime": "Document mis à la corbeille",

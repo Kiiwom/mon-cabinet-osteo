@@ -19,9 +19,16 @@ const ETAPES = [
   { titre: "Votre cabinet", detail: "Identité, adresse, SIRET, RPPS" },
   { titre: "Protection des données", detail: "Mot de passe, clé de secours" },
   { titre: "Sauvegardes", detail: "Fréquence et emplacement" },
-  { titre: "Votre pratique", detail: "Trames et modules" },
+  { titre: "Votre pratique", detail: "Modèle de séance, trames" },
   { titre: "Reprise des données", detail: "Facultatif · depuis un autre logiciel" },
 ] as const;
+
+/** Les modèles fournis proposés pour toutes les séances (les mêmes que le cœur). */
+const MODELES_DE_SEANCE: { nom: string; detail: string }[] = [
+  { nom: "Adulte", detail: "Taille et poids, douleur avant et après, motif, tests, schéma dysfonctionnel, traitements, remarques." },
+  { nom: "Examen par sphères", detail: "Le motif, puis une rubrique par sphère : crânienne, ORL, cardio-pulmonaire, viscérale, musculo-squelettique." },
+  { nom: "Note libre", detail: "Un seul champ de texte, pour écrire la séance à votre façon." },
+];
 
 export const FREQUENCES: { valeur: FrequenceSauvegarde; libelle: string; detail: string }[] = [
   { valeur: "fermeture", libelle: "À chaque fermeture du logiciel", detail: "Conseillé : rien n’est perdu d’une journée à l’autre." },
@@ -61,6 +68,8 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
   const [intervalle, setIntervalle] = useState(60);
   const [dossier, setDossier] = useState("");
   const [caractere, setCaractere] = useState<CaractereTrames>("@");
+  const [modele, setModele] = useState("Adulte");
+  const [modelesSpecifiques, setModelesSpecifiques] = useState(true);
   const [reprise, setReprise] = useState<"vide" | "mcl">("vide");
   const [restauration, setRestauration] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -125,6 +134,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
         cle_notee: cleNotee,
         caractere_trames: caractere,
         sauvegardes: { frequence, intervalle_minutes: intervalle, dossier: dossier.trim(), conserver: 30 },
+        pratique: { modele, modeles_specifiques: modelesSpecifiques },
       });
       surOuverture(cabinet, reprise === "mcl" ? "#/parametres/import" : undefined);
     } catch (e) {
@@ -229,7 +239,16 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
               setDossier={setDossier}
             />
           )}
-          {etape === 4 && <EtapePratique caractere={caractere} setCaractere={setCaractere} />}
+          {etape === 4 && (
+            <EtapePratique
+              caractere={caractere}
+              setCaractere={setCaractere}
+              modele={modele}
+              setModele={setModele}
+              modelesSpecifiques={modelesSpecifiques}
+              setModelesSpecifiques={setModelesSpecifiques}
+            />
+          )}
           {etape === 5 && <EtapeReprise reprise={reprise} setReprise={setReprise} />}
 
           <div className="assistant-actions">
@@ -566,9 +585,38 @@ function EtapeSauvegardes(props: {
   );
 }
 
-function EtapePratique(props: { caractere: CaractereTrames; setCaractere: (c: CaractereTrames) => void }) {
+function EtapePratique(props: {
+  caractere: CaractereTrames;
+  setCaractere: (c: CaractereTrames) => void;
+  modele: string;
+  setModele: (m: string) => void;
+  modelesSpecifiques: boolean;
+  setModelesSpecifiques: (oui: boolean) => void;
+}) {
   return (
     <div className="pile">
+      <fieldset className="groupe">
+        <legend>Le modèle de vos séances</legend>
+        <div className="choix-liste">
+          {MODELES_DE_SEANCE.map((m) => (
+            <CarteChoix
+              key={m.nom}
+              nom="modele"
+              coche={props.modele === m.nom}
+              choisir={() => props.setModele(m.nom)}
+              titre={m.nom}
+              etiquette={m.nom === "Adulte" ? "par défaut" : undefined}
+            >
+              {m.detail}
+            </CarteChoix>
+          ))}
+        </div>
+        <label className="case-simple">
+          <input type="checkbox" checked={props.modelesSpecifiques} onChange={(e) => props.setModelesSpecifiques(e.target.checked)} />
+          Proposer aussi les modèles Nourrisson (avant 2 ans) et Femme enceinte
+        </label>
+        <p className="discret">Chaque modèle se modifie ensuite, champ par champ, dans Paramètres › Modèles de consultation.</p>
+      </fieldset>
       <fieldset className="groupe">
         <legend>Quel caractère ouvre le menu des trames&nbsp;?</legend>
         <div className="choix-cartes">
@@ -581,8 +629,8 @@ function EtapePratique(props: { caractere: CaractereTrames; setCaractere: (c: Ca
         </div>
       </fieldset>
       <p className="info">
-        Les modules (agenda, dépenses, schéma corporel, Biokinergie…) s’activeront dans Paramètres › Modules quand ils
-        seront prêts.
+        Les modules (agenda, dépenses, schéma corporel, Biokinergie…) arriveront après la version&nbsp;1&nbsp;: ils
+        s’activeront dans Paramètres › Modules.
       </p>
     </div>
   );

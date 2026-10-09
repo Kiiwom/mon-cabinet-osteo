@@ -13,6 +13,7 @@ import type { TrameResume } from "../trames/valider";
 import { descriptionPatient, PucesPatient } from "./Dossier";
 import { Documents } from "../documents/Documents";
 import { CompteRendu } from "../seances/CompteRendu";
+import { enregistrerAvantVerrouillage } from "../lib/verrouillage";
 
 type EtatEnregistrement = { type: "enregistre"; a: Date } | { type: "en_cours" } | { type: "erreur"; message: string } | { type: "aucun" };
 
@@ -54,6 +55,16 @@ function useEnregistrementAuto(coeur: Coeur, id: string) {
       if (minuterie.current) clearTimeout(minuterie.current);
       minuterie.current = setTimeout(() => void envoyer(), DELAI_ENREGISTREMENT);
     },
+    [envoyer],
+  );
+
+  // Avant un verrouillage, la saisie en attente part : la base ferme ensuite sans rien perdre.
+  useEffect(
+    () =>
+      enregistrerAvantVerrouillage(async () => {
+        await envoyer();
+        return enAttente.current === null;
+      }),
     [envoyer],
   );
 

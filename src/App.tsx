@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 
 import { BarreLaterale } from "./composants/BarreLaterale";
 import { SaisieCleDeSecours, Verrouillage } from "./demarrage/EcransOuverture";
@@ -7,6 +7,7 @@ import { appliquerApparence } from "./lib/apparence";
 import { coeurParDefaut, type Coeur, type IdentiteCabinet } from "./lib/coeur";
 import { surFacturation } from "./lib/facturation";
 import { useAdresse, type Ecran } from "./lib/navigation";
+import { surReglagesVerrouillage, toutEnregistrer } from "./lib/verrouillage";
 import { Accueil } from "./pages/Accueil";
 import { DossierPatient, ongletDepuis } from "./pages/Dossier";
 import { EcranAVenir } from "./pages/EcranAVenir";
@@ -55,7 +56,8 @@ type Phase =
   | { type: "chargement" }
   | { type: "erreur"; message: string }
   | { type: "premier_demarrage" }
-  | { type: "mot_de_passe" }
+  /** `codeCourt` : verrouillé pendant la session, le code court rouvre ; `retour` : l'écran à retrouver. */
+  | { type: "mot_de_passe"; codeCourt: boolean; retour?: string }
   | { type: "cle_de_secours"; origine: "mot_de_passe_oublie" | "autre_poste" }
   /** `version` change après une restauration : tout l'écran est relu. */
   | { type: "ouvert"; cabinet: IdentiteCabinet; version: number };
@@ -68,7 +70,7 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
       (etat) => {
         if (etat.etat === "ouvert") setPhase({ type: "ouvert", cabinet: etat.cabinet, version: 0 });
         else if (etat.etat === "premier_demarrage") setPhase({ type: "premier_demarrage" });
-        else if (etat.etat === "mot_de_passe_requis") setPhase({ type: "mot_de_passe" });
+        else if (etat.etat === "mot_de_passe_requis") setPhase({ type: "mot_de_passe", codeCourt: etat.code_court ?? false });
         else setPhase({ type: "cle_de_secours", origine: "autre_poste" });
       },
       (e: Error) => setPhase({ type: "erreur", message: e.message }),
@@ -105,7 +107,8 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
       return (
         <Verrouillage
           coeur={coeur}
-          surOuverture={ouvrir}
+          codeCourt={phase.codeCourt}
+          surOuverture={(cabinet) => ouvrir(cabinet, phase.retour)}
           utiliserCle={() => setPhase({ type: "cle_de_secours", origine: "mot_de_passe_oublie" })}
         />
       );
@@ -115,7 +118,7 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
           coeur={coeur}
           surOuverture={ouvrir}
           origine={phase.origine}
-          retour={phase.origine === "mot_de_passe_oublie" ? () => setPhase({ type: "mot_de_passe" }) : undefined}
+          retour={phase.origine === "mot_de_passe_oublie" ? () => setPhase({ type: "mot_de_passe", codeCourt: false }) : undefined}
         />
       );
     case "ouvert":
@@ -128,7 +131,7 @@ export function App({ coeur = COEUR }: { coeur?: Coeur }) {
             window.location.hash = "#/accueil";
             setPhase({ type: "ouvert", cabinet, version: phase.version + 1 });
           }}
-          surVerrouillage={() => setPhase({ type: "mot_de_passe" })}
+          surVerrouillage={(codeCourt) => setPhase({ type: "mot_de_passe", codeCourt, retour: window.location.hash })}
         />
       );
   }
@@ -155,18 +158,18 @@ function EcranParametres({
   coeur,
   segments,
   surRestauration,
-  surVerrouillage,
+  verrouiller,
 }: {
   coeur: Coeur;
   segments: string[];
   surRestauration: (cabinet: IdentiteCabinet) => void;
-  surVerrouillage: () => void;
+  verrouiller: () => Promise<boolean>;
 }) {
   switch (segments[1]) {
     case "sauvegardes":
       return <PageParametresSauvegardes coeur={coeur} surRestauration={surRestauration} />;
     case "securite":
-      return <PageParametresSecurite coeur={coeur} surVerrouillage={surVerrouillage} />;
+      return <PageParametresSecurite coeur={coeur} verrouiller={verrouiller} />;
     case "import":
       return <PageParametresImportExport coeur={coeur} />;
     case "journal":
@@ -188,6 +191,46 @@ function EcranParametres({
     default:
       return <PageParametres />;
   }
+}
+
+/**
+ * Verrouillage après un temps sans activité, avec le mot de passe : la durée vient du cœur, qui ne
+ * la donne pas sans mot de passe. Au retour de veille de l'ordinateur, le délai écoulé compte aussi.
+ */
+function useVerrouillageAutomatique(coeur: Coeur, verrouiller: () => Promise<boolean>) {
+  const [minutes, setMinutes] = useState<number | null>(null);
+  const [version, setVersion] = useState(0);
+  useEffect(() => surReglagesVerrouillage(() => setVersion((v) => v + 1)), []);
+  useEffect(() => {
+    coeur.verrouillageAutomatique().then(setMinutes, () => setMinutes(null));
+  }, [coeur, version]);
+  useEffect(() => {
+    if (!minutes) return;
+    let derniere = Date.now();
+    let enCours = false;
+    const activite = () => {
+      derniere = Date.now();
+    };
+    const verifier = () => {
+      if (enCours || Date.now() - derniere < minutes * 60_000) return;
+      enCours = true;
+      // Si la séance n'a pas pu être enregistrée, le cabinet reste ouvert et l'on réessaie plus tard.
+      void verrouiller()
+        .catch(() => false)
+        .finally(() => {
+          enCours = false;
+        });
+    };
+    const evenements = ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"] as const;
+    for (const e of evenements) window.addEventListener(e, activite, { capture: true, passive: true });
+    document.addEventListener("visibilitychange", verifier);
+    const minuterie = window.setInterval(verifier, 15_000);
+    return () => {
+      for (const e of evenements) window.removeEventListener(e, activite, { capture: true });
+      document.removeEventListener("visibilitychange", verifier);
+      window.clearInterval(minuterie);
+    };
+  }, [minutes, verrouiller]);
 }
 
 /** Nombre de séances à facturer, pour la barre latérale : relu à chaque changement d'écran. */
@@ -237,9 +280,17 @@ function CabinetOuvert({
   cabinet: IdentiteCabinet;
   coeur: Coeur;
   surRestauration: (cabinet: IdentiteCabinet) => void;
-  surVerrouillage: () => void;
+  surVerrouillage: (codeCourt: boolean) => void;
 }) {
   const { ecran, segments } = useAdresse();
+  // La séance ouverte est enregistrée avant que la base se ferme : rien de saisi n'est perdu.
+  const verrouiller = useCallback(async () => {
+    if (!(await toutEnregistrer())) return false;
+    const { code_court } = await coeur.verrouiller();
+    surVerrouillage(code_court);
+    return true;
+  }, [coeur, surVerrouillage]);
+  useVerrouillageAutomatique(coeur, verrouiller);
   const aFacturer = useSeancesAFacturer(coeur, segments.join("/"));
   const sauvegarde = useEtatSauvegarde(coeur, segments.join("/"));
   useEffect(() => {
@@ -251,12 +302,12 @@ function CabinetOuvert({
     const touche = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
         e.preventDefault();
-        coeur.verrouiller().then(surVerrouillage, () => undefined);
+        verrouiller().catch(() => undefined);
       }
     };
     window.addEventListener("keydown", touche);
     return () => window.removeEventListener("keydown", touche);
-  }, [coeur, surVerrouillage]);
+  }, [verrouiller]);
   return (
     <FournisseurTrames coeur={coeur}>
       <div className="coque">
@@ -277,7 +328,7 @@ function CabinetOuvert({
               <PageSeances coeur={coeur} />
             )
           ) : ecran === "parametres" ? (
-            <EcranParametres coeur={coeur} segments={segments} surRestauration={surRestauration} surVerrouillage={surVerrouillage} />
+            <EcranParametres coeur={coeur} segments={segments} surRestauration={surRestauration} verrouiller={verrouiller} />
           ) : ecran === "facturation" ? (
             <EcranFacturation coeur={coeur} segments={segments} />
           ) : ecran === "statistiques" ? (
