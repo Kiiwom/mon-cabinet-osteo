@@ -1,4 +1,4 @@
-//! Commandes des imports (MonCabinetLibéral, tableur) : le fichier est d'abord analysé sans rien
+//! Commandes des imports (MonCabinetLibéral, tableur, LibreOsteo) : le fichier est d'abord analysé sans rien
 //! écrire, puis importé juste après une sauvegarde du cabinet ; le rapport est rangé avec les documents.
 
 use std::path::Path;
@@ -7,6 +7,7 @@ use std::sync::Arc;
 use osteosphere_core::base::maintenant;
 use osteosphere_core::horloge;
 use osteosphere_core::import_mcl::{self, Analyse, ChoixImport, Rapport};
+use osteosphere_core::import_libreosteo::{self, AnalyseLibreOsteo, ChoixLibreOsteo, RapportLibreOsteo};
 use osteosphere_core::import_tableur::{self, AnalyseTableur, Cible, RapportTableur};
 use serde::Serialize;
 use tauri::State;
@@ -126,4 +127,37 @@ pub fn ouvrir_rapport_import(etat: State<'_, Arc<EtatCabinet>>, chemin: String) 
         return Err("Ce fichier n’est pas un rapport d’import.".into());
     }
     tauri_plugin_opener::open_path(chemin, None::<&str>).map_err(message)
+}
+
+#[tauri::command]
+pub async fn analyser_libreosteo(etat: State<'_, Arc<EtatCabinet>>, chemin: String) -> Result<AnalyseLibreOsteo, String> {
+    let etat = Arc::clone(&etat);
+    en_arriere_plan(move || {
+        let contenu = lire_archive(&chemin)?;
+        etat.avec_base(|base| import_libreosteo::analyser(base, &contenu).map_err(message))
+    })
+    .await
+}
+
+#[derive(Serialize)]
+pub struct ResultatImportLibreOsteo {
+    rapport: RapportLibreOsteo,
+    sauvegarde: String,
+    fichier_rapport: Option<String>,
+}
+
+#[tauri::command]
+pub async fn importer_libreosteo(etat: State<'_, Arc<EtatCabinet>>, chemin: String, choix: ChoixLibreOsteo) -> Result<ResultatImportLibreOsteo, String> {
+    let etat = Arc::clone(&etat);
+    en_arriere_plan(move || {
+        let contenu = lire_archive(&chemin)?;
+        let (rapport, sauvegarde) = etat.avec_base(|base| {
+            let sauvegarde = etat.sauvegarder(base).map_err(|e| format!("La sauvegarde avant l’import a échoué, rien n’a été importé : {e}"))?;
+            let rapport = import_libreosteo::importer(base, &contenu, choix).map_err(message)?;
+            Ok((rapport, sauvegarde.chemin))
+        })?;
+        let fichier_rapport = ecrire_rapport(&etat, "Import LibreOsteo", |maintenant| rapport.en_texte(&nom_de_fichier(&chemin), &sauvegarde, maintenant));
+        Ok(ResultatImportLibreOsteo { rapport, sauvegarde, fichier_rapport })
+    })
+    .await
 }

@@ -105,3 +105,29 @@ describe("import d'un tableur", () => {
   });
 });
 
+describe("import LibreOsteo", () => {
+  it("lit la sauvegarde sans rien écrire, signale les factures non reprises, puis importe une fois", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    const avant = (await coeur.listerPatients()).length;
+    render(<PageParametresImportExport coeur={coeur} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^LibreOsteo/ }));
+    const region = screen.getByRole("region", { name: "Import depuis LibreOsteo" });
+    fireEvent.click(within(region).getByRole("button", { name: "Choisir la sauvegarde…" }));
+    expect(await within(region).findByRole("heading", { name: "libreosteo-sauvegarde.zip" })).toBeInTheDocument();
+    expect(within(region).getByText(/Sauvegarde LibreOsteo 0.6.4 · séances du/)).toBeInTheDocument();
+    expect(within(region).getByRole("checkbox", { name: /^11 séances/ })).toBeChecked();
+    expect(within(region).getByText(/11 facture\(s\) de LibreOsteo ne sont pas reprises/)).toBeInTheDocument();
+    expect(within(region).getByText(/Sphère viscérale/)).toBeInTheDocument();
+    expect(await coeur.listerPatients()).toHaveLength(avant);
+
+    fireEvent.click(within(region).getByRole("button", { name: "Importer les données" }));
+    expect(await within(region).findByRole("heading", { name: "Import terminé" })).toBeInTheDocument();
+    expect(within(within(region).getByRole("row", { name: /^Patients/ })).getAllByRole("cell").map((c) => c.textContent)).toEqual(["2", "0", "0"]);
+    expect((await coeur.listerPatients()).map((p) => p.nom)).toEqual(expect.arrayContaining(["Fabre", "Roussel"]));
+
+    fireEvent.click(within(region).getByRole("button", { name: "Importer un autre fichier" }));
+    fireEvent.click(within(region).getByRole("button", { name: "Choisir la sauvegarde…" }));
+    expect(await within(region).findByText(/sont déjà dans Osteosphere : ils ne seront pas recopiés/)).toBeInTheDocument();
+  });
+});
+

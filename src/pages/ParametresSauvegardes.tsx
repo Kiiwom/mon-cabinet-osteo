@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 
 import { CarteChoix, FREQUENCES, INTERVALLES } from "../demarrage/PremierDemarrage";
 import type { Coeur, EtatSauvegardes, FichierSauvegarde, IdentiteCabinet, LigneJournal, PreferencesSauvegarde, Securite } from "../lib/coeur";
+import { ImportLibreOsteo } from "../import/ImportLibreOsteo";
 import { ImportMcl } from "../import/ImportMcl";
 import { ImportTableur } from "../import/ImportTableur";
 import { adresse } from "../lib/navigation";
@@ -524,6 +525,8 @@ export const ACTIONS: Record<string, string> = {
   "reglement.supprime": "Règlement supprimé",
   "cabinet.identite": "Identité du cabinet modifiée",
   "import.mcl": "Import depuis MonCabinetLibéral",
+  "import.libreosteo": "Import depuis LibreOsteo",
+  "import.tableur": "Import d’un tableur",
   "accueil.modifie": "Accueil personnalisé",
   "trames.caractere": "Caractère d’appel des trames changé",
   "preferences.modifiees": "Préférences de saisie modifiées",
@@ -621,10 +624,11 @@ export function PageJournal({ coeur }: { coeur: Coeur }) {
 
 /** Export complet et import depuis un autre logiciel. */
 /** Les logiciels et fichiers d'où reprendre des données. */
-export type SourceImport = "mcl" | "tableur";
+export type SourceImport = "mcl" | "libreosteo" | "tableur";
 
 const SOURCES: { valeur: SourceImport; titre: string; detail: string }[] = [
   { valeur: "mcl", titre: "MonCabinetLibéral", detail: "Patients, antécédents, séances, factures et règlements, depuis l’export complet." },
+  { valeur: "libreosteo", titre: "LibreOsteo", detail: "Patients, séances et documents joints, depuis l’archive de la base." },
   { valeur: "tableur", titre: "Tableur CSV, Excel ou LibreOffice", detail: "Une liste de patients, une ligne par patient." },
 ];
 
@@ -653,6 +657,7 @@ export function PageParametresImportExport({ coeur, source: sourceInitiale = "mc
         </fieldset>
       </section>
       {source === "mcl" && <ImportMcl coeur={coeur} />}
+      {source === "libreosteo" && <ImportLibreOsteo coeur={coeur} />}
       {source === "tableur" && <ImportTableur coeur={coeur} />}
       <section className="carte" aria-labelledby="titre-export">
         <h2 id="titre-export">Export complet</h2>

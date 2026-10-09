@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::base::Base;
 use crate::horloge;
-use crate::import_commun::{Compteur, ErreurImport, cle_identite, fiche_admissible, lien, lier, normaliser};
+use crate::import_commun::{Compteur, ErreurImport, cle_identite, donnees, fiche_admissible, lien, lier, normaliser};
 use crate::numerotation::Date;
 use crate::patients::{self, FichePatient};
 
@@ -808,6 +808,8 @@ pub fn importer(base: &Base, nom: &str, contenu: &[u8], correspondance: &[Cible]
             let suite = if incompletes.len() > 10 { "…" } else { "" };
             rapport.avertissements.push(format!("{} ligne(s) sans nom ou sans prénom, laissée(s) de côté : {liste}{suite}.", incompletes.len()));
         }
+        let resume = serde_json::to_string(&rapport).map_err(donnees)?;
+        base.journaliser("import.tableur", SOURCE, None, Some(&resume))?;
         Ok::<_, ErreurImport>(())
     })?;
     Ok(rapport)

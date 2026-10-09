@@ -2,33 +2,9 @@ import { useState } from "react";
 
 import type { AnalyseImport, ChoixImport, Coeur, ResultatImport } from "../lib/coeur";
 import { dateCourte, ecrireDateFr } from "../lib/dates";
-import { AvantImport, compte, Etapes, LigneRapport, nombre, nomDeFichier, PiedRapport, TableauRapport, type EtapeImport } from "./communs";
+import { AvantImport, CaseContenu, compte, Etapes, LigneRapport, nombre, nomDeFichier, PiedRapport, TableauRapport, type EtapeImport } from "./communs";
 
 const TOUT: ChoixImport = { patients: true, antecedents: true, seances: true, factures: true };
-
-function CaseContenu({
-  coche,
-  basculer,
-  titre,
-  desactive = false,
-  children,
-}: {
-  coche: boolean;
-  basculer: () => void;
-  titre: string;
-  desactive?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="carte-choix" data-coche={coche && !desactive} data-desactive={desactive}>
-      <input type="checkbox" checked={coche && !desactive} onChange={basculer} disabled={desactive} />
-      <span className="pile-serree">
-        <strong className="carte-choix-titre">{titre}</strong>
-        <span>{children}</span>
-      </span>
-    </label>
-  );
-}
 
 function Verification({
   chemin,

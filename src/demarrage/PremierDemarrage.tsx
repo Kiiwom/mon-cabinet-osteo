@@ -70,7 +70,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
   const [caractere, setCaractere] = useState<CaractereTrames>("@");
   const [modele, setModele] = useState("Adulte");
   const [modelesSpecifiques, setModelesSpecifiques] = useState(true);
-  const [reprise, setReprise] = useState<"vide" | "mcl">("vide");
+  const [reprise, setReprise] = useState<Reprise>("vide");
   const [restauration, setRestauration] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -136,7 +136,7 @@ export function PremierDemarrage({ coeur, surOuverture }: Props) {
         sauvegardes: { frequence, intervalle_minutes: intervalle, dossier: dossier.trim(), conserver: 30 },
         pratique: { modele, modeles_specifiques: modelesSpecifiques },
       });
-      surOuverture(cabinet, reprise === "mcl" ? "#/parametres/import" : undefined);
+      surOuverture(cabinet, reprise === "vide" ? undefined : `#/parametres/import/${reprise}`);
     } catch (e) {
       setErreur((e as Error).message);
       setEnvoi(false);
@@ -636,7 +636,9 @@ function EtapePratique(props: {
   );
 }
 
-function EtapeReprise({ reprise, setReprise }: { reprise: "vide" | "mcl"; setReprise: (r: "vide" | "mcl") => void }) {
+type Reprise = "vide" | "mcl" | "libreosteo" | "tableur";
+
+function EtapeReprise({ reprise, setReprise }: { reprise: Reprise; setReprise: (r: Reprise) => void }) {
   return (
     <div className="pile">
       <fieldset className="groupe">
@@ -648,6 +650,12 @@ function EtapeReprise({ reprise, setReprise }: { reprise: "vide" | "mcl"; setRep
           <CarteChoix nom="reprise" coche={reprise === "mcl"} choisir={() => setReprise("mcl")} titre="Importer depuis MonCabinetLibéral">
             Juste après la création du cabinet : patients, séances, antécédents, factures et règlements, vérifiés avant tout
             enregistrement.
+          </CarteChoix>
+          <CarteChoix nom="reprise" coche={reprise === "libreosteo"} choisir={() => setReprise("libreosteo")} titre="Importer depuis LibreOsteo">
+            Patients, séances et documents joints, depuis l’archive de la base de LibreOsteo.
+          </CarteChoix>
+          <CarteChoix nom="reprise" coche={reprise === "tableur"} choisir={() => setReprise("tableur")} titre="Importer une liste de patients">
+            Depuis un tableur CSV, Excel ou LibreOffice, une ligne par patient.
           </CarteChoix>
         </div>
       </fieldset>

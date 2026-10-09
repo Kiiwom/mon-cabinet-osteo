@@ -159,3 +159,28 @@ export function PiedRapport({
     </>
   );
 }
+
+/** Une case du contenu reconnu : ce que le praticien choisit d’importer. */
+export function CaseContenu({
+  coche,
+  basculer,
+  titre,
+  desactive = false,
+  children,
+}: {
+  coche: boolean;
+  basculer: () => void;
+  titre: string;
+  desactive?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className="carte-choix" data-coche={coche && !desactive} data-desactive={desactive}>
+      <input type="checkbox" checked={coche && !desactive} onChange={basculer} disabled={desactive} />
+      <span className="pile-serree">
+        <strong className="carte-choix-titre">{titre}</strong>
+        <span>{children}</span>
+      </span>
+    </label>
+  );
+}

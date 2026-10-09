@@ -199,6 +199,8 @@ pub fn run() {
             import::importer_mcl,
             import::analyser_tableur,
             import::importer_tableur,
+            import::analyser_libreosteo,
+            import::importer_libreosteo,
             import::ouvrir_rapport_import,
             parametres::accueil,
             parametres::enregistrer_accueil,

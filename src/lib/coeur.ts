@@ -411,6 +411,37 @@ export interface ResultatImportTableur {
   fichier_rapport: string | null;
 }
 
+/** Ce que contient la sauvegarde de LibreOsteo, lu sans rien écrire. */
+export interface AnalyseLibreOsteo {
+  version: string | null;
+  patients: number;
+  seances: number;
+  premiere_seance: string | null;
+  derniere_seance: string | null;
+  /** Documents joints aux dossiers, présents dans l'archive. */
+  documents: number;
+  /** Factures de LibreOsteo : non reprises. */
+  factures: number;
+  /** Champs des séances, repris dans le modèle « Reprise LibreOsteo ». */
+  champs: string[];
+  deja_importes: number;
+  doublons: string[];
+  points: string[];
+  apercu: ApercuPatientImport[];
+}
+
+export interface ChoixLibreOsteo {
+  patients: boolean;
+  seances: boolean;
+  documents: boolean;
+}
+
+export interface ResultatImportLibreOsteo {
+  rapport: { patients: CompteurImport; seances: CompteurImport; documents: CompteurImport; modele: string | null; doublons: string[]; avertissements: string[] };
+  sauvegarde: string;
+  fichier_rapport: string | null;
+}
+
 export interface PreparationPremierDemarrage {
   cle_de_secours: string;
   dossier_sauvegardes_propose: string;
@@ -967,6 +998,8 @@ export interface Coeur {
   /** Sans correspondance, le cœur en propose une d'après le titre des colonnes. */
   analyserTableur(chemin: string, correspondance?: CibleTableur[]): Promise<AnalyseTableur>;
   importerTableur(chemin: string, correspondance: CibleTableur[]): Promise<ResultatImportTableur>;
+  analyserLibreOsteo(chemin: string): Promise<AnalyseLibreOsteo>;
+  importerLibreOsteo(chemin: string, choix: ChoixLibreOsteo): Promise<ResultatImportLibreOsteo>;
   champsCompteRendu(seanceId: string): Promise<ChampImprimable[]>;
   /** Pages SVG du compte rendu avec les champs choisis. */
   apercuCompteRendu(seanceId: string, champs: string[]): Promise<string[]>;
@@ -1152,6 +1185,8 @@ export const coeurTauri: Coeur = {
   ouvrirRapportImport: (chemin) => appeler("ouvrir_rapport_import", { chemin }),
   analyserTableur: (chemin, correspondance) => appeler("analyser_tableur", { chemin, correspondance: correspondance ?? null }),
   importerTableur: (chemin, correspondance) => appeler("importer_tableur", { chemin, correspondance }),
+  analyserLibreOsteo: (chemin) => appeler("analyser_libreosteo", { chemin }),
+  importerLibreOsteo: (chemin, choix) => appeler("importer_libreosteo", { chemin, choix }),
   champsCompteRendu: (seanceId) => appeler("champs_compte_rendu", { seanceId }),
   apercuCompteRendu: (seanceId, champs) => appeler("apercu_compte_rendu", { seanceId, champs }),
   enregistrerCompteRendu: (seanceId, champs, joindre) => appeler("enregistrer_compte_rendu", { seanceId, champs, joindre }),
@@ -1305,6 +1340,7 @@ export function creerCoeurDeDemonstration(
     : [];
   /** Patients créés par l'import de démonstration : un second import ne les recopie pas. */
   const importDemo: string[] = [];
+  const importLibreOsteoDemo: string[] = [];
   /** Identités déjà reprises du tableur de démonstration. */
   const importTableurDemo = new Set<string>();
   /** Liens familiaux, dans les deux sens : ce que `proche` est pour `patient`. */
@@ -2126,6 +2162,29 @@ export function creerCoeurDeDemonstration(
       }
       return { rapport, sauvegarde: (await coeur.sauvegarderMaintenant()).chemin, fichier_rapport: null };
     },
+    async analyserLibreOsteo(chemin) {
+      if (!/\.(zip|json)$/i.test(chemin)) throw new Error("Ce fichier n’est pas une sauvegarde LibreOsteo lisible (dump.json attendu).");
+      const deja = importLibreOsteoDemo.length;
+      return { ...ANALYSE_LIBREOSTEO_FICTIVE, deja_importes: deja };
+    },
+    async importerLibreOsteo(chemin, choix) {
+      await coeur.analyserLibreOsteo(chemin);
+      const vide = { crees: 0, deja: 0, ignores: 0 };
+      const rapport = {
+        patients: { ...vide },
+        seances: { ...vide, ignores: ANALYSE_LIBREOSTEO_FICTIVE.seances },
+        documents: { ...vide, ignores: ANALYSE_LIBREOSTEO_FICTIVE.documents },
+        modele: null,
+        doublons: [] as string[],
+        avertissements: ["Démonstration : seuls les patients sont repris. L’import complet se fait dans l’application installée."],
+      };
+      if (importLibreOsteoDemo.length) rapport.patients.deja = importLibreOsteoDemo.length;
+      else if (choix.patients) {
+        for (const fiche of PATIENTS_LIBREOSTEO_FICTIFS) importLibreOsteoDemo.push((await coeur.creerPatient({ ...FICHE_VIDE, ...fiche })).id);
+        rapport.patients.crees = importLibreOsteoDemo.length;
+      } else rapport.patients.ignores = PATIENTS_LIBREOSTEO_FICTIFS.length;
+      return { rapport, sauvegarde: (await coeur.sauvegarderMaintenant()).chemin, fichier_rapport: null };
+    },
     async champsCompteRendu(seanceId) {
       const seance = seances.find((s) => s.id === seanceId);
       if (!seance) throw new Error("Cette séance n’existe plus");
@@ -2317,6 +2376,44 @@ function analyseTableurDemo(cibles: CibleTableur[], dossiers: Patient[], importe
     apercu: lignes.map(({ numero, fiche }, i) => ({ ligne: numero, nom: fiche.nom ?? "", prenom: fiche.prenom ?? "", naissance: fiche.naissance ?? null, ville: fiche.ville ?? "", etat: etats[i] })),
   };
 }
+
+/** Patients fictifs de la sauvegarde LibreOsteo de démonstration. */
+const PATIENTS_LIBREOSTEO_FICTIFS: Partial<FichePatient>[] = [
+  { nom: "Fabre", prenom: "Inès", naissance: "2001-07-30", sexe: "F", ville: "Penne-d’Agenais", code_postal: "47140" },
+  { nom: "Roussel", prenom: "Paul", naissance: "1958-05-12", sexe: "M", ville: "Monflanquin", code_postal: "47150", medecin_traitant: "Dr Paul Durand, Fumel" },
+];
+
+const ANALYSE_LIBREOSTEO_FICTIVE: AnalyseLibreOsteo = {
+  version: "0.6.4",
+  patients: 2,
+  seances: 11,
+  premiere_seance: "2021-02-08",
+  derniere_seance: "2026-09-22",
+  documents: 3,
+  factures: 11,
+  champs: [
+    "Motif",
+    "Détail du motif de consultation / Contexte",
+    "État général",
+    "Examen médical",
+    "Sphère ORL",
+    "Sphère viscérale",
+    "Sphère cardio-pulmonaire",
+    "Sphère uro-gynéco",
+    "Sphère périphérique",
+    "Diagnostic ostéopathique",
+    "Traitements",
+    "Conclusion",
+    "Commentaires",
+  ],
+  deja_importes: 0,
+  doublons: [],
+  points: ["11 facture(s) de LibreOsteo ne sont pas reprises : gardez la sauvegarde de LibreOsteo, les pièces comptables se conservent dix ans."],
+  apercu: [
+    { nom: "Roussel", prenom: "Paul", naissance: "1958-05-12", ville: "Monflanquin", seances: 7 },
+    { nom: "Fabre", prenom: "Inès", naissance: "2001-07-30", ville: "Penne-d’Agenais", seances: 4 },
+  ],
+};
 
 /** Patients fictifs de l'import de démonstration. */
 const PATIENTS_IMPORT_FICTIFS: Partial<FichePatient>[] = [

@@ -478,8 +478,9 @@ export function PageSeance({ coeur, id }: { coeur: Coeur; id: string }) {
             <section className="carte" aria-label="Séance importée">
               <span className="puce puce-discrete">Historique importé</span>
               <p className="discret">
-                Séance reprise de MonCabinetLibéral. Sa facture, s’il y en avait une, a été reprise avec son numéro d’origine dans
-                Facturation.
+                {modeles.find((m) => m.id === saisie.modele_id)?.nom === "Reprise MonCabinetLibéral"
+                  ? "Séance reprise de MonCabinetLibéral. Sa facture, s’il y en avait une, a été reprise avec son numéro d’origine dans Facturation."
+                  : "Séance reprise d’un autre logiciel, où elle a été facturée : elle n’est pas proposée à la facturation ici."}
               </p>
             </section>
           ) : (

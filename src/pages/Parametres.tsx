@@ -10,7 +10,7 @@ const RUBRIQUES: { titre: string; detail: string; lien: string }[] = [
   { titre: "Sauvegardes", detail: "Fréquence, dossier, sauvegarde à la demande, restauration.", lien: adresse("parametres", "sauvegardes") },
   { titre: "Sécurité et mot de passe", detail: "Mot de passe facultatif, verrouillage, clé de secours.", lien: adresse("parametres", "securite") },
   { titre: "Apparence", detail: "Thème clair ou sombre, couleur d’accent, taille du texte, écran tactile.", lien: adresse("parametres", "apparence") },
-  { titre: "Import et export", detail: "Reprise depuis MonCabinetLibéral, export complet.", lien: adresse("parametres", "import") },
+  { titre: "Import et export", detail: "Reprise depuis MonCabinetLibéral, LibreOsteo ou un tableur, export complet.", lien: adresse("parametres", "import") },
   { titre: "Journal des modifications", detail: "Chaque création, modification et suppression, datée.", lien: adresse("parametres", "journal") },
   { titre: "Modules", detail: "Agenda, dépenses, schéma corporel, Biokinergie… : prévus après la version 1.", lien: adresse("parametres", "modules") },
 ];
