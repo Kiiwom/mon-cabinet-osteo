@@ -4,6 +4,7 @@ import type { JSONContent } from "@tiptap/core";
 import bibliothequeDeDepart from "../../crates/osteosphere-core/src/bibliotheque_depart.json";
 import formulaireAntecedentsParDefaut from "../../crates/osteosphere-core/src/formulaire_antecedents.json";
 import modelesFournis from "../../crates/osteosphere-core/src/modeles_fournis.json";
+import { ACCENTS, APPARENCE_PAR_DEFAUT, TAILLES_TEXTE, type Apparence } from "./apparence";
 import { creerFacturationDeDemonstration } from "./demoFacturation";
 import type {
   CouleurPrestation,
@@ -892,6 +893,8 @@ export interface Coeur {
   accueil(): Promise<PreferencesAccueil>;
   preferences(): Promise<Preferences>;
   enregistrerPreferences(preferences: Preferences): Promise<Preferences>;
+  apparence(): Promise<Apparence>;
+  enregistrerApparence(apparence: Apparence): Promise<Apparence>;
   /** Le vocabulaire du praticien, du plus fréquent au moins fréquent ; vide si la préférence est coupée. */
   motsFrequents(): Promise<string[]>;
   enregistrerAccueil(accueil: PreferencesAccueil): Promise<PreferencesAccueil>;
@@ -1062,6 +1065,8 @@ export const coeurTauri: Coeur = {
   accueil: () => appeler("accueil"),
   preferences: () => appeler("preferences"),
   enregistrerPreferences: (preferences) => appeler("enregistrer_preferences", { preferences }),
+  apparence: () => appeler("apparence"),
+  enregistrerApparence: (apparence) => appeler("enregistrer_apparence", { apparence }),
   motsFrequents: () => appeler("mots_frequents"),
   enregistrerAccueil: (accueil) => appeler("enregistrer_accueil", { accueil }),
 };
@@ -1166,6 +1171,7 @@ export function creerCoeurDeDemonstration(
   let trames: Trame[] = bibliothequeDeDepart.map((t, rang) => ({ ...t, contenu: null, id: `depart-${rang}`, origine: "depart", utilisations: 0 }));
   let compteur = 0;
   let preferencesDemo: Preferences = { ...PREFERENCES_PAR_DEFAUT };
+  let apparenceDemo: Apparence = { ...APPARENCE_PAR_DEFAUT };
   let accueilDemo: PreferencesAccueil = {
     masques: [],
     pense_betes: exemples
@@ -2018,6 +2024,15 @@ export function creerCoeurDeDemonstration(
     },
     async preferences() {
       return { ...preferencesDemo };
+    },
+    async apparence() {
+      return { ...apparenceDemo };
+    },
+    async enregistrerApparence(nouvelle) {
+      if (!ACCENTS.some((a) => a.valeur === nouvelle.accent)) throw new Error("Couleur d’accent inconnue");
+      if (!TAILLES_TEXTE.includes(nouvelle.taille_texte)) throw new Error("La taille du texte va de 100 à 150 %, par pas de 10");
+      apparenceDemo = { ...nouvelle };
+      return { ...apparenceDemo };
     },
     async enregistrerPreferences(nouvelles) {
       const seuil = nouvelles.regrouper_seances_au_dela;

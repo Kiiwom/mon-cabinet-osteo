@@ -32,19 +32,25 @@ function largeurTexte(texte: string): number {
   return contexteMesure ? contexteMesure.measureText(texte).width : texte.length * 6.6;
 }
 
+// Couleurs du thème : les attributs SVG ne lisent pas les variables CSS, le style si.
+const CONTOUR = { stroke: "var(--fond-carte)" };
+const FOND_ANNEAU = { fill: "var(--fond-carte)" };
+const TRAIT_SEANCE = { stroke: "var(--accent-fonce)" };
+const AXE = { stroke: "var(--bordure-champ)" };
+
 function Marque({ forme, x, y, couleur }: { forme: Forme; x: number; y: number; couleur: string }) {
   const r = 6;
   switch (forme) {
     case "losange":
-      return <path d={`M${x} ${y - r - 1}L${x + r + 1} ${y}L${x} ${y + r + 1}L${x - r - 1} ${y}Z`} fill={couleur} stroke="#ffffff" strokeWidth={2} />;
+      return <path d={`M${x} ${y - r - 1}L${x + r + 1} ${y}L${x} ${y + r + 1}L${x - r - 1} ${y}Z`} fill={couleur} style={CONTOUR} strokeWidth={2} />;
     case "carre":
-      return <rect x={x - r + 0.5} y={y - r + 0.5} width={2 * r - 1} height={2 * r - 1} rx={2} fill={couleur} stroke="#ffffff" strokeWidth={2} />;
+      return <rect x={x - r + 0.5} y={y - r + 0.5} width={2 * r - 1} height={2 * r - 1} rx={2} fill={couleur} style={CONTOUR} strokeWidth={2} />;
     case "triangle":
-      return <path d={`M${x} ${y - r - 1}L${x + r + 1} ${y + r}L${x - r - 1} ${y + r}Z`} fill={couleur} stroke="#ffffff" strokeWidth={2} />;
+      return <path d={`M${x} ${y - r - 1}L${x + r + 1} ${y + r}L${x - r - 1} ${y + r}Z`} fill={couleur} style={CONTOUR} strokeWidth={2} />;
     case "anneau":
-      return <circle cx={x} cy={y} r={r - 1} fill="#ffffff" stroke={couleur} strokeWidth={3} />;
+      return <circle cx={x} cy={y} r={r - 1} style={FOND_ANNEAU} stroke={couleur} strokeWidth={3} />;
     default:
-      return <circle cx={x} cy={y} r={r} fill={couleur} stroke="#ffffff" strokeWidth={2} />;
+      return <circle cx={x} cy={y} r={r} fill={couleur} style={CONTOUR} strokeWidth={2} />;
   }
 }
 
@@ -196,7 +202,7 @@ export function FriseDeVie({
 
       <div ref={conteneur} className="frise-dessin">
         <svg width={largeur} height={hauteur} role="img" aria-label={`Frise de vie : ${resume}`}>
-          <line x1={MARGE} x2={MARGE + utile} y1={axe} y2={axe} stroke="#d9cfc0" strokeWidth={2} strokeLinecap="round" />
+          <line x1={MARGE} x2={MARGE + utile} y1={axe} y2={axe} style={AXE} strokeWidth={2} strokeLinecap="round" />
 
           {durables.map((a, rang) => {
             const style = apparence(a);
@@ -233,7 +239,7 @@ export function FriseDeVie({
           })}
 
           {seancesVisibles.map((s, rang) => (
-            <line key={`${s}-${rang}`} x1={echelle(enAnnees(s))} x2={echelle(enAnnees(s))} y1={axe + 6} y2={axe + 13} stroke="#8f6c1e" strokeWidth={1.5}>
+            <line key={`${s}-${rang}`} x1={echelle(enAnnees(s))} x2={echelle(enAnnees(s))} y1={axe + 6} y2={axe + 13} style={TRAIT_SEANCE} strokeWidth={1.5}>
               <title>{`Séance du ${dateCourte(s)}`}</title>
             </line>
           ))}
@@ -264,7 +270,7 @@ export function FriseDeVie({
         {seances.length > 0 && (
           <span>
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-              <line x1={8} x2={8} y1={3} y2={13} stroke="#8f6c1e" strokeWidth={2} />
+              <line x1={8} x2={8} y1={3} y2={13} style={TRAIT_SEANCE} strokeWidth={2} />
             </svg>{" "}
             Séance
           </span>

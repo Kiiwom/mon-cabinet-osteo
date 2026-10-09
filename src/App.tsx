@@ -3,6 +3,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { BarreLaterale } from "./composants/BarreLaterale";
 import { SaisieCleDeSecours, Verrouillage } from "./demarrage/EcransOuverture";
 import { PremierDemarrage } from "./demarrage/PremierDemarrage";
+import { appliquerApparence } from "./lib/apparence";
 import { coeurParDefaut, type Coeur, type IdentiteCabinet } from "./lib/coeur";
 import { surFacturation } from "./lib/facturation";
 import { useAdresse, type Ecran } from "./lib/navigation";
@@ -12,6 +13,8 @@ import { EcranAVenir } from "./pages/EcranAVenir";
 import { ongletFacturation, PageFacturation } from "./pages/Facturation";
 import { PageFacture, PageNouvelleFacture } from "./pages/Facture";
 import { PageParametresCabinet, PageParametresFacturation } from "./pages/ParametresFacturation";
+import { PageParametresApparence } from "./pages/ParametresApparence";
+import { PageParametresModules } from "./pages/ParametresModules";
 import { PageParametresPatients } from "./pages/ParametresPatients";
 import { PageParametresSaisie } from "./pages/ParametresSaisie";
 import { PageEffacement } from "./patients/Effacement";
@@ -178,6 +181,10 @@ function EcranParametres({
       return <PageParametresPatients coeur={coeur} />;
     case "saisie":
       return <PageParametresSaisie coeur={coeur} />;
+    case "apparence":
+      return <PageParametresApparence coeur={coeur} />;
+    case "modules":
+      return <PageParametresModules />;
     default:
       return <PageParametres />;
   }
@@ -235,6 +242,10 @@ function CabinetOuvert({
   const { ecran, segments } = useAdresse();
   const aFacturer = useSeancesAFacturer(coeur, segments.join("/"));
   const sauvegarde = useEtatSauvegarde(coeur, segments.join("/"));
+  useEffect(() => {
+    // L'apparence de la base prime sur la copie locale : une sauvegarde restaurée ramène la sienne.
+    coeur.apparence().then(appliquerApparence, () => undefined);
+  }, [coeur]);
   useEffect(() => {
     // Ctrl+L : verrouiller, quand un mot de passe est activé.
     const touche = (e: KeyboardEvent) => {

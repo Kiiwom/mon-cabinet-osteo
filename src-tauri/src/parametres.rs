@@ -1,11 +1,11 @@
 //! Commandes des paramètres du cabinet : identité et mentions imprimées sur les factures, accueil,
-//! préférences de saisie et mots fréquents.
+//! préférences de saisie, apparence et mots fréquents.
 
 use std::sync::Arc;
 
 use osteosphere_core::accueil::{self, Accueil};
 use osteosphere_core::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
-use osteosphere_core::preferences::{self, Preferences};
+use osteosphere_core::preferences::{self, Apparence, Preferences};
 use osteosphere_core::vocabulaire;
 use tauri::State;
 
@@ -51,6 +51,16 @@ pub fn preferences(etat: State<'_, Arc<EtatCabinet>>) -> Result<Preferences, Str
 #[tauri::command]
 pub fn enregistrer_preferences(etat: State<'_, Arc<EtatCabinet>>, preferences: Preferences) -> Result<Preferences, String> {
     etat.avec_base(|base| preferences::enregistrer(base, &preferences).map_err(message))
+}
+
+#[tauri::command]
+pub fn apparence(etat: State<'_, Arc<EtatCabinet>>) -> Result<Apparence, String> {
+    etat.avec_base(|base| preferences::lire_apparence(base).map_err(message))
+}
+
+#[tauri::command]
+pub fn enregistrer_apparence(etat: State<'_, Arc<EtatCabinet>>, apparence: Apparence) -> Result<Apparence, String> {
+    etat.avec_base(|base| preferences::enregistrer_apparence(base, &apparence).map_err(message))
 }
 
 /// Le vocabulaire du praticien, pour proposer la fin des mots ; vide si la préférence est coupée.

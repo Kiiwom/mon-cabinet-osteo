@@ -198,6 +198,8 @@ pub fn run() {
             parametres::preferences,
             parametres::enregistrer_preferences,
             parametres::mots_frequents,
+            parametres::apparence,
+            parametres::enregistrer_apparence,
             trames::definir_caractere_trames,
             trames::exporter_trames,
             trames::analyser_trames,

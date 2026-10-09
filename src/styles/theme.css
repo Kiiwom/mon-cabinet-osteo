@@ -1,13 +1,23 @@
 /* Couleurs et formes reprises des maquettes validées le 6 octobre 2026. */
 @import "@fontsource-variable/figtree";
 
-:root {
+/* Thème clair. Les éléments « papier » (pense-bêtes, cadres d'image) le gardent en thème sombre. */
+:root,
+:root[data-sombre="true"] :is(.pense-bete, .cadre-image) {
   --fond: #faf7f1;
   --fond-barre: #f3ede3;
   --fond-carte: #ffffff;
   --fond-discret: #ebe3d6;
+  --fond-ecran: #efe8dc;
+  --fond-actif: #fbf6ea;
+  --fond-papier: #fffdf7;
+  --fond-survol: rgba(255, 255, 255, 0.6);
+  --fond-note-champ: rgba(255, 255, 255, 0.72);
   --bordure: #e8e0d3;
   --bordure-champ: #e2d8c9;
+  --bordure-forte: #9c8a72;
+  --bordure-pointillee: #d9cdba;
+  --bordure-trame: #c9b994;
   --encre: #33291f;
   --encre-2: #4a3d30;
   --encre-discrete: #6b5b4b;
@@ -16,14 +26,150 @@
   --accent: #e2b84a;
   --accent-doux: #f6eacb;
   --accent-fonce: #8f6c1e;
+  --sur-accent: #33291f;
   --succes: #3e7a57;
   --succes-fond: #e3f0e8;
   --succes-texte: #1f4a33;
   --alerte-fond: #fce8d2;
   --alerte-texte: #8a4710;
+  --avertissement-texte: #5e2f08;
+  --avertissement-bord: #d08a2e;
+  --danger: #b4432f;
+  --danger-fond: #fbe3df;
+  --danger-fond-doux: #fdf1ef;
+  --danger-bord: #e7b9b3;
+  --danger-texte: #6f1f16;
+  --danger-encre: #8c2f25;
+  --violet-fond: #e7e3f6;
+  --violet-texte: #3e3374;
+  --tuile-accent-fond: #fdf3e7;
+  --tuile-accent-bord: #efc79d;
+  --hausse: #1f6a3a;
+  --baisse: #8a4710;
+  --graphique-grille: #e7e1d6;
+  --graphique-axe: #c3c2b7;
+  --voile: rgba(30, 24, 18, 0.55);
+  --ombre-rgb: 51, 41, 31;
   --rayon: 12px;
   --rayon-carte: 16px;
-  --ombre-legere: 0 1px 2px rgba(51, 41, 31, 0.08);
+  --ombre-legere: 0 1px 2px rgba(var(--ombre-rgb), 0.08);
+}
+
+/* Thème sombre : mêmes teintes chaudes, contrastes vérifiés au niveau AA. */
+:root[data-sombre="true"] {
+  color-scheme: dark;
+  --fond: #1b1714;
+  --fond-barre: #221d19;
+  --fond-carte: #2a2420;
+  --fond-discret: #3a322b;
+  --fond-ecran: #15120f;
+  --fond-actif: #352c23;
+  --fond-papier: #2d2722;
+  --fond-survol: rgba(255, 255, 255, 0.07);
+  --bordure: #3d342c;
+  --bordure-champ: #574b3f;
+  --bordure-forte: #8a7a66;
+  --bordure-pointillee: #5c4f42;
+  --bordure-trame: #7c6a49;
+  --encre: #f2ebe0;
+  --encre-2: #ddd2c2;
+  --encre-discrete: #b9aa96;
+  --lien: #ecc964;
+  --lien-survol: #f7e0a0;
+  --accent-doux: #463a1d;
+  --accent-fonce: #e9c868;
+  --sur-accent: #2a2018;
+  --succes: #6fbf8e;
+  --succes-fond: #1e3a2a;
+  --succes-texte: #bfe6cc;
+  --alerte-fond: #46301a;
+  --alerte-texte: #f5cb9c;
+  --avertissement-texte: #f5cb9c;
+  --danger: #e5775f;
+  --danger-fond: #4a241e;
+  --danger-fond-doux: #33201b;
+  --danger-bord: #7a3a30;
+  --danger-texte: #f8cbc1;
+  --danger-encre: #f3a594;
+  --violet-fond: #302b4a;
+  --violet-texte: #d4ccf5;
+  --tuile-accent-fond: #33261a;
+  --tuile-accent-bord: #6b4a2a;
+  --hausse: #86d6a2;
+  --baisse: #f2ad66;
+  --graphique-grille: #3d342c;
+  --graphique-axe: #5c4f42;
+  --voile: rgba(0, 0, 0, 0.65);
+  --ombre-rgb: 0, 0, 0;
+}
+
+:root[data-sombre="true"] :is(.pense-bete, .cadre-image) {
+  color-scheme: light;
+  color: var(--encre);
+}
+
+/* Couleurs d'accent : l'ocre de pierre-besnier.fr par défaut. */
+:root[data-accent="sauge"] {
+  --accent: #94c7a5;
+  --accent-doux: #e1f0e6;
+  --accent-fonce: #2f6b48;
+  --lien: #2a5e40;
+  --lien-survol: #173a27;
+}
+
+:root[data-accent="bleu"] {
+  --accent: #93bdea;
+  --accent-doux: #e2edf9;
+  --accent-fonce: #2b5a8c;
+  --lien: #24507f;
+  --lien-survol: #13304f;
+}
+
+:root[data-accent="terracotta"] {
+  --accent: #eba584;
+  --accent-doux: #fbe6dc;
+  --accent-fonce: #9a4a28;
+  --lien: #8a3f1f;
+  --lien-survol: #552511;
+}
+
+:root[data-accent="lavande"] {
+  --accent: #c7abe3;
+  --accent-doux: #f0e8f8;
+  --accent-fonce: #6a3f8f;
+  --lien: #5c3480;
+  --lien-survol: #371c4f;
+}
+
+:root[data-sombre="true"][data-accent="sauge"] {
+  --accent-doux: #22382b;
+  --accent-fonce: #9fd4b1;
+  --lien: #a3d9b5;
+  --lien-survol: #cdeed8;
+}
+
+:root[data-sombre="true"][data-accent="bleu"] {
+  --accent-doux: #1f3047;
+  --accent-fonce: #a5c8ef;
+  --lien: #a8cbf2;
+  --lien-survol: #d3e5f9;
+}
+
+:root[data-sombre="true"][data-accent="terracotta"] {
+  --accent-doux: #4a2a1d;
+  --accent-fonce: #f0b597;
+  --lien: #f2b89b;
+  --lien-survol: #f9dccd;
+}
+
+:root[data-sombre="true"][data-accent="lavande"] {
+  --accent-doux: #362a47;
+  --accent-fonce: #d2bcea;
+  --lien: #d5c0ec;
+  --lien-survol: #ebdff7;
+}
+
+:root {
   font-family: "Figtree Variable", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
@@ -130,7 +276,7 @@ h3 {
 }
 
 .menu-lien:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--fond-survol);
   color: var(--encre);
 }
 
@@ -269,7 +415,7 @@ h3 {
 }
 
 .point[data-etat="alerte"] {
-  background: #b4432f;
+  background: var(--danger);
 }
 
 a.etat-sauvegarde {
@@ -278,8 +424,8 @@ a.etat-sauvegarde {
 }
 
 a.etat-sauvegarde[data-alerte="true"] {
-  background: #fbe3df;
-  color: #6f1f16;
+  background: var(--danger-fond);
+  color: var(--danger-texte);
 }
 
 .lecteur-seulement {
@@ -318,6 +464,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   padding: 0 20px;
   border: 0;
   background: var(--accent);
+  color: var(--sur-accent);
   font-weight: 700;
 }
 
@@ -377,13 +524,13 @@ a.etat-sauvegarde[data-alerte="true"] {
 
 .champ input[aria-invalid="true"],
 .formulaire input[aria-invalid="true"] {
-  border: 2px solid #b4432f;
+  border: 2px solid var(--danger);
 }
 
 .champ-erreur {
   font-size: 13px;
   font-weight: 600;
-  color: #8c2f25;
+  color: var(--danger-encre);
 }
 
 .champs {
@@ -396,8 +543,8 @@ a.etat-sauvegarde[data-alerte="true"] {
   margin: 0;
   padding: 10px 14px;
   border-radius: 10px;
-  background: #fbe3df;
-  color: #6f1f16;
+  background: var(--danger-fond);
+  color: var(--danger-texte);
   font-size: 14px;
   font-weight: 600;
 }
@@ -416,7 +563,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   padding: 12px 14px;
   border-radius: var(--rayon);
   background: var(--alerte-fond);
-  color: #5e2f08;
+  color: var(--avertissement-texte);
   font-size: 14px;
 }
 
@@ -535,20 +682,20 @@ a.etat-sauvegarde[data-alerte="true"] {
   justify-content: center;
   font-weight: 700;
   box-sizing: border-box;
-  border: 2px solid #9c8a72;
+  border: 2px solid var(--bordure-forte);
   color: var(--encre-discrete);
 }
 
 .assistant-etapes li[data-etat="fait"] .assistant-pastille {
   border: 0;
   background: var(--encre);
-  color: #ffffff;
+  color: var(--fond-carte);
 }
 
 .assistant-etapes li[data-etat="courant"] .assistant-pastille {
   border: 0;
   background: var(--accent);
-  color: var(--encre);
+  color: var(--sur-accent);
 }
 
 .assistant-note {
@@ -701,7 +848,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   align-items: center;
   gap: 6px;
   padding: 20px 16px;
-  border: 2px dashed #d9cdba;
+  border: 2px dashed var(--bordure-pointillee);
   border-radius: 14px;
   background: var(--fond);
 }
@@ -745,7 +892,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   align-items: center;
   justify-content: center;
   padding: 32px 16px;
-  background: #efe8dc;
+  background: var(--fond-ecran);
   color: var(--encre-2);
 }
 
@@ -755,7 +902,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   background: var(--fond-carte);
   border-radius: 24px;
   padding: 40px 36px 28px;
-  box-shadow: 0 12px 40px rgba(51, 41, 31, 0.12);
+  box-shadow: 0 12px 40px rgba(var(--ombre-rgb), 0.12);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -816,7 +963,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 }
 
 .champ-avec-bouton:has(input[aria-invalid="true"]) {
-  border-color: #b4432f;
+  border-color: var(--danger);
 }
 
 .bouton-icone {
@@ -995,8 +1142,8 @@ a.etat-sauvegarde[data-alerte="true"] {
 }
 
 .bouton-danger {
-  border-color: #e7b9b3;
-  color: #8c2f25;
+  border-color: var(--danger-bord);
+  color: var(--danger-encre);
 }
 
 .confirmation {
@@ -1039,7 +1186,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   gap: 2px;
   margin: 0 2px;
   padding: 1px 3px;
-  border: 1px dashed #c9b994;
+  border: 1px dashed var(--bordure-trame);
   border-radius: 999px;
   vertical-align: baseline;
   line-height: 1.4;
@@ -1120,7 +1267,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 
 .trame-pastille[aria-pressed="true"] {
   background: var(--accent);
-  color: var(--encre);
+  color: var(--sur-accent);
   font-weight: 700;
 }
 
@@ -1178,7 +1325,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   border: 1px solid var(--bordure);
   border-radius: var(--rayon);
   background: var(--fond-carte);
-  box-shadow: 0 10px 30px rgba(51, 41, 31, 0.16);
+  box-shadow: 0 10px 30px rgba(var(--ombre-rgb), 0.16);
   font-family: "Figtree Variable", system-ui, sans-serif;
   color: var(--encre);
 }
@@ -1223,7 +1370,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   height: 78vh;
   border: 1px solid var(--bordure);
   border-radius: var(--rayon);
-  background: #efe8dc;
+  background: var(--fond-ecran);
 }
 
 /* Patients et dossier (maquettes 2 et 3) */
@@ -1388,7 +1535,7 @@ a.bouton {
 
 .tableau tbody tr:hover,
 .tableau tbody tr[data-actif="true"] {
-  background: #fbf6ea;
+  background: var(--fond-actif);
 }
 
 .tableau .nombre {
@@ -1422,7 +1569,7 @@ a.bouton {
 
 .icone-alerte {
   margin-left: 6px;
-  color: #b4432f;
+  color: var(--danger);
 }
 
 .surligne {
@@ -1469,8 +1616,8 @@ a.bouton {
 }
 
 .puce-alerte {
-  background: #fbe3df;
-  color: #8c2f25;
+  background: var(--danger-fond);
+  color: var(--danger-encre);
   font-weight: 600;
   max-width: 100%;
   overflow: hidden;
@@ -1562,7 +1709,7 @@ a.bouton {
   border: 1px solid var(--bordure);
   border-radius: var(--rayon);
   background: var(--fond-carte);
-  box-shadow: 0 8px 24px rgba(51, 41, 31, 0.14);
+  box-shadow: 0 8px 24px rgba(var(--ombre-rgb), 0.14);
 }
 
 .menu-dossier-liste button {
@@ -1887,14 +2034,6 @@ a.rubrique-parametre:hover {
   border-color: var(--accent);
 }
 
-.rubrique-parametre[data-a-venir="true"] {
-  border-style: dashed;
-  background: var(--fond);
-}
-
-.rubrique-parametre .etiquette {
-  align-self: flex-start;
-}
 
 .abandon {
   align-items: center;
@@ -2343,8 +2482,8 @@ a.rubrique-parametre:hover {
   margin: 0;
   padding: 12px 14px;
   border-radius: 10px;
-  background: #fbe3df;
-  color: #6f1f16;
+  background: var(--danger-fond);
+  color: var(--danger-texte);
   font-size: 14px;
 }
 
@@ -2504,8 +2643,8 @@ a.rubrique-parametre:hover {
 }
 
 .tuile[data-accent="true"] {
-  border-color: #efc79d;
-  background: #fdf3e7;
+  border-color: var(--tuile-accent-bord);
+  background: var(--tuile-accent-fond);
 }
 
 .filtre-puce {
@@ -2549,8 +2688,8 @@ a.rubrique-parametre:hover {
 }
 
 .puce[data-facturation="en_attente"] {
-  background: #fbe3df;
-  color: #8c2f25;
+  background: var(--danger-fond);
+  color: var(--danger-encre);
 }
 
 .puce[data-facturation="facturee"] {
@@ -2609,8 +2748,8 @@ a.tuile:hover {
 }
 
 .puce[data-paiement="annulee"] {
-  background: #fbe3df;
-  color: #8c2f25;
+  background: var(--danger-fond);
+  color: var(--danger-encre);
 }
 
 .puce[data-paiement="brouillon"] {
@@ -2620,8 +2759,8 @@ a.tuile:hover {
 }
 
 .puce[data-paiement="trop_percu"] {
-  background: #e7e3f6;
-  color: #3e3374;
+  background: var(--violet-fond);
+  color: var(--violet-texte);
 }
 
 /* Moyens de paiement : palette catégorielle validée (ordre fixe), toujours accompagnée du libellé. */
@@ -2834,7 +2973,7 @@ a.tuile:hover {
   width: 100%;
   max-width: 640px;
   background: #ffffff;
-  box-shadow: 0 2px 10px rgba(51, 41, 31, 0.18);
+  box-shadow: 0 2px 10px rgba(var(--ombre-rgb), 0.18);
 }
 
 .apercu-message {
@@ -2856,9 +2995,9 @@ a.tuile:hover {
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid #efc0b8;
+  border: 1px solid var(--danger-bord);
   border-radius: var(--rayon);
-  background: #fdf1ef;
+  background: var(--danger-fond-doux);
 }
 
 .historique {
@@ -3057,7 +3196,7 @@ a.tuile:hover {
   padding: 14px;
   border: 1px solid var(--accent);
   border-radius: var(--rayon);
-  background: #fffdf7;
+  background: var(--fond-papier);
 }
 
 .choix-periode {
@@ -3185,11 +3324,11 @@ kbd {
 }
 
 .variation[data-sens="hausse"] {
-  color: #1f6a3a;
+  color: var(--hausse);
 }
 
 .variation[data-sens="baisse"] {
-  color: #8a4710;
+  color: var(--baisse);
 }
 
 .variation[data-sens="stable"] {
@@ -3212,17 +3351,17 @@ kbd {
 }
 
 .graphique .grille {
-  stroke: #e7e1d6;
+  stroke: var(--graphique-grille);
   stroke-width: 1;
 }
 
 .graphique .axe-base {
-  stroke: #c3c2b7;
+  stroke: var(--graphique-axe);
   stroke-width: 1;
 }
 
 .graphique .graduation {
-  fill: #6b5b4b;
+  fill: var(--encre-discrete);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -3266,7 +3405,7 @@ kbd {
   border: 1px solid var(--bordure);
   border-radius: 10px;
   background: var(--fond-carte);
-  box-shadow: 0 4px 14px rgba(51, 41, 31, 0.14);
+  box-shadow: 0 4px 14px rgba(var(--ombre-rgb), 0.14);
   font-size: 13px;
   pointer-events: none;
 }
@@ -3573,7 +3712,7 @@ kbd {
 .etapes-import li[data-etat="en-cours"] .numero {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--encre);
+  color: var(--sur-accent);
 }
 
 .points-import {
@@ -3598,9 +3737,9 @@ kbd {
 }
 
 .points-import li[data-nature="alerte"] {
-  border-left-color: #d08a2e;
+  border-left-color: var(--avertissement-bord);
   background: var(--alerte-fond);
-  color: #5e2f08;
+  color: var(--avertissement-texte);
 }
 
 .points-import strong {
@@ -3908,7 +4047,7 @@ kbd {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(30, 24, 18, 0.55);
+  background: var(--voile);
 }
 
 .apercu-piece {
@@ -4223,7 +4362,7 @@ select.saisie-courte {
 }
 
 .menu-dossier-liste button.menu-danger {
-  color: #8c2f25;
+  color: var(--danger-encre);
 }
 
 .liste-proches {
@@ -4323,7 +4462,7 @@ select.saisie-courte {
   padding: 6px 8px;
   border: 1px solid var(--note-bord);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--fond-note-champ);
   color: var(--encre);
   font: inherit;
   resize: vertical;
@@ -4342,7 +4481,7 @@ select.saisie-courte {
 }
 
 .pense-bete .bouton {
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--fond-note-champ);
 }
 
 [data-note="jaune"] {
@@ -4552,4 +4691,110 @@ select.saisie-courte {
 
 .annee-seances[open] > summary {
   margin-bottom: 4px;
+}
+
+/* Paramètres › Apparence : la taille du texte ne prend pas toute la largeur. */
+.pile > .segments {
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+
+/* Paramètres › Modules */
+.grille-modules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.carte-module {
+  gap: 6px;
+}
+
+.carte-module p {
+  margin: 0;
+}
+
+.carte-module-haut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.contraintes-module {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.contraintes-module li {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Écran tactile : des cibles d'au moins 44 px pour le doigt ou le stylet (cahier des charges, section 9). */
+:root[data-tactile="true"] :is(.bouton-petit, .segments button, .barre-outils button, .ligne-champ-ordre .bouton-icone, .filtre-puce, .lien-bouton, .menu-trames-option, .menu-dossier-liste button) {
+  min-height: 44px;
+}
+
+:root[data-tactile="true"] :is(.barre-outils button, .ligne-champ-ordre .bouton-icone) {
+  min-width: 44px;
+}
+
+:root[data-tactile="true"] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]), select) {
+  min-height: 44px;
+}
+
+:root[data-tactile="true"] :is(.case-simple, .teinte, .reprise .case-simple) {
+  min-height: 44px;
+}
+
+:root[data-tactile="true"] :is(.case-simple input, .case-visible, .carte-choix input) {
+  width: 24px;
+  height: 24px;
+}
+
+:root[data-tactile="true"] .echantillon {
+  width: 32px;
+  height: 32px;
+}
+
+:root[data-tactile="true"] :is(.pastille-note, .pastille-couleur span[aria-hidden]) {
+  width: 44px;
+  height: 44px;
+}
+
+:root[data-tactile="true"] input[type="range"] {
+  min-height: 44px;
+}
+
+/* Les pastilles de choix des trames, dans le texte : plus hautes, l'interligne suit. */
+:root[data-tactile="true"] .trame-pastille {
+  display: inline-block;
+  min-height: 40px;
+  margin: 2px 0;
+  padding: 8px 14px;
+}
+
+/* Thème sombre : séries des graphiques éclaircies sur fond foncé. */
+:root[data-sombre="true"] [data-famille="recence"][data-part="actifs"] {
+  --part: #2a78d6;
+}
+
+:root[data-sombre="true"] [data-famille="recence"][data-part="inactifs"] {
+  --part: #36639e;
+}
+
+:root[data-sombre="true"] [data-couleur="violet"] {
+  --prestation: #8f80e0;
 }
