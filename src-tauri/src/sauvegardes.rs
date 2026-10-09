@@ -86,6 +86,10 @@ pub async fn choisir_fichier(app: AppHandle, sorte: String) -> Result<Option<Str
             "import" => dialogue.set_title("Choisir l’export de MonCabinetLibéral").add_filter("Export MonCabinetLibéral (zip)", &["zip"]),
             "trames" => dialogue.set_title("Choisir un fichier de trames").add_filter("Trames (json)", &["json"]),
             "modele" => dialogue.set_title("Choisir un fichier de modèle de consultation").add_filter("Modèle de consultation (json)", &["json"]),
+            "tableur" => dialogue
+                .set_title("Choisir le tableur de vos patients")
+                .add_filter("Tableur (CSV, Excel, LibreOffice)", &["csv", "txt", "xlsx", "xlsm", "ods", "xls"]),
+            "libreosteo" => dialogue.set_title("Choisir la sauvegarde de LibreOsteo").add_filter("Sauvegarde LibreOsteo (zip ou json)", &["zip", "json"]),
             _ => dialogue,
         };
         Ok(dialogue.blocking_pick_file().and_then(|f| f.into_path().ok()).map(|p| p.display().to_string()))

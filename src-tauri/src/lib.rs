@@ -197,6 +197,8 @@ pub fn run() {
             statistiques::statistiques,
             import::analyser_import,
             import::importer_mcl,
+            import::analyser_tableur,
+            import::importer_tableur,
             import::ouvrir_rapport_import,
             parametres::accueil,
             parametres::enregistrer_accueil,

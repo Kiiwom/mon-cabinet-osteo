@@ -27,6 +27,7 @@ import {
   PageParametresImportExport,
   PageParametresSauvegardes,
   PageParametresSecurite,
+  type SourceImport,
 } from "./pages/ParametresSauvegardes";
 import { PageModeles } from "./pages/Modeles";
 import { NouveauPatient } from "./pages/NouveauPatient";
@@ -171,7 +172,7 @@ function EcranParametres({
     case "securite":
       return <PageParametresSecurite coeur={coeur} verrouiller={verrouiller} />;
     case "import":
-      return <PageParametresImportExport coeur={coeur} />;
+      return <PageParametresImportExport coeur={coeur} source={segments[2] as SourceImport | undefined} />;
     case "journal":
       return <PageJournal coeur={coeur} />;
     case "modeles":

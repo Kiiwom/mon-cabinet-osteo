@@ -13,6 +13,8 @@ argon2 = "0.5"
 chacha20poly1305 = "0.10"
 csv = "1.4"
 getrandom = "0.3"
+# Lecture des classeurs Excel et LibreOffice importés.
+roxmltree = "0.21"
 # SQLCipher et OpenSSL compilés avec le logiciel : aucune dépendance système à installer.
 rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
 serde = { version = "1", features = ["derive"] }

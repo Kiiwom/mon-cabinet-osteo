@@ -13,10 +13,12 @@ use std::io::{Cursor, Read};
 
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::antecedents::{self, SaisieAntecedent};
-use crate::base::{Base, ErreurBase, maintenant};
+pub use crate::import_commun::{Compteur, ErreurImport};
+use crate::import_commun::{document, donnees, lien, lier, normaliser};
+use crate::base::{Base, maintenant};
 use crate::facturation::{Destinataire, LigneFacture, Moyen};
 use crate::horloge;
 use crate::identifiant;
@@ -37,25 +39,6 @@ const PAIEMENTS: &str = "paiement.csv";
 
 type Ligne = HashMap<String, String>;
 
-#[derive(Debug, thiserror::Error)]
-pub enum ErreurImport {
-    #[error("{0}")]
-    Archive(String),
-    #[error("import : {0}")]
-    Donnees(String),
-    #[error(transparent)]
-    Base(#[from] ErreurBase),
-}
-
-impl From<rusqlite::Error> for ErreurImport {
-    fn from(erreur: rusqlite::Error) -> Self {
-        Self::Base(erreur.into())
-    }
-}
-
-fn donnees(erreur: impl std::fmt::Display) -> ErreurImport {
-    ErreurImport::Donnees(erreur.to_string())
-}
 
 /// Ce que l'archive contient, lu sans rien écrire.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -100,12 +83,6 @@ pub struct ChoixImport {
     pub factures: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
-pub struct Compteur {
-    pub crees: i64,
-    pub deja: i64,
-    pub ignores: i64,
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct Rapport {
@@ -406,25 +383,6 @@ fn moyen_mcl(moyen: &str) -> Option<Moyen> {
     })
 }
 
-/// Minuscules sans accents, mots séparés par une espace.
-fn normaliser(texte: &str) -> String {
-    texte
-        .chars()
-        .map(|c| match c {
-            'à' | 'â' | 'ä' | 'À' | 'Â' | 'Ä' => 'a',
-            'é' | 'è' | 'ê' | 'ë' | 'É' | 'È' | 'Ê' | 'Ë' => 'e',
-            'î' | 'ï' | 'Î' | 'Ï' => 'i',
-            'ô' | 'ö' | 'Ô' | 'Ö' => 'o',
-            'ù' | 'û' | 'ü' | 'Ù' | 'Û' | 'Ü' => 'u',
-            'ç' | 'Ç' => 'c',
-            c if c.is_alphanumeric() => c.to_ascii_lowercase(),
-            _ => ' ',
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
 
 /// Identifiant de champ tiré du libellé : `mcl_motif_de_consultation`.
 fn identifiant_champ(libelle: &str, pris: &mut HashSet<String>) -> String {
@@ -439,28 +397,7 @@ fn identifiant_champ(libelle: &str, pris: &mut HashSet<String>) -> String {
     id
 }
 
-/// Document d'éditeur d'un paragraphe par ligne, pour les textes importés.
-fn document(texte: &str) -> Value {
-    json!({
-        "type": "doc",
-        "content": texte.split('\n').map(|l| if l.is_empty() { json!({ "type": "paragraph" }) } else { json!({ "type": "paragraph", "content": [{ "type": "text", "text": l }] }) }).collect::<Vec<_>>(),
-    })
-}
 
-fn lien(base: &Base, source: &str, nature: &str, cle: &str) -> Result<Option<String>, ErreurImport> {
-    Ok(base
-        .connexion()
-        .query_row("SELECT id FROM liens_import WHERE source = ?1 AND nature = ?2 AND cle = ?3", [source, nature, cle], |l| l.get(0))
-        .optional()?)
-}
-
-fn lier(base: &Base, source: &str, nature: &str, cle: &str, id: &str) -> Result<(), ErreurImport> {
-    base.connexion().execute(
-        "INSERT INTO liens_import (source, nature, cle, id, importe_le) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![source, nature, cle, id, maintenant()],
-    )?;
-    Ok(())
-}
 
 /// Champs de chaque consultation, dans l'ordre de l'archive.
 fn consultations(archive: &Archive) -> BTreeMap<String, Vec<&Ligne>> {

@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { CarteChoix, FREQUENCES, INTERVALLES } from "../demarrage/PremierDemarrage";
 import type { Coeur, EtatSauvegardes, FichierSauvegarde, IdentiteCabinet, LigneJournal, PreferencesSauvegarde, Securite } from "../lib/coeur";
 import { ImportMcl } from "../import/ImportMcl";
+import { ImportTableur } from "../import/ImportTableur";
 import { adresse } from "../lib/navigation";
 import { DELAIS_INACTIVITE, erreurDeCode, signalerReglagesVerrouillage } from "../lib/verrouillage";
 import { momentEnLettres, RestaurationSauvegarde } from "../sauvegardes/Restauration";
@@ -619,7 +620,16 @@ export function PageJournal({ coeur }: { coeur: Coeur }) {
 }
 
 /** Export complet et import depuis un autre logiciel. */
-export function PageParametresImportExport({ coeur }: { coeur: Coeur }) {
+/** Les logiciels et fichiers d'où reprendre des données. */
+export type SourceImport = "mcl" | "tableur";
+
+const SOURCES: { valeur: SourceImport; titre: string; detail: string }[] = [
+  { valeur: "mcl", titre: "MonCabinetLibéral", detail: "Patients, antécédents, séances, factures et règlements, depuis l’export complet." },
+  { valeur: "tableur", titre: "Tableur CSV, Excel ou LibreOffice", detail: "Une liste de patients, une ligne par patient." },
+];
+
+export function PageParametresImportExport({ coeur, source: sourceInitiale = "mcl" }: { coeur: Coeur; source?: SourceImport }) {
+  const [source, setSource] = useState<SourceImport>(SOURCES.some((s) => s.valeur === sourceInitiale) ? sourceInitiale : "mcl");
   const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -630,7 +640,20 @@ export function PageParametresImportExport({ coeur }: { coeur: Coeur }) {
         <h1 className="page-titre">Import et export</h1>
         <p className="page-sous-titre">Reprendre vos données d’un autre logiciel, ou les emporter</p>
       </div>
-      <ImportMcl coeur={coeur} />
+      <section className="carte" aria-labelledby="titre-source-import">
+        <fieldset className="groupe">
+          <legend id="titre-source-import">D’où viennent vos données&nbsp;?</legend>
+          <div className="choix-cartes">
+            {SOURCES.map((s) => (
+              <CarteChoix key={s.valeur} nom="source-import" coche={source === s.valeur} choisir={() => setSource(s.valeur)} titre={s.titre}>
+                {s.detail}
+              </CarteChoix>
+            ))}
+          </div>
+        </fieldset>
+      </section>
+      {source === "mcl" && <ImportMcl coeur={coeur} />}
+      {source === "tableur" && <ImportTableur coeur={coeur} />}
       <section className="carte" aria-labelledby="titre-export">
         <h2 id="titre-export">Export complet</h2>
         <p>

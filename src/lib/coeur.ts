@@ -347,6 +347,70 @@ export interface ResultatImport {
   fichier_rapport: string | null;
 }
 
+/** Le champ de la fiche patient qui reçoit une colonne du tableur. */
+export type CibleTableur =
+  | "ignorer"
+  | "remarques"
+  | "nom"
+  | "prenom"
+  | "nom_prenom"
+  | "nom_naissance"
+  | "naissance"
+  | "sexe"
+  | "adresse"
+  | "complement_adresse"
+  | "code_postal"
+  | "ville"
+  | "pays"
+  | "telephone"
+  | "portable"
+  | "fixe"
+  | "email"
+  | "profession"
+  | "activites"
+  | "medecin_traitant"
+  | "notes_importantes"
+  | "consentement";
+
+export interface ColonneTableur {
+  titre: string;
+  cible: CibleTableur;
+  exemples: string[];
+}
+
+export type EtatLigneTableur = "nouveau" | "doublon_possible" | "deja_importe" | "incomplet";
+
+export interface ApercuLigneTableur {
+  ligne: number;
+  nom: string;
+  prenom: string;
+  naissance: string | null;
+  ville: string;
+  etat: EtatLigneTableur;
+}
+
+/** Ce que contient le tableur, lu sans rien écrire, avec la correspondance des colonnes. */
+export interface AnalyseTableur {
+  format: string;
+  feuille: string;
+  colonnes: ColonneTableur[];
+  lignes: number;
+  nouveaux: number;
+  doublons: number;
+  deja_importes: number;
+  incompletes: number;
+  /** Faux tant qu'aucune colonne ne donne le nom et le prénom. */
+  importable: boolean;
+  points: string[];
+  apercu: ApercuLigneTableur[];
+}
+
+export interface ResultatImportTableur {
+  rapport: { patients: CompteurImport; doublons: string[]; avertissements: string[] };
+  sauvegarde: string;
+  fichier_rapport: string | null;
+}
+
 export interface PreparationPremierDemarrage {
   cle_de_secours: string;
   dossier_sauvegardes_propose: string;
@@ -873,7 +937,7 @@ export interface Coeur {
   sauvegarderMaintenant(): Promise<FichierSauvegarde>;
   listerSauvegardes(): Promise<FichierSauvegarde[]>;
   /** Fenêtre de choix du système ; `null` si le praticien annule. */
-  choisirFichier(sorte: "sauvegarde" | "import" | "trames" | "modele"): Promise<string | null>;
+  choisirFichier(sorte: "sauvegarde" | "import" | "trames" | "modele" | "tableur" | "libreosteo"): Promise<string | null>;
   choisirDossier(): Promise<string | null>;
   /** Déchiffre et vérifie une sauvegarde, sans rien remplacer. */
   apercuRestauration(chemin: string, cle: string): Promise<ApercuSauvegarde>;
@@ -900,6 +964,9 @@ export interface Coeur {
   /** Sauvegarde le cabinet, puis importe ce qui est choisi ; tout ou rien. */
   importerMcl(chemin: string, choix: ChoixImport): Promise<ResultatImport>;
   ouvrirRapportImport(chemin: string): Promise<void>;
+  /** Sans correspondance, le cœur en propose une d'après le titre des colonnes. */
+  analyserTableur(chemin: string, correspondance?: CibleTableur[]): Promise<AnalyseTableur>;
+  importerTableur(chemin: string, correspondance: CibleTableur[]): Promise<ResultatImportTableur>;
   champsCompteRendu(seanceId: string): Promise<ChampImprimable[]>;
   /** Pages SVG du compte rendu avec les champs choisis. */
   apercuCompteRendu(seanceId: string, champs: string[]): Promise<string[]>;
@@ -1083,6 +1150,8 @@ export const coeurTauri: Coeur = {
   analyserImport: (chemin) => appeler("analyser_import", { chemin }),
   importerMcl: (chemin, choix) => appeler("importer_mcl", { chemin, choix }),
   ouvrirRapportImport: (chemin) => appeler("ouvrir_rapport_import", { chemin }),
+  analyserTableur: (chemin, correspondance) => appeler("analyser_tableur", { chemin, correspondance: correspondance ?? null }),
+  importerTableur: (chemin, correspondance) => appeler("importer_tableur", { chemin, correspondance }),
   champsCompteRendu: (seanceId) => appeler("champs_compte_rendu", { seanceId }),
   apercuCompteRendu: (seanceId, champs) => appeler("apercu_compte_rendu", { seanceId, champs }),
   enregistrerCompteRendu: (seanceId, champs, joindre) => appeler("enregistrer_compte_rendu", { seanceId, champs, joindre }),
@@ -1236,6 +1305,8 @@ export function creerCoeurDeDemonstration(
     : [];
   /** Patients créés par l'import de démonstration : un second import ne les recopie pas. */
   const importDemo: string[] = [];
+  /** Identités déjà reprises du tableur de démonstration. */
+  const importTableurDemo = new Set<string>();
   /** Liens familiaux, dans les deux sens : ce que `proche` est pour `patient`. */
   let liensDemo: { patient: string; proche: string; lien: LienFamilial }[] = exemples
     ? [
@@ -1918,6 +1989,8 @@ export function creerCoeurDeDemonstration(
       if (sorte === "sauvegarde") return sauvegardesDemo[0]?.chemin ?? null;
       if (sorte === "trames") return "C:\\Users\\Praticien\\Téléchargements\\Trames d’un confrère.json";
       if (sorte === "modele") return "C:\\Users\\Praticien\\Téléchargements\\Modèle Sportif.json";
+      if (sorte === "tableur") return "C:\\Users\\Praticien\\Documents\\Patients fictifs.xlsx";
+      if (sorte === "libreosteo") return "C:\\Users\\Praticien\\Téléchargements\\libreosteo-sauvegarde.zip";
       return "C:\\Users\\Praticien\\Téléchargements\\export-mcl.zip";
     },
     async choisirDossier() {
@@ -2026,6 +2099,32 @@ export function creerCoeurDeDemonstration(
     },
     async ouvrirRapportImport() {
       throw new Error("Pas de rapport écrit dans la démonstration.");
+    },
+    async analyserTableur(chemin, correspondance) {
+      if (!/\.(csv|txt|xlsx|xlsm|ods)$/i.test(chemin)) throw new Error("Ce fichier n’est ni un tableur CSV, ni un classeur Excel ou LibreOffice.");
+      return analyseTableurDemo(correspondance ?? TABLEUR_FICTIF.cibles, patients, importTableurDemo);
+    },
+    async importerTableur(chemin, correspondance) {
+      const analyse = await coeur.analyserTableur(chemin, correspondance);
+      if (!analyse.importable) throw new Error("Indiquez la colonne du nom et celle du prénom.");
+      const rapport = { patients: { crees: 0, deja: 0, ignores: 0 }, doublons: [] as string[], avertissements: [] as string[] };
+      for (const ligne of lignesTableurDemo(correspondance)) {
+        if (!ligne.fiche.nom || !ligne.fiche.prenom) {
+          rapport.patients.ignores += 1;
+          rapport.avertissements.push(`Ligne ${ligne.numero} sans nom ou sans prénom, laissée de côté.`);
+          continue;
+        }
+        const cle = `${ligne.fiche.nom}|${ligne.fiche.prenom}|${ligne.fiche.naissance ?? ""}`.toLowerCase();
+        if (importTableurDemo.has(cle)) {
+          rapport.patients.deja += 1;
+          continue;
+        }
+        if (patients.some((p) => `${p.nom}|${p.prenom}|${p.naissance ?? ""}`.toLowerCase() === cle)) rapport.doublons.push(`${ligne.fiche.prenom} ${ligne.fiche.nom} (ligne ${ligne.numero})`);
+        await coeur.creerPatient({ ...FICHE_VIDE, ...ligne.fiche });
+        importTableurDemo.add(cle);
+        rapport.patients.crees += 1;
+      }
+      return { rapport, sauvegarde: (await coeur.sauvegarderMaintenant()).chemin, fichier_rapport: null };
     },
     async champsCompteRendu(seanceId) {
       const seance = seances.find((s) => s.id === seanceId);
@@ -2154,6 +2253,69 @@ function typeDocument(nom: string): string {
   const extension = nom.split(".").pop()?.toLowerCase() ?? "";
   const types: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
   return types[extension] ?? "application/octet-stream";
+}
+
+/** Le tableur de démonstration : quatre patients fictifs, une ligne incomplète, un doublon. */
+const TABLEUR_FICTIF: { titres: string[]; cibles: CibleTableur[]; lignes: string[][] } = {
+  titres: ["N°", "Nom", "Prénom", "Né le", "Téléphone", "Ville", "Loisirs"],
+  cibles: ["ignorer", "nom", "prenom", "naissance", "telephone", "ville", "activites"],
+  lignes: [
+    ["1", "Benali", "Sarah", "09/01/1992", "06 00 00 00 11", "Fumel", "Natation"],
+    ["2", "Roussel", "Paul", "12/05/1958", "05 53 00 00 12", "Monflanquin", ""],
+    ["3", "Martin", "Camille", "14/03/1988", "06 00 00 00 13", "Fumel", "Randonnée"],
+    ["4", "", "Léa", "", "", "Fumel", ""],
+    ["5", "Fabre", "Inès", "30/07/2001", "07 00 00 00 15", "Penne-d’Agenais", "Danse"],
+  ],
+};
+
+function lignesTableurDemo(cibles: CibleTableur[]): { numero: number; fiche: Partial<FichePatient> }[] {
+  return TABLEUR_FICTIF.lignes.map((cellules, rang) => {
+    const fiche: Partial<FichePatient> = {};
+    const remarques: string[] = [];
+    cibles.forEach((cible, i) => {
+      const v = cellules[i] ?? "";
+      if (!v || cible === "ignorer") return;
+      if (cible === "naissance") {
+        const [j, m, a] = v.split("/");
+        fiche.naissance = `${a}-${m}-${j}`;
+      } else if (cible === "telephone") {
+        if (/^0[67]/.test(v)) fiche.portable = v;
+        else fiche.fixe = v;
+      } else if (cible === "nom_prenom") {
+        const [nom, ...prenom] = v.split(" ");
+        fiche.nom = nom;
+        fiche.prenom = prenom.join(" ");
+      } else if (cible === "remarques") remarques.push(`${TABLEUR_FICTIF.titres[i]} : ${v}`);
+      else if (["nom", "prenom", "ville", "activites", "profession", "adresse", "email", "portable", "fixe", "code_postal"].includes(cible)) (fiche as Record<string, string>)[cible] = v;
+    });
+    if (remarques.length) fiche.remarques = remarques.join("\n");
+    return { numero: rang + 2, fiche };
+  });
+}
+
+function analyseTableurDemo(cibles: CibleTableur[], dossiers: Patient[], importes: Set<string>): AnalyseTableur {
+  const lignes = lignesTableurDemo(cibles);
+  const etats = lignes.map(({ fiche }): EtatLigneTableur => {
+    const cle = `${fiche.nom ?? ""}|${fiche.prenom ?? ""}|${fiche.naissance ?? ""}`.toLowerCase();
+    if (!fiche.nom || !fiche.prenom) return "incomplet";
+    if (importes.has(cle)) return "deja_importe";
+    if (dossiers.some((p) => `${p.nom}|${p.prenom}|${p.naissance ?? ""}`.toLowerCase() === cle)) return "doublon_possible";
+    return "nouveau";
+  });
+  const importable = cibles.some((c) => c === "nom" || c === "nom_prenom") && cibles.some((c) => c === "prenom" || c === "nom_prenom");
+  return {
+    format: "Classeur Excel",
+    feuille: "Patients",
+    colonnes: TABLEUR_FICTIF.titres.map((titre, i) => ({ titre, cible: cibles[i], exemples: TABLEUR_FICTIF.lignes.map((l) => l[i]).filter(Boolean).slice(0, 3) })),
+    lignes: lignes.length,
+    nouveaux: etats.filter((e) => e === "nouveau").length,
+    doublons: etats.filter((e) => e === "doublon_possible").length,
+    deja_importes: etats.filter((e) => e === "deja_importe").length,
+    incompletes: etats.filter((e) => e === "incomplet").length,
+    importable,
+    points: importable ? [] : ["Indiquez la colonne du nom et celle du prénom : sans elles, rien ne peut être importé."],
+    apercu: lignes.map(({ numero, fiche }, i) => ({ ligne: numero, nom: fiche.nom ?? "", prenom: fiche.prenom ?? "", naissance: fiche.naissance ?? null, ville: fiche.ville ?? "", etat: etats[i] })),
+  };
 }
 
 /** Patients fictifs de l'import de démonstration. */

@@ -20,6 +20,7 @@
 //! - [`export`] : export complet en CSV et JSON, journal consultable.
 //! - [`statistiques`] : chiffre d'affaires, activité et patientèle, comparés à l'année précédente.
 //! - [`import_mcl`] : reprise des données de MonCabinetLibéral.
+//! - [`import_tableur`] : liste de patients depuis un tableur CSV, Excel ou LibreOffice.
 //! - [`accueil`] : blocs de l'accueil et pense-bêtes.
 //! - [`documents`] : pièces jointes du dossier, chiffrées dans la base, corbeille de 30 jours.
 //! - [`mise_en_page`] : logo, signature et couleur des factures et des comptes rendus.
@@ -45,7 +46,9 @@ pub mod groupes;
 mod hexa;
 pub mod horloge;
 pub mod identifiant;
+pub mod import_commun;
 pub mod import_mcl;
+pub mod import_tableur;
 pub mod mise_en_page;
 pub mod modeles;
 pub mod numerotation;

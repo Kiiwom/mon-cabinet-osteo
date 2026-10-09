@@ -4717,6 +4717,31 @@ select.saisie-courte {
   flex-wrap: wrap;
 }
 
+/* Import d'un tableur : correspondance des colonnes et état de chaque ligne. */
+.tableau-colonnes select {
+  min-width: 240px;
+}
+
+.tableau-colonnes tr[data-ignoree] th {
+  color: var(--encre-discrete);
+  font-weight: 400;
+}
+
+.puce[data-etat-import="nouveau"] {
+  background: var(--succes-fond);
+  color: var(--succes-texte);
+}
+
+.puce[data-etat-import="doublon_possible"] {
+  background: var(--alerte-fond);
+  color: var(--alerte-texte);
+}
+
+.puce[data-etat-import="incomplet"] {
+  background: var(--danger-fond);
+  color: var(--danger-texte);
+}
+
 /* Paramètres › Modules */
 .grille-modules {
   margin: 0;

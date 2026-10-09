@@ -1,51 +1,10 @@
 import { useState } from "react";
 
-import type { AnalyseImport, ChoixImport, Coeur, CompteurImport, ResultatImport } from "../lib/coeur";
+import type { AnalyseImport, ChoixImport, Coeur, ResultatImport } from "../lib/coeur";
 import { dateCourte, ecrireDateFr } from "../lib/dates";
-import { adresse } from "../lib/navigation";
-
-type Etape = "fichier" | "verification" | "import" | "rapport";
-
-const ETAPES: { cle: Etape; titre: string }[] = [
-  { cle: "fichier", titre: "Fichier" },
-  { cle: "verification", titre: "Vérification" },
-  { cle: "rapport", titre: "Rapport" },
-];
+import { AvantImport, compte, Etapes, LigneRapport, nombre, nomDeFichier, PiedRapport, TableauRapport, type EtapeImport } from "./communs";
 
 const TOUT: ChoixImport = { patients: true, antecedents: true, seances: true, factures: true };
-
-function nombre(n: number): string {
-  return n.toLocaleString("fr-FR");
-}
-
-/** « 1 archivé », « 0 avoir », « 2 avoirs ». */
-function compte(n: number, singulier: string, pluriel = `${singulier}s`): string {
-  return `${nombre(n)} ${n > 1 ? pluriel : singulier}`;
-}
-
-function nomDeFichier(chemin: string): string {
-  return chemin.split(/[\\/]/).pop() ?? chemin;
-}
-
-function Etapes({ etape }: { etape: Etape }) {
-  const rang = ETAPES.findIndex((e) => e.cle === (etape === "import" ? "verification" : etape));
-  return (
-    <ol className="etapes-import" aria-label="Étapes de l’import">
-      {ETAPES.map((e, i) => {
-        const etat = i < rang ? "fait" : i === rang ? "en-cours" : "a-venir";
-        return (
-          <li key={e.cle} data-etat={etat} aria-current={etat === "en-cours" ? "step" : undefined}>
-            <span className="numero" aria-hidden="true">
-              {etat === "fait" ? "✓" : i + 1}
-            </span>
-            {e.titre}
-            {etat === "fait" && <span className="visuellement-cache">, terminée</span>}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
 
 function CaseContenu({
   coche,
@@ -211,112 +170,32 @@ function Verification({
         </section>
       )}
 
-      <section className="carte" aria-labelledby="titre-avant-import">
-        <h3 id="titre-avant-import">Avant d’importer</h3>
-        <ul className="liste-points">
-          <li>Rien n’est écrit dans votre cabinet avant que vous cliquiez sur «&nbsp;Importer les données&nbsp;».</li>
-          <li>Une sauvegarde de votre cabinet est faite juste avant l’import.</li>
-          <li>Le fichier d’origine n’est jamais modifié.</li>
-          <li>Un import peut être relancé&nbsp;: ce qui est déjà importé n’est pas recopié.</li>
-          <li>Un rapport liste ce qui a été importé et ce qui a été laissé de côté.</li>
-        </ul>
-        <div className="rangee">
-          <button type="button" className="bouton bouton-principal" disabled={enCours || rien} onClick={importer}>
-            {enCours ? "Import en cours…" : "Importer les données"}
-          </button>
-        </div>
-        {enCours && (
-          <p className="discret" role="status">
-            Sauvegarde, puis import&nbsp;: cela peut prendre une minute pour plusieurs milliers de séances.
-          </p>
-        )}
-      </section>
+      <AvantImport libelle="Importer les données" enCours={enCours} desactive={rien} importer={importer} />
     </>
   );
 }
 
-function LigneRapport({ titre, compteur }: { titre: string; compteur: CompteurImport }) {
-  return (
-    <tr>
-      <th scope="row">{titre}</th>
-      <td className="nombre">{nombre(compteur.crees)}</td>
-      <td className="nombre">{nombre(compteur.deja)}</td>
-      <td className="nombre">{nombre(compteur.ignores)}</td>
-    </tr>
-  );
-}
-
 function Rapport({ coeur, resultat, recommencer }: { coeur: Coeur; resultat: ResultatImport; recommencer: () => void }) {
-  const [erreur, setErreur] = useState<string | null>(null);
   const { rapport } = resultat;
   return (
     <section className="carte" aria-labelledby="titre-rapport-import">
       <h3 id="titre-rapport-import">Import terminé</h3>
-      <div className="defilement-horizontal">
-        <table className="tableau">
-          <thead>
-            <tr>
-              <th scope="col">Données</th>
-              <th scope="col" className="nombre">
-                Importées
-              </th>
-              <th scope="col" className="nombre">
-                Déjà présentes
-              </th>
-              <th scope="col" className="nombre">
-                Laissées de côté
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <LigneRapport titre="Patients" compteur={rapport.patients} />
-            <LigneRapport titre="Antécédents" compteur={rapport.antecedents} />
-            <LigneRapport titre="Séances" compteur={rapport.seances} />
-            <LigneRapport titre="Factures et avoirs" compteur={rapport.factures} />
-            <LigneRapport titre="Règlements" compteur={rapport.reglements} />
-          </tbody>
-        </table>
-      </div>
+      <TableauRapport>
+        <LigneRapport titre="Patients" compteur={rapport.patients} />
+        <LigneRapport titre="Antécédents" compteur={rapport.antecedents} />
+        <LigneRapport titre="Séances" compteur={rapport.seances} />
+        <LigneRapport titre="Factures et avoirs" compteur={rapport.factures} />
+        <LigneRapport titre="Règlements" compteur={rapport.reglements} />
+      </TableauRapport>
       {rapport.modele && <p>Les champs des séances importées sont dans le modèle «&nbsp;{rapport.modele}&nbsp;».</p>}
-      {rapport.avertissements.length > 0 && (
-        <div className="pile-serree">
-          <p>
-            <strong>À vérifier</strong>
-          </p>
-          <ul className="liste-points">
-            {rapport.avertissements.map((a, i) => (
-              <li key={i}>{a}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <p className="discret">Sauvegarde faite juste avant l’import&nbsp;: {resultat.sauvegarde}</p>
-      {resultat.fichier_rapport && <p className="discret">Rapport enregistré dans {resultat.fichier_rapport}</p>}
-      {erreur && (
-        <p className="alerte" role="alert">
-          {erreur}
-        </p>
-      )}
-      <div className="rangee">
-        <a className="bouton bouton-principal" href={adresse("patients")}>
-          Voir les patients
-        </a>
-        {resultat.fichier_rapport && (
-          <button type="button" className="bouton" onClick={() => coeur.ouvrirRapportImport(resultat.fichier_rapport!).catch((e: Error) => setErreur(e.message))}>
-            Ouvrir le rapport
-          </button>
-        )}
-        <button type="button" className="bouton" onClick={recommencer}>
-          Importer un autre fichier
-        </button>
-      </div>
+      <PiedRapport coeur={coeur} avertissements={rapport.avertissements} sauvegarde={resultat.sauvegarde} fichierRapport={resultat.fichier_rapport} recommencer={recommencer} />
     </section>
   );
 }
 
 /** Reprise des données de MonCabinetLibéral : fichier, vérification sans rien écrire, import, rapport. */
 export function ImportMcl({ coeur }: { coeur: Coeur }) {
-  const [etape, setEtape] = useState<Etape>("fichier");
+  const [etape, setEtape] = useState<EtapeImport>("fichier");
   const [chemin, setChemin] = useState<string | null>(null);
   const [analyse, setAnalyse] = useState<AnalyseImport | null>(null);
   const [choix, setChoix] = useState<ChoixImport>(TOUT);

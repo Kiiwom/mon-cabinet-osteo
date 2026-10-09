@@ -61,3 +61,47 @@ describe("import MonCabinetLibéral", () => {
     expect(screen.getByText("Historique importé")).toBeInTheDocument();
   });
 });
+
+describe("import d'un tableur", () => {
+  it("propose les colonnes, suit le choix du praticien, puis importe sans doublon", async () => {
+    const coeur = creerCoeurDeDemonstration("ouvert");
+    const avant = (await coeur.listerPatients()).length;
+    render(<PageParametresImportExport coeur={coeur} source="tableur" />);
+    const region = screen.getByRole("region", { name: "Import d’un tableur" });
+    fireEvent.click(within(region).getByRole("button", { name: "Choisir le tableur…" }));
+    expect(await within(region).findByRole("heading", { name: "Patients fictifs.xlsx" })).toBeInTheDocument();
+    expect(within(region).getByText(/Classeur Excel · feuille « Patients » · 5 lignes de patients/)).toBeInTheDocument();
+    const prenom = within(region).getByRole("combobox", { name: "Champ de la fiche pour « Prénom »" });
+    expect(prenom).toHaveValue("prenom");
+    expect(within(region).getByRole("row", { name: /^Né le/ })).toHaveTextContent("09/01/1992 · 12/05/1958 · 14/03/1988");
+
+    // Camille Martin est déjà dans le cabinet : doublon possible, gardé.
+    expect(within(region).getByRole("row", { name: /Martin Camille/ })).toHaveTextContent("Doublon possible");
+    expect(within(region).getByRole("row", { name: /^5\s+Léa/ })).toHaveTextContent("Sans nom ou prénom");
+
+    // Sans colonne de prénom, rien ne peut être importé.
+    fireEvent.change(prenom, { target: { value: "remarques" } });
+    expect(await within(region).findByText(/Indiquez la colonne du nom et celle du prénom/)).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Importer les patients" })).toBeDisabled();
+    fireEvent.change(prenom, { target: { value: "prenom" } });
+    // Choisir « Ville » pour les loisirs renvoie l'ancienne colonne Ville aux remarques.
+    fireEvent.change(within(region).getByRole("combobox", { name: "Champ de la fiche pour « Loisirs »" }), { target: { value: "ville" } });
+    expect(await within(region).findByText("« Ville » ira dans les remarques de la fiche patient.")).toBeInTheDocument();
+    fireEvent.change(within(region).getByRole("combobox", { name: "Champ de la fiche pour « Loisirs »" }), { target: { value: "activites" } });
+    fireEvent.change(within(region).getByRole("combobox", { name: "Champ de la fiche pour « Ville »" }), { target: { value: "ville" } });
+
+    expect(await coeur.listerPatients()).toHaveLength(avant);
+    fireEvent.click(await within(region).findByRole("button", { name: "Importer 4 patients" }));
+    expect(await within(region).findByRole("heading", { name: "Import terminé" })).toBeInTheDocument();
+    expect(within(within(region).getByRole("row", { name: /^Patients/ })).getAllByRole("cell").map((c) => c.textContent)).toEqual(["4", "0", "1"]);
+    expect(within(region).getByText(/1 doublon possible, gardés/)).toBeInTheDocument();
+    const benali = (await coeur.listerPatients()).find((p) => p.nom === "Benali");
+    expect(benali).toMatchObject({ prenom: "Sarah", naissance: "1992-01-09", portable: "06 00 00 00 11", ville: "Fumel" });
+
+    fireEvent.click(within(region).getByRole("button", { name: "Importer un autre fichier" }));
+    fireEvent.click(within(region).getByRole("button", { name: "Choisir le tableur…" }));
+    expect(await within(region).findByText(/4 patients de ce fichier sont déjà dans Osteosphere/)).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Importer les patients" })).toBeDisabled();
+  });
+});
+
