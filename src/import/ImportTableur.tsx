@@ -137,8 +137,7 @@ function Verification({
         </div>
         {analyse.deja_importes > 0 && (
           <p className="succes" role="status">
-            {compte(analyse.deja_importes, "patient")} de ce fichier {analyse.deja_importes > 1 ? "sont" : "est"} déjà dans Osteosphere&nbsp;: ils ne seront pas
-            recopiés.
+            {compte(analyse.deja_importes, "patient")} de ce fichier {analyse.deja_importes > 1 ? "sont déjà dans Osteosphere : ils ne seront pas recopiés." : "est déjà dans Osteosphere : il ne sera pas recopié."}
           </p>
         )}
       </section>
@@ -165,7 +164,7 @@ function Verification({
           {analyse.incompletes > 0 && (
             <li data-nature="alerte">
               <strong>{compte(analyse.incompletes, "ligne sans nom ou sans prénom", "lignes sans nom ou sans prénom")}</strong>
-              <span>Elles sont laissées de côté et listées dans le rapport.</span>
+              <span>{analyse.incompletes > 1 ? "Elles sont laissées de côté et listées" : "Elle est laissée de côté et listée"} dans le rapport.</span>
             </li>
           )}
           <li data-nature="information">
