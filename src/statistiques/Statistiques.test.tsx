@@ -51,8 +51,7 @@ describe("écran des statistiques", () => {
     expect(within(tuile).getByText(/\+220,0 % · 50 € en 2025/)).toBeInTheDocument();
 
     const graphique = screen.getByRole("region", { name: /^Chiffre d’affaires par mois/ });
-    expect(within(graphique).getByRole("img")).toBeInTheDocument();
-    fireEvent.focus(within(graphique).getByRole("img").querySelectorAll("rect.cible")[6]);
+    fireEvent.focus(within(graphique).getByRole("img", { name: /^juillet 2026 : / }));
     expect(within(graphique).getByRole("status")).toHaveTextContent("juillet 2026");
     fireEvent.click(within(graphique).getByRole("button", { name: "Voir en tableau" }));
     expect(within(graphique).getByRole("table")).toHaveTextContent("juillet 2026");

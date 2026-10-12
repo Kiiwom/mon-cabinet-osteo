@@ -80,7 +80,8 @@ export function ColonnesGroupees({
 
   return (
     <div className="graphique" ref={ref}>
-      <svg width={largeur} height={hauteur} role="img" aria-label={description}>
+      {/* Un groupe, pas une image : chaque mois s'atteint au clavier et s'annonce avec ses valeurs. */}
+      <svg width={largeur} height={hauteur} role="group" aria-label={description}>
         {graduation.map((g) => (
           <g key={g}>
             <line x1={marge.gauche} x2={largeur - marge.droite} y1={y(g)} y2={y(g)} className={g === 0 ? "axe-base" : "grille"} />
@@ -104,6 +105,7 @@ export function ColonnesGroupees({
               )}
               <rect
                 className="cible"
+                role="img"
                 x={marge.gauche + i * bande}
                 y={marge.haut}
                 width={bande}

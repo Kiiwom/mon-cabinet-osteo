@@ -12,5 +12,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["src/test/setup.ts"],
+    // Le thème est lu tel quel par le test des contrastes ; les autres feuilles restent ignorées.
+    css: { include: [/theme\.css/] },
   },
 });

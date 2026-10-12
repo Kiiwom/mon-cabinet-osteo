@@ -15,6 +15,8 @@
   --fond-note-champ: rgba(255, 255, 255, 0.72);
   --bordure: #e8e0d3;
   --bordure-champ: #e2d8c9;
+  /* Champs de saisie : bordure d'au moins 3:1 sur tous les fonds, le champ se repère (WCAG 1.4.11). */
+  --bordure-saisie: #958670;
   --bordure-forte: #9c8a72;
   --bordure-pointillee: #d9cdba;
   --bordure-trame: #c9b994;
@@ -68,6 +70,7 @@
   --fond-survol: rgba(255, 255, 255, 0.07);
   --bordure: #3d342c;
   --bordure-champ: #574b3f;
+  --bordure-saisie: #8a7a66;
   --bordure-forte: #8a7a66;
   --bordure-pointillee: #5c4f42;
   --bordure-trame: #7c6a49;
@@ -514,7 +517,7 @@ a.etat-sauvegarde[data-alerte="true"] {
   min-height: 44px;
   min-width: 0;
   padding: 0 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   background: var(--fond-carte);
   color: var(--encre);
@@ -820,7 +823,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 .choix-intervalle select {
   min-height: 36px;
   padding: 0 8px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 8px;
   background: var(--fond-carte);
   color: var(--encre);
@@ -1054,7 +1057,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 .recherche {
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: var(--rayon);
   font: inherit;
 }
@@ -1103,7 +1106,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 .champ textarea {
   min-height: 72px;
   padding: 10px 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   font: inherit;
   color: var(--encre);
@@ -1113,7 +1116,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 .champ-prefixe {
   display: flex;
   align-items: center;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   background: var(--fond-carte);
   padding-left: 12px;
@@ -1235,7 +1238,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 .champ-trame-saisie {
   min-height: 96px;
   padding: 12px 14px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: var(--rayon);
   background: var(--fond-carte);
   line-height: 2;
@@ -1389,7 +1392,7 @@ a.etat-sauvegarde[data-alerte="true"] {
 .saisie-reglable select {
   min-height: 44px;
   padding: 0 10px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   background: var(--fond-carte);
   color: var(--encre);
@@ -1438,6 +1441,11 @@ a.etat-sauvegarde[data-alerte="true"] {
 a.bouton {
   text-decoration: none;
   color: var(--encre);
+}
+
+/* Un lien présenté en bouton principal garde le texte prévu sur la couleur d'accent. */
+a.bouton.bouton-principal {
+  color: var(--sur-accent);
 }
 
 .barre-actions {
@@ -1959,7 +1967,7 @@ a.bouton {
 .zone-texte {
   min-height: 72px;
   padding: 10px 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   font: inherit;
   color: var(--encre);
@@ -2111,7 +2119,7 @@ a.rubrique-parametre:hover {
   width: 64px;
   min-height: 40px;
   padding: 0 8px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 8px;
   font: inherit;
 }
@@ -2179,6 +2187,7 @@ a.rubrique-parametre:hover {
 }
 
 .ligne-champ-ordre .bouton-icone {
+  min-width: 32px;
   min-height: 32px;
   padding: 0 6px;
 }
@@ -2367,7 +2376,7 @@ a.rubrique-parametre:hover {
   flex: 1 1 240px;
   min-height: 40px;
   padding: 0 10px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 8px;
   font: inherit;
 }
@@ -2405,7 +2414,7 @@ a.rubrique-parametre:hover {
 .mesures input {
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   background: var(--fond-carte);
   font: inherit;
@@ -2426,7 +2435,7 @@ a.rubrique-parametre:hover {
 .champ-court input {
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   font: inherit;
 }
@@ -2784,7 +2793,7 @@ a.tuile:hover {
 }
 
 [data-moyen="carte"] {
-  --moyen: #2a78d6;
+  --moyen: #2670c8;
 }
 
 [data-moyen="cheque"] {
@@ -3176,7 +3185,7 @@ a.tuile:hover {
 }
 
 [data-couleur="bleu"] {
-  --prestation: #2a78d6;
+  --prestation: #2670c8;
 }
 
 [data-couleur="vert"] {
@@ -3379,8 +3388,8 @@ kbd {
 .colonne[data-serie="courant"],
 .cle-rect[data-serie="courant"],
 .cle-ligne[data-serie="courant"] {
-  fill: #2a78d6;
-  background: #2a78d6;
+  fill: #2670c8;
+  background: #2670c8;
 }
 
 .colonne[data-serie="precedent"],
@@ -3491,7 +3500,7 @@ kbd {
   height: 100%;
   min-width: 2px;
   border-radius: 0 4px 4px 0;
-  background: #2a78d6;
+  background: #2670c8;
 }
 
 .barre-nombre {
@@ -3554,7 +3563,7 @@ kbd {
 }
 
 [data-famille="moyen"][data-part="carte"] {
-  --part: #2a78d6;
+  --part: #2670c8;
 }
 
 [data-famille="moyen"][data-part="cheque"] {
@@ -3574,7 +3583,7 @@ kbd {
 }
 
 [data-famille="sexe"][data-part="femmes"] {
-  --part: #2a78d6;
+  --part: #2670c8;
 }
 
 [data-famille="sexe"][data-part="hommes"] {
@@ -3597,14 +3606,17 @@ kbd {
   --part: #b9d3f4;
 }
 
-/* Texte blanc illisible sur les teintes claires : il passe à l'encre. */
+/* Texte blanc illisible sur les teintes claires : il passe à une encre foncée, la même dans les deux
+   thèmes puisque la teinte du segment ne change pas (contraste d'au moins 4,5:1). */
+[data-famille="moyen"][data-part="cheque"] .segment-texte,
 [data-famille="moyen"][data-part="especes"] .segment-texte,
 [data-famille="moyen"][data-part="virement"] .segment-texte,
 [data-famille="moyen"][data-part="autre"] .segment-texte,
+[data-famille="sexe"][data-part="hommes"] .segment-texte,
 [data-famille="recence"][data-part="dormants"] .segment-texte,
 [data-famille="recence"][data-part="inactifs"] .segment-texte,
 [data-famille="sexe"][data-part="non_renseigne"] .segment-texte {
-  color: var(--encre);
+  color: #1b1714;
 }
 
 .chiffres-cles {
@@ -3879,7 +3891,7 @@ kbd {
   min-width: 0;
   min-height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 8px;
   background: var(--fond-carte);
   color: var(--encre);
@@ -4037,7 +4049,7 @@ kbd {
 
 .rattachement select {
   min-height: 32px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 6px;
   background: var(--fond-carte);
   color: var(--encre);
@@ -4216,7 +4228,7 @@ kbd {
 .choix-filtre {
   min-height: 44px;
   padding: 0 10px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: var(--rayon);
   background: var(--fond-carte);
   font: inherit;
@@ -4363,7 +4375,7 @@ input.saisie-courte,
 select.saisie-courte {
   min-height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--bordure-champ);
+  border: 1px solid var(--bordure-saisie);
   border-radius: 10px;
   background: var(--fond-carte);
   color: var(--encre);
@@ -4839,9 +4851,14 @@ select.saisie-courte {
   padding: 8px 14px;
 }
 
-/* Thème sombre : séries des graphiques éclaircies sur fond foncé. */
+/* Thème sombre : séries des graphiques éclaircies sur fond foncé. Les inactifs, plus foncés qu'en
+   thème clair, reprennent le texte blanc. */
+:root[data-sombre="true"] [data-famille="recence"][data-part="inactifs"] .segment-texte {
+  color: #ffffff;
+}
+
 :root[data-sombre="true"] [data-famille="recence"][data-part="actifs"] {
-  --part: #2a78d6;
+  --part: #2670c8;
 }
 
 :root[data-sombre="true"] [data-famille="recence"][data-part="inactifs"] {
