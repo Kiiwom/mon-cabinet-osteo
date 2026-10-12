@@ -28,4 +28,6 @@ tauri = { version = "2.12.1", features = [] }
 tauri-plugin-dialog = "~2.7.3"
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
+# Mises à jour signées ; les installateurs eux-mêmes sont téléchargés, sans archive intermédiaire.
+tauri-plugin-updater = { version = "2.13", default-features = false, features = ["rustls-tls", "system-proxy"] }
 zeroize = "1"

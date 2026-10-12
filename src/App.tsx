@@ -16,6 +16,7 @@ import { PageFacture, PageNouvelleFacture } from "./pages/Facture";
 import { PageParametresCabinet, PageParametresFacturation } from "./pages/ParametresFacturation";
 import { PageParametresApparence } from "./pages/ParametresApparence";
 import { PageParametresModules } from "./pages/ParametresModules";
+import { PageParametresMisesAJour } from "./pages/ParametresMisesAJour";
 import { PageParametresPatients } from "./pages/ParametresPatients";
 import { PageParametresSaisie } from "./pages/ParametresSaisie";
 import { PageEffacement } from "./patients/Effacement";
@@ -189,6 +190,8 @@ function EcranParametres({
       return <PageParametresApparence coeur={coeur} />;
     case "modules":
       return <PageParametresModules />;
+    case "mises-a-jour":
+      return <PageParametresMisesAJour coeur={coeur} />;
     default:
       return <PageParametres />;
   }

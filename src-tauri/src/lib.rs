@@ -5,6 +5,7 @@ mod documents;
 mod dossiers;
 mod facturation;
 mod import;
+mod mises_a_jour;
 mod modeles;
 mod parametres;
 mod patients;
@@ -27,6 +28,8 @@ struct InfosApplication {
     nom: &'static str,
     version: &'static str,
     version_coeur: &'static str,
+    /// « windows », « linux » ou « macos » : la mise à jour ne se passe pas de la même façon.
+    systeme: &'static str,
 }
 
 /// Informations affichées dans « À propos » et sur l'accueil du prototype.
@@ -36,6 +39,7 @@ fn infos_application() -> InfosApplication {
         nom: "Osteosphere",
         version: env!("CARGO_PKG_VERSION"),
         version_coeur: osteosphere_core::VERSION,
+        systeme: std::env::consts::OS,
     }
 }
 
@@ -53,6 +57,8 @@ fn dossier_du_cabinet(app: &tauri::App) -> tauri::Result<PathBuf> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(mises_a_jour::MiseAJourTrouvee::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle()
@@ -83,6 +89,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             infos_application,
+            mises_a_jour::rechercher_mise_a_jour,
+            mises_a_jour::installer_mise_a_jour,
             demarrage::etat_demarrage,
             demarrage::preparer_premier_demarrage,
             demarrage::terminer_premier_demarrage,

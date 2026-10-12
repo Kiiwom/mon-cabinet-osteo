@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Osteosphere",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "identifier": "fr.pierre-besnier.osteosphere",
   "build": {
     "frontendDist": "../dist",
@@ -54,6 +54,15 @@
       },
       "wix": {
         "language": "fr-FR"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZCQ0NDMjQ3OTkwMDU5NDUKUldSRldRQ1pSOExNKzhMN0tRM1lRUVIyNnpoVHF0RFUyRWZHR3p5RUt1bzZYcEphWGNISEpVdTQK",
+      "endpoints": ["https://github.com/Kiiwom/mon-cabinet-osteo/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

@@ -4868,3 +4868,9 @@ select.saisie-courte {
 :root[data-sombre="true"] [data-couleur="violet"] {
   --prestation: #8f80e0;
 }
+
+/* Version et mises à jour : les notes de version gardent leurs retours à la ligne. */
+.notes-version {
+  margin: 0;
+  white-space: pre-line;
+}

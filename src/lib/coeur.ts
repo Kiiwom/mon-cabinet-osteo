@@ -168,6 +168,11 @@ export interface EtatVerrouillage {
   code_court: boolean;
 }
 
+/** Résultat d'une recherche de mise à jour, faite seulement à la demande du praticien. */
+export type ReponseMiseAJour =
+  | { etat: "a_jour"; version: string }
+  | { etat: "disponible"; version_actuelle: string; version: string; date: string | null; notes: string };
+
 export type ReponseCodeCourt =
   | { etat: "ouvert"; cabinet: IdentiteCabinet }
   /** À zéro essai restant, seul le mot de passe ou la clé de secours rouvre le cabinet. */
@@ -1028,6 +1033,10 @@ export interface Coeur {
   /** Le vocabulaire du praticien, du plus fréquent au moins fréquent ; vide si la préférence est coupée. */
   motsFrequents(): Promise<string[]>;
   enregistrerAccueil(accueil: PreferencesAccueil): Promise<PreferencesAccueil>;
+  /** Interroge la page des versions d'Osteosphere : la seule connexion à internet, sur demande. */
+  rechercherMiseAJour(): Promise<ReponseMiseAJour>;
+  /** Sauvegarde, télécharge, vérifie la signature et installe ; Osteosphere redémarre ensuite. */
+  installerMiseAJour(): Promise<void>;
 }
 
 /** Date du jour sur l'ordinateur du praticien, au format `AAAA-MM-JJ`. */
@@ -1208,6 +1217,8 @@ export const coeurTauri: Coeur = {
   enregistrerApparence: (apparence) => appeler("enregistrer_apparence", { apparence }),
   motsFrequents: () => appeler("mots_frequents"),
   enregistrerAccueil: (accueil) => appeler("enregistrer_accueil", { accueil }),
+  rechercherMiseAJour: () => appeler("rechercher_mise_a_jour"),
+  installerMiseAJour: () => appeler("installer_mise_a_jour"),
 };
 
 const CLE_DE_DEMONSTRATION = "7KQM-R4TX-9WBE-H2NC-PX6V-3DFA";
@@ -2269,6 +2280,12 @@ export function creerCoeurDeDemonstration(
     },
     async apparence() {
       return { ...apparenceDemo };
+    },
+    async rechercherMiseAJour() {
+      return { etat: "a_jour", version: "démonstration" };
+    },
+    async installerMiseAJour() {
+      throw new Error("La démonstration ne s’installe pas.");
     },
     async enregistrerApparence(nouvelle) {
       if (!ACCENTS.some((a) => a.valeur === nouvelle.accent)) throw new Error("Couleur d’accent inconnue");

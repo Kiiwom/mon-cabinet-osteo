@@ -13,6 +13,7 @@ const RUBRIQUES: { titre: string; detail: string; lien: string }[] = [
   { titre: "Import et export", detail: "Reprise depuis MonCabinetLibéral, LibreOsteo ou un tableur, export complet.", lien: adresse("parametres", "import") },
   { titre: "Journal des modifications", detail: "Chaque création, modification et suppression, datée.", lien: adresse("parametres", "journal") },
   { titre: "Modules", detail: "Agenda, dépenses, schéma corporel, Biokinergie… : prévus après la version 1.", lien: adresse("parametres", "modules") },
+  { titre: "Version et mises à jour", detail: "La version installée, la recherche d’une nouvelle version, sur demande seulement.", lien: adresse("parametres", "mises-a-jour") },
 ];
 
 /** Entrée des paramètres : une carte par rubrique. */
