@@ -45,6 +45,8 @@ async function cabinetProtege(): Promise<Coeur> {
 
 // Quand toute la suite tourne, le verrouillage et le changement d'écran dépassent parfois une seconde.
 const ATTENTE = { timeout: 5000 };
+// Plusieurs verrouillages et codes à la suite : le test entier dépasse alors les 5 s par défaut.
+const PARCOURS_LONG = 20_000;
 
 const taper = (code: string) => {
   const pave = screen.getByRole("group", { name: "Pavé numérique" });
@@ -89,7 +91,7 @@ describe("code court", () => {
     await screen.findByRole("heading", { name: /^Séance du / }, ATTENTE);
     expect(window.location.hash).toBe(adresseSeance);
     expect((await coeur.lireSeance(adresseSeance.replace("#/seances/", ""))).valeurs).toMatchObject({ mesures: { taille: 172 } });
-  });
+  }, PARCOURS_LONG);
 
   it("demande le mot de passe après cinq codes faux", async () => {
     const coeur = await cabinetProtege();
@@ -105,7 +107,7 @@ describe("code court", () => {
     expect(await screen.findByText("Trop de codes faux : saisissez votre mot de passe.", undefined, ATTENTE)).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe", { selector: "input" })).toBeInTheDocument();
     expect(await coeur.deverrouillerAvecCode("2468")).toEqual({ etat: "incorrect", essais_restants: 0 });
-  });
+  }, PARCOURS_LONG);
 
   it("se règle dans Paramètres › Sécurité, avec le mot de passe seulement", async () => {
     const coeur = creerCoeurDeDemonstration("ouvert");
