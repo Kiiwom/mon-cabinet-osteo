@@ -569,7 +569,7 @@ pub fn lire(base: &Base, id: &str) -> Result<Facture, ErreurFacture> {
         base.connexion().query_row("SELECT * FROM factures WHERE id = ?1", [id], depuis_ligne).optional()?.ok_or(ErreurFacture::Introuvable)?;
     facture.reglements = base
         .connexion()
-        .prepare("SELECT * FROM reglements WHERE facture_id = ?1 ORDER BY encaisse_le, cree_le")?
+        .prepare("SELECT * FROM reglements WHERE facture_id = ?1 ORDER BY encaisse_le, cree_le, rowid")?
         .query_map([id], reglement_depuis_ligne)?
         .collect::<Result<_, _>>()?;
     facture.regle_centimes = facture.reglements.iter().map(|r| r.saisie.montant_centimes).sum();
@@ -1077,10 +1077,11 @@ pub fn lister(base: &Base, du: &str, au: &str) -> Result<Vec<ResumeFacture>, Err
 
 /// Factures émises qui attendent tout ou partie de leur règlement.
 pub fn en_attente(base: &Base) -> Result<Vec<ResumeFacture>, ErreurFacture> {
+    // Sous-requête lue dans les index seuls : seules les factures retenues sont ensuite lues en entier.
     lister_ou(
         base,
-        "f.nature = 'facture' AND f.etat = 'emise'
-         AND f.total_centimes > coalesce((SELECT sum(r.montant_centimes) FROM reglements r WHERE r.facture_id = f.id), 0)",
+        "f.id IN (SELECT e.id FROM factures e WHERE e.etat = 'emise' AND e.nature = 'facture'
+                  AND e.total_centimes > coalesce((SELECT sum(r.montant_centimes) FROM reglements r WHERE r.facture_id = e.id), 0))",
         &[],
     )
 }

@@ -50,8 +50,7 @@ pub async fn importer_mcl(etat: State<'_, Arc<EtatCabinet>>, chemin: String, cho
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
         let contenu = lire_archive(&chemin)?;
-        let (rapport, sauvegarde) = etat.avec_base(|base| {
-            let sauvegarde = etat.sauvegarder(base).map_err(|e| format!("La sauvegarde avant l’import a échoué, rien n’a été importé : {e}"))?;
+        let (rapport, sauvegarde) = etat.avec_base_sauvegardee(|base, sauvegarde| {
             let rapport = import_mcl::importer(base, &contenu, choix).map_err(message)?;
             Ok((rapport, sauvegarde.chemin))
         })?;
@@ -107,8 +106,7 @@ pub async fn importer_tableur(etat: State<'_, Arc<EtatCabinet>>, chemin: String,
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
         let contenu = lire_archive(&chemin)?;
-        let (rapport, sauvegarde) = etat.avec_base(|base| {
-            let sauvegarde = etat.sauvegarder(base).map_err(|e| format!("La sauvegarde avant l’import a échoué, rien n’a été importé : {e}"))?;
+        let (rapport, sauvegarde) = etat.avec_base_sauvegardee(|base, sauvegarde| {
             let rapport = import_tableur::importer(base, &chemin, &contenu, &correspondance).map_err(message)?;
             Ok((rapport, sauvegarde.chemin))
         })?;
@@ -151,8 +149,7 @@ pub async fn importer_libreosteo(etat: State<'_, Arc<EtatCabinet>>, chemin: Stri
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
         let contenu = lire_archive(&chemin)?;
-        let (rapport, sauvegarde) = etat.avec_base(|base| {
-            let sauvegarde = etat.sauvegarder(base).map_err(|e| format!("La sauvegarde avant l’import a échoué, rien n’a été importé : {e}"))?;
+        let (rapport, sauvegarde) = etat.avec_base_sauvegardee(|base, sauvegarde| {
             let rapport = import_libreosteo::importer(base, &contenu, choix).map_err(message)?;
             Ok((rapport, sauvegarde.chemin))
         })?;

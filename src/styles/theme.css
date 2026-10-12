@@ -1624,6 +1624,16 @@ a.bouton {
   text-overflow: ellipsis;
 }
 
+.suite-liste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--bordure);
+}
+
 .pied-tableau {
   display: flex;
   flex-wrap: wrap;

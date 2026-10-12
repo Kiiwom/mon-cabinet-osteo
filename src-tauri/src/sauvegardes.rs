@@ -59,7 +59,7 @@ pub fn enregistrer_preferences_sauvegarde(
 pub async fn sauvegarder_maintenant(etat: State<'_, Arc<EtatCabinet>>) -> Result<FichierSauvegarde, String> {
     let etat = Arc::clone(&etat);
     en_arriere_plan(move || {
-        let fichier = etat.avec_base(|base| etat.sauvegarder(base))?;
+        let fichier = etat.sauvegarder(None)?.ok_or("Le cabinet n'est pas ouvert.")?;
         *etat.erreur_sauvegarde.lock().map_err(message)? = None;
         Ok(fichier)
     })

@@ -51,6 +51,9 @@ pub struct EtatCabinet {
     pub erreur_sauvegarde: Mutex<Option<String>>,
     /// Cabinet verrouillé avec un code court : la clé scellée par le code, jamais la clé elle-même.
     pub veille: Mutex<Option<Veille>>,
+    /// Tenu pendant une sauvegarde : une seule à la fois, et la base n'est ni fermée ni remplacée
+    /// pendant sa copie. Toujours pris avant `ouvert`.
+    copie: Mutex<()>,
 }
 
 pub struct Veille {
@@ -75,6 +78,7 @@ impl EtatCabinet {
             restauration: Mutex::new(None),
             erreur_sauvegarde: Mutex::new(None),
             veille: Mutex::new(None),
+            copie: Mutex::new(()),
         })
     }
 
@@ -93,39 +97,62 @@ impl EtatCabinet {
         if preferences.dossier.is_empty() { self.dossier_sauvegardes_propose.clone() } else { PathBuf::from(&preferences.dossier) }
     }
 
-    /// Sauvegarde le cabinet ouvert, puis efface les sauvegardes au-delà du nombre gardé.
-    pub fn sauvegarder(&self, base: &Base) -> Result<FichierSauvegarde, String> {
-        let preferences: PreferencesSauvegarde = base.lire_parametre(PARAMETRE_SAUVEGARDES).map_err(message)?.unwrap_or_default();
-        let dossier = self.dossier_sauvegardes(&preferences);
-        let secours = self.cabinet.enveloppe_secours().map_err(message)?;
-        let fichier = sauvegardes::ecrire(
-            base,
-            &self.cabinet.chemin_base(),
-            &secours,
-            &dossier,
-            env!("CARGO_PKG_VERSION"),
-            osteosphere_core::base::maintenant(),
-        )
-        .map_err(message)?;
-        sauvegardes::purger(&dossier, preferences.conserver as usize).map_err(message)?;
-        Ok(fichier)
+    /// Sauvegarde le cabinet, puis exécute l'opération : l'import n'écrit rien sans une sauvegarde
+    /// complète juste avant. La base est retenue pendant la copie, rien ne s'y écrit entre-temps.
+    pub fn avec_base_sauvegardee<T>(&self, operation: impl FnOnce(&Base, FichierSauvegarde) -> Result<T, String>) -> Result<T, String> {
+        let _copie = self.copie.lock().map_err(message)?;
+        self.avec_base(|base| {
+            let preferences: PreferencesSauvegarde = base.lire_parametre(PARAMETRE_SAUVEGARDES).map_err(message)?.unwrap_or_default();
+            let dossier = self.dossier_sauvegardes(&preferences);
+            let fichier = (|| {
+                let secours = self.cabinet.enveloppe_secours().map_err(message)?;
+                let maintenant = osteosphere_core::base::maintenant();
+                let fichier = sauvegardes::ecrire(base, &self.cabinet.chemin_base(), &secours, &dossier, env!("CARGO_PKG_VERSION"), maintenant)
+                    .map_err(message)?;
+                sauvegardes::purger(&dossier, preferences.conserver as usize).map_err(message)?;
+                Ok::<_, String>(fichier)
+            })()
+            .map_err(|e| format!("La sauvegarde avant l’import a échoué, rien n’a été importé : {e}"))?;
+            operation(base, fichier)
+        })
+    }
+
+    /// Sauvegarde le cabinet ouvert sans le retenir pendant la copie : avec plusieurs centaines de Mo,
+    /// le praticien continue de travailler. `moment` : sauvegarde automatique, faite seulement si elle
+    /// est due ; sans lui, sauvegarde demandée. Rend `None` si rien n'a été sauvegardé.
+    pub fn sauvegarder(&self, moment: Option<Moment>) -> Result<Option<FichierSauvegarde>, String> {
+        let _copie = self.copie.lock().map_err(message)?;
+        let (instantane, dossier, conserver) = {
+            let garde = self.ouvert.lock().map_err(message)?;
+            let Some(ouvert) = garde.as_ref() else { return Ok(None) };
+            let preferences: PreferencesSauvegarde = ouvert.base.lire_parametre(PARAMETRE_SAUVEGARDES).map_err(message)?.unwrap_or_default();
+            let maintenant = osteosphere_core::base::maintenant();
+            if let Some(moment) = moment
+                && !sauvegardes::due(&ouvert.base, &preferences, moment, maintenant).map_err(message)?
+            {
+                return Ok(None);
+            }
+            let lecteur = self.cabinet.second_acces(ouvert).map_err(message)?;
+            let secours = self.cabinet.enveloppe_secours().map_err(message)?;
+            let instantane = sauvegardes::figer(&ouvert.base, lecteur, &self.cabinet.chemin_base(), &secours, env!("CARGO_PKG_VERSION"), maintenant)
+                .map_err(message)?;
+            (instantane, self.dossier_sauvegardes(&preferences), preferences.conserver as usize)
+        };
+        let journal = instantane.journal();
+        let fichier = instantane.ecrire(&dossier).map_err(message)?;
+        // `copie` tenu : le cabinet n'a pas pu être fermé pendant la copie.
+        self.avec_base(|base| sauvegardes::noter(base, &fichier, journal).map_err(message))?;
+        sauvegardes::purger(&dossier, conserver).map_err(message)?;
+        Ok(Some(fichier))
     }
 
     /// Sauvegarde automatique, si la fréquence choisie le demande et si quelque chose a changé.
     /// Une erreur est gardée pour les paramètres et le journal de l'application, jamais bloquante.
     pub fn sauvegarde_automatique(&self, moment: Moment) {
-        let resultat = (|| -> Result<(), String> {
-            let garde = self.ouvert.lock().map_err(message)?;
-            let Some(ouvert) = garde.as_ref() else { return Ok(()) };
-            let preferences: PreferencesSauvegarde = ouvert.base.lire_parametre(PARAMETRE_SAUVEGARDES).map_err(message)?.unwrap_or_default();
-            if sauvegardes::due(&ouvert.base, &preferences, moment, osteosphere_core::base::maintenant()).map_err(message)? {
-                self.sauvegarder(&ouvert.base)?;
-            }
-            Ok(())
-        })();
+        let resultat = self.sauvegarder(Some(moment));
         if let Ok(mut erreur) = self.erreur_sauvegarde.lock() {
             match resultat {
-                Ok(()) => {}
+                Ok(_) => {}
                 Err(texte) => {
                     log::warn!("sauvegarde automatique : {texte}");
                     *erreur = Some(texte);
@@ -145,17 +172,22 @@ impl EtatCabinet {
         Ok(code_court)
     }
 
-    /// Ferme le cabinet : la base est relâchée, le mot de passe sera redemandé.
+    /// Ferme le cabinet : la base est relâchée, le mot de passe sera redemandé. Une sauvegarde en
+    /// cours se termine d'abord.
     pub fn fermer(&self) -> Result<(), String> {
+        let _copie = self.copie.lock().map_err(message)?;
         *self.ouvert.lock().map_err(message)? = None;
         crate::pieces::effacer_copies_ouvertes(&self.dossier_copies());
         Ok(())
     }
 
     /// Remplace les données par la sauvegarde vérifiée, puis rouvre le cabinet.
-    pub fn restaurer(&self, restauration: Restauration) -> Result<IdentiteCabinet, String> {
-        // La base en place est relâchée avant d'être mise de côté.
-        *self.ouvert.lock().map_err(message)? = None;
+    pub fn restaurer(self: &Arc<Self>, restauration: Restauration) -> Result<IdentiteCabinet, String> {
+        // La base en place est relâchée avant d'être mise de côté, une sauvegarde en cours terminée.
+        {
+            let _copie = self.copie.lock().map_err(message)?;
+            *self.ouvert.lock().map_err(message)? = None;
+        }
         let ouvert = self
             .cabinet
             .restaurer(&restauration.copie, &restauration.cle, restauration.entete.secours, &Session)
@@ -163,7 +195,7 @@ impl EtatCabinet {
         self.garder_ouvert(ouvert)
     }
 
-    fn garder_ouvert(&self, ouvert: CabinetOuvert) -> Result<IdentiteCabinet, String> {
+    fn garder_ouvert(self: &Arc<Self>, ouvert: CabinetOuvert) -> Result<IdentiteCabinet, String> {
         let identite = ouvert.base.lire_parametre(PARAMETRE_IDENTITE).map_err(message)?.unwrap_or_default();
         // Une seule fois par cabinet : une trame de départ supprimée ne revient pas.
         trames::installer_bibliotheque_de_depart(&ouvert.base).map_err(message)?;
@@ -177,8 +209,9 @@ impl EtatCabinet {
         *self.ouvert.lock().map_err(message)? = Some(ouvert);
         // Ouvert par n'importe quel moyen : le code court du verrouillage précédent ne sert plus.
         *self.veille.lock().map_err(message)? = None;
-        // Sauvegarde « du jour » ou « de la semaine » : à la première ouverture.
-        self.sauvegarde_automatique(Moment::Ouverture);
+        // Sauvegarde « du jour » ou « de la semaine » : à la première ouverture, sans retarder l'accueil.
+        let etat = Arc::clone(self);
+        std::thread::spawn(move || etat.sauvegarde_automatique(Moment::Ouverture));
         Ok(identite)
     }
 

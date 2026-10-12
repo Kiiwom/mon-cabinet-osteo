@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { Exports } from "../composants/Exports";
+import { SuiteDeListe, useTranches } from "../composants/SuiteDeListe";
 import { dateDuJour, type Coeur, type Groupe, type ResumePatient } from "../lib/coeur";
 import { age, ageEnClair, dateCourte, neLe } from "../lib/dates";
 import { adresse, aller } from "../lib/navigation";
-import { doublonsProbables, rechercherPatients, type Surlignage } from "../lib/recherche";
+import { doublonsProbables, preparerRecherche, rechercherPatients, type Surlignage } from "../lib/recherche";
 import { colonne, feuilleVersCsv, type Feuille } from "../lib/tableur";
 import { Avatar } from "../patients/Avatar";
 import { groupesDe, PucesGroupes } from "../patients/Groupes";
@@ -148,6 +149,8 @@ export function PagePatients({ coeur, venueInitiale = "toutes" }: { coeur: Coeur
     coeur.listerGroupes().then(setGroupes, () => setGroupes([]));
   }, [coeur]);
 
+  // La saisie s'affiche aussitôt ; la liste suit dès que possible, sans retenir les lettres suivantes.
+  const cherche = useDeferredValue(texte);
   const resultats = useMemo(() => {
     if (!liste) return [];
     const aujourdhui = new Date();
@@ -161,12 +164,24 @@ export function PagePatients({ coeur, venueInitiale = "toutes" }: { coeur: Coeur
         gardeVenue(p.derniere_seance, aujourdhui) &&
         (filtreAge === "tous" || (p.naissance !== null && gardeAge(age(p.naissance).ans))),
     );
-    return rechercherPatients(filtres, texte);
-  }, [liste, texte, statut, groupe, venue, filtreAge, archives]);
+    return rechercherPatients(filtres, cherche);
+  }, [liste, cherche, statut, groupe, venue, filtreAge, archives]);
+  const [affiches, afficherPlus] = useTranches(JSON.stringify([cherche, statut, groupe, venue, filtreAge, archives]));
 
   const doublons = useMemo(() => (liste ? doublonsProbables(liste) : []), [liste]);
 
+  // Juste après l'affichage de la liste, la recherche se prépare : la première lettre tapée n'attend pas.
+  useEffect(() => {
+    if (!liste) return;
+    const preparation = setTimeout(() => preparerRecherche(liste), 50);
+    return () => clearTimeout(preparation);
+  }, [liste]);
+
   useEffect(() => setActif(0), [texte, statut, groupe, venue, filtreAge, archives]);
+  // Les flèches descendent au-delà des lignes affichées : la tranche suivante vient avec elles.
+  useEffect(() => {
+    if (actif >= affiches) afficherPlus();
+  }, [actif, affiches, afficherPlus]);
 
   if (erreur && liste === null) return <main className="page"><p className="alerte" role="alert">{erreur}</p></main>;
 
@@ -393,7 +408,7 @@ export function PagePatients({ coeur, venueInitiale = "toutes" }: { coeur: Coeur
               </tr>
             </thead>
             <tbody>
-              {resultats.map(({ patient: p, raison, surlignage }, rang) => (
+              {resultats.slice(0, affiches).map(({ patient: p, raison, surlignage }, rang) => (
                 <tr key={p.id} data-actif={texte.trim() !== "" && rang === actif} onClick={() => ouvrir(p)}>
                   <td>
                     <div className="cellule-patient">
@@ -432,6 +447,7 @@ export function PagePatients({ coeur, venueInitiale = "toutes" }: { coeur: Coeur
             </tbody>
           </table>
         )}
+        <SuiteDeListe affichees={Math.min(affiches, resultats.length)} total={resultats.length} afficherPlus={afficherPlus} nature="patients" />
         {liste !== null && liste.length > 0 && resultats.length > 0 && (
           <div className="pied-tableau">
             <span>

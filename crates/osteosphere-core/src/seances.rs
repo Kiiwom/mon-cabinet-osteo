@@ -41,7 +41,7 @@ impl TypeSeance {
         }
     }
 
-    fn depuis_texte(texte: &str) -> Self {
+    pub(crate) fn depuis_texte(texte: &str) -> Self {
         match texte {
             "premiere" => Self::Premiere,
             "urgence" => Self::Urgence,
@@ -571,9 +571,11 @@ pub fn lister_periode(base: &Base, du: &str, au: &str) -> Result<Vec<ResumeSeanc
 
 /// Séances à facturer qui n'ont pas encore de facture, brouillons compris, de la plus récente à la plus ancienne.
 pub fn lister_a_facturer(base: &Base) -> Result<Vec<ResumeSeance>, ErreurSeance> {
+    // Sous-requête lue dans les index seuls : seules les séances retenues sont ensuite lues en entier.
     lister_ou(
         base,
-        "s.facturation = 'a_facturer' AND s.importee = 0 AND s.supprimee_le IS NULL AND (f.id IS NULL OR f.etat = 'brouillon')",
+        "s.id IN (SELECT a.id FROM seances a WHERE a.facturation = 'a_facturer' AND a.importee = 0 AND a.supprimee_le IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM factures e WHERE e.seance_id = a.id AND e.nature = 'facture' AND e.etat = 'emise'))",
         &[],
     )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { lireInfosApplication, type InfosApplication } from "../lib/application";
 import {
@@ -17,7 +17,7 @@ import {
 import { dateCourte, ecrireDateFr } from "../lib/dates";
 import { euros, type ResumeFacture } from "../lib/facturation";
 import { adresse, aller } from "../lib/navigation";
-import { rechercherPatients } from "../lib/recherche";
+import { preparerRecherche, rechercherPatients } from "../lib/recherche";
 import { jourEnLettres } from "../lib/seances";
 import type { Statistiques } from "../lib/statistiques";
 import { momentEnLettres } from "../sauvegardes/Restauration";
@@ -232,12 +232,21 @@ function NouvelleSeance({ coeur, fermer }: { coeur: Coeur; fermer: () => void })
     coeur.listerPatients().then(setPatients, (e: Error) => setErreur(e.message));
   }, [coeur]);
 
-  const suivis = patients.filter((p) => !p.archive && !p.decede);
-  const proposes = texte.trim()
-    ? rechercherPatients(suivis, texte)
-        .slice(0, 6)
-        .map((r) => r.patient)
-    : [...suivis].sort((a, b) => (b.derniere_seance ?? "").localeCompare(a.derniere_seance ?? "")).slice(0, 6);
+  const suivis = useMemo(() => patients.filter((p) => !p.archive && !p.decede), [patients]);
+  useEffect(() => {
+    const preparation = setTimeout(() => preparerRecherche(suivis), 50);
+    return () => clearTimeout(preparation);
+  }, [suivis]);
+  const recents = useMemo(() => [...suivis].sort((a, b) => (b.derniere_seance ?? "").localeCompare(a.derniere_seance ?? "")).slice(0, 6), [suivis]);
+  const proposes = useMemo(
+    () =>
+      texte.trim()
+        ? rechercherPatients(suivis, texte)
+            .slice(0, 6)
+            .map((r) => r.patient)
+        : recents,
+    [suivis, recents, texte],
+  );
 
   const choisir = async (patient: ResumePatient | undefined) => {
     if (!patient || envoi) return;

@@ -6,13 +6,22 @@ use std::io::{self, Write};
 use std::path::Path;
 
 pub fn ecrire_atomiquement(chemin: &Path, contenu: &[u8]) -> io::Result<()> {
+    ecrire_atomiquement_par(chemin, |fichier| fichier.write_all(contenu))
+}
+
+/// Comme [`ecrire_atomiquement`], pour un contenu écrit par morceaux : une sauvegarde de plusieurs
+/// centaines de Mo n'a pas à tenir en mémoire.
+pub fn ecrire_atomiquement_par(chemin: &Path, ecrire: impl FnOnce(&mut File) -> io::Result<()>) -> io::Result<()> {
     let mut provisoire = chemin.as_os_str().to_owned();
     provisoire.push(".provisoire");
     let provisoire = Path::new(&provisoire);
     {
         let mut fichier = File::create(provisoire)?;
-        fichier.write_all(contenu)?;
-        fichier.sync_all()?;
+        if let Err(erreur) = ecrire(&mut fichier).and_then(|()| fichier.sync_all()) {
+            drop(fichier);
+            let _ = fs::remove_file(provisoire);
+            return Err(erreur);
+        }
     }
     fs::rename(provisoire, chemin)
 }

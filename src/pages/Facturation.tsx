@@ -23,6 +23,7 @@ import { bornesPeriode, decalerPeriode, isoDe, libellePeriode, surLaPeriode, typ
 import { normaliser } from "../lib/recherche";
 import { colonne, feuilleVersCsv, type Feuille } from "../lib/tableur";
 import { Exports } from "../composants/Exports";
+import { SuiteDeListe, useTranches } from "../composants/SuiteDeListe";
 
 export type OngletFacturation = "recettes" | "factures" | "a-facturer" | "en-attente";
 
@@ -571,6 +572,7 @@ function Factures({ coeur, periode }: { coeur: Coeur; periode: Periode }) {
     .filter(parMoyen)
     .filter((f) => !t || normaliser(`${f.numero ?? ""} ${f.destinataire} ${f.patient_prenom} ${f.patient_nom} ${f.designation}`).includes(t));
   const compte = (cle: FiltreFactures) => (factures ?? []).filter(garder[cle]).filter(parMoyen).length;
+  const [affichees, afficherPlus] = useTranches(JSON.stringify([du, au, filtre, moyen, t]));
 
   async function exporter(format: "xlsx" | "csv") {
     setErreur(null);
@@ -656,7 +658,7 @@ function Factures({ coeur, periode }: { coeur: Coeur; periode: Periode }) {
               </tr>
             </thead>
             <tbody>
-              {visibles.map((f) => (
+              {visibles.slice(0, affichees).map((f) => (
                 <tr key={f.id} onClick={() => aller("facturation", "facture", f.id)}>
                   <td className="sans-retour">
                     <a href={adresse("facturation", "facture", f.id)} onClick={(e) => e.stopPropagation()}>
@@ -683,6 +685,7 @@ function Factures({ coeur, periode }: { coeur: Coeur; periode: Periode }) {
             </tbody>
           </table>
         )}
+        <SuiteDeListe affichees={Math.min(affichees, visibles.length)} total={visibles.length} afficherPlus={afficherPlus} nature="documents" />
       </section>
     </>
   );

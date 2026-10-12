@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::base::{Base, ErreurBase};
 use crate::facturation::Moyen;
+use crate::modeles::{self, TypeChamp};
 use crate::numerotation::Date;
-use crate::seances::{self, Facturation, TypeSeance};
+use crate::seances::{Facturation, TypeSeance};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -139,8 +140,6 @@ pub struct Statistiques {
 pub enum ErreurStatistiques {
     #[error("période invalide : {0}")]
     Periode(String),
-    #[error("statistiques : {0}")]
-    Donnees(String),
     #[error(transparent)]
     Base(#[from] ErreurBase),
 }
@@ -200,6 +199,74 @@ fn seances_par_mois(base: &Base, du: &str, au: &str) -> Result<HashMap<String, i
         .collect::<Result<_, _>>()?)
 }
 
+/// Ce que les statistiques lisent d'une séance, sans le reste de son contenu.
+struct SeanceComptee {
+    patient_id: String,
+    debut: String,
+    type_seance: TypeSeance,
+    facturation: Facturation,
+    douleur_avant: Option<f64>,
+    douleur_apres: Option<f64>,
+}
+
+/// Séances commencées entre deux dates comprises, corbeille exclue. La douleur est lue par SQLite dans
+/// le champ qui porte ce rôle dans la version du modèle : avec 50 000 séances, décoder chacune en
+/// entier prendrait plusieurs secondes.
+fn seances_comptees(base: &Base, du: &str, au: &str) -> Result<Vec<SeanceComptee>, ErreurStatistiques> {
+    let versions: Vec<(String, i64)> =
+        base.connexion().prepare("SELECT modele_id, version FROM versions_modeles")?.query_map([], |l| Ok((l.get(0)?, l.get(1)?)))?.collect::<Result<_, _>>()?;
+    let mut roles: Vec<(String, i64, Option<String>, Option<String>)> = Vec::new();
+    for (modele, version) in versions {
+        let Ok(definition) = modeles::lire_version(base, &modele, version) else { continue };
+        let chemin = |role: &str| {
+            definition
+                .champs
+                .iter()
+                .find(|c| c.role == role && c.type_champ == TypeChamp::Curseur)
+                .map(|c| format!("$.\"{}\"", c.id.replace('"', "")))
+        };
+        let (avant, apres) = (chemin("douleur_avant"), chemin("douleur_apres"));
+        if avant.is_some() || apres.is_some() {
+            roles.push((modele, version, avant, apres));
+        }
+    }
+    // Une ligne vide quand aucun modèle ne note la douleur : VALUES en demande au moins une.
+    let lignes = if roles.is_empty() {
+        "(NULL, NULL, NULL, NULL)".to_owned()
+    } else {
+        (0..roles.len()).map(|i| format!("(?{}, ?{}, ?{}, ?{})", 3 + 4 * i, 4 + 4 * i, 5 + 4 * i, 6 + 4 * i)).collect::<Vec<_>>().join(", ")
+    };
+    let fin = format!("{au}T99");
+    let mut parametres: Vec<&dyn rusqlite::ToSql> = vec![&du, &fin];
+    for (modele, version, avant, apres) in &roles {
+        parametres.extend([modele as &dyn rusqlite::ToSql, version, avant, apres]);
+    }
+    let mut requete = base.connexion().prepare(&format!(
+        "WITH roles (modele_id, version, avant, apres) AS (VALUES {lignes})
+         SELECT s.patient_id, s.debut, s.type, s.facturation, json_extract(s.valeurs, r.avant), json_extract(s.valeurs, r.apres)
+         FROM seances s LEFT JOIN roles r ON r.modele_id = s.modele_id AND r.version = s.modele_version
+         WHERE s.supprimee_le IS NULL AND s.debut >= ?1 AND s.debut < ?2"
+    ))?;
+    let nombre = |valeur: rusqlite::types::Value| match valeur {
+        rusqlite::types::Value::Integer(n) => Some(n as f64),
+        rusqlite::types::Value::Real(n) => Some(n),
+        _ => None,
+    };
+    let seances = requete
+        .query_map(parametres.as_slice(), |l| {
+            Ok(SeanceComptee {
+                patient_id: l.get(0)?,
+                debut: l.get(1)?,
+                type_seance: TypeSeance::depuis_texte(&l.get::<_, String>(2)?),
+                facturation: if l.get::<_, String>(3)? == "gratuit" { Facturation::Gratuit } else { Facturation::AFacturer },
+                douleur_avant: nombre(l.get(4)?),
+                douleur_apres: nombre(l.get(5)?),
+            })
+        })?
+        .collect::<Result<_, _>>()?;
+    Ok(seances)
+}
+
 /// Patients dont la première séance (corbeille exclue) tombe entre deux dates comprises.
 fn nouveaux(premieres: &HashMap<String, String>, du: &str, au: &str) -> i64 {
     premieres.values().filter(|d| d.as_str() >= du && d.as_str() <= au).count() as i64
@@ -232,7 +299,7 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
     let ca_p_decale: HashMap<String, i64> = ca_p.iter().map(|(m, v)| (decaler(m), *v)).collect();
     let sm_p_decale: HashMap<String, i64> = sm_p.iter().map(|(m, v)| (decaler(m), *v)).collect();
 
-    let liste = seances::lister_periode(base, du, au).map_err(|e| ErreurStatistiques::Donnees(e.to_string()))?;
+    let liste = seances_comptees(base, du, au)?;
     let premieres: HashMap<String, String> = base
         .connexion()
         .prepare("SELECT patient_id, min(substr(debut, 1, 10)) FROM seances WHERE supprimee_le IS NULL GROUP BY patient_id")?
@@ -280,7 +347,8 @@ pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result
         base.connexion().query_row("SELECT count(*) FROM seances WHERE supprimee_le IS NULL AND debut >= ?1 AND debut < ?2", [du_p.as_str(), fin_p.as_str()], |l| l.get(0))?;
     let facturees = liste.iter().filter(|s| s.facturation == Facturation::AFacturer).count() as i64;
     let facturees_p: i64 = base.connexion().query_row(
-        "SELECT count(*) FROM seances WHERE supprimee_le IS NULL AND facturation = 'a_facturer' AND debut >= ?1 AND debut < ?2",
+        // « +facturation » : la période choisit l'index, pas la nature de la séance, partagée par presque toutes.
+        "SELECT count(*) FROM seances WHERE supprimee_le IS NULL AND +facturation = 'a_facturer' AND debut >= ?1 AND debut < ?2",
         [du_p.as_str(), fin_p.as_str()],
         |l| l.get(0),
     )?;
@@ -475,9 +543,8 @@ mod tests {
     use crate::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
     use crate::chiffrement::CleDonnees;
     use crate::facturation::{self, LigneFacture, SaisieReglement};
-    use crate::modeles;
     use crate::patients::{self, FichePatient};
-    use crate::seances::SaisieSeance;
+    use crate::seances::{self, SaisieSeance};
 
     #[test]
     fn compare_a_l_annee_precedente_et_decrit_la_patientele() {

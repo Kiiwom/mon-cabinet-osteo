@@ -310,6 +310,12 @@ impl Cabinet {
         Ok(ouvert)
     }
 
+    /// Seconde connexion à la base déjà ouverte : une sauvegarde la lit pendant que le praticien
+    /// continue d'écrire par la première.
+    pub fn second_acces(&self, ouvert: &CabinetOuvert) -> Result<Base, ErreurCabinet> {
+        Ok(Base::ouvrir(&self.chemin_base(), &ouvert.cle)?)
+    }
+
     pub fn ouvrir_avec_mot_de_passe(&self, mot_de_passe: &str) -> Result<CabinetOuvert, ErreurCabinet> {
         let trousseau = Trousseau::charger(&self.chemin_trousseau())?;
         let cle = trousseau.ouvrir_avec_mot_de_passe(mot_de_passe).map_err(|erreur| match erreur {

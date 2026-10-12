@@ -6,7 +6,7 @@
 //! le dernier numéro du journal est gardé avec elle.
 
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -143,7 +143,8 @@ fn nom_libre(dossier: &Path, maintenant: i64) -> PathBuf {
     chemin
 }
 
-/// Écrit une sauvegarde de la base ouverte dans le dossier choisi.
+/// Écrit une sauvegarde de la base ouverte dans le dossier choisi, en retenant la base le temps de
+/// la copie : pour une sauvegarde qui ne doit rien manquer, juste avant un import par exemple.
 ///
 /// La base est d'abord ramenée dans son fichier principal (point de contrôle du journal WAL),
 /// puis copiée telle quelle : elle reste chiffrée par la clé de la base.
@@ -155,29 +156,98 @@ pub fn ecrire(
     logiciel: &str,
     maintenant: i64,
 ) -> Result<FichierSauvegarde, ErreurSauvegarde> {
-    fs::create_dir_all(dossier)?;
-    base.connexion().query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
-    let journal = dernier_journal(base)?;
-    let donnees = fs::read(chemin_base)?;
-    let entete = Entete {
+    point_de_controle(base)?;
+    let entete = entete(base, secours, logiciel, maintenant)?;
+    let fichier = copier(chemin_base, &entete, dossier)?;
+    noter(base, &fichier, entete.journal)?;
+    Ok(fichier)
+}
+
+/// Base figée pour une sauvegarde : tant que l'instantané existe, le fichier de la base ne change plus
+/// et se copie sans retenir le cabinet, qui reste utilisable pendant la copie.
+pub struct Instantane {
+    /// Seconde connexion à la base, avec une lecture ouverte.
+    lecteur: Base,
+    chemin_base: PathBuf,
+    entete: Entete,
+}
+
+/// Fige la base pour la sauvegarder. Le point de contrôle ramène tout le journal WAL dans le fichier
+/// de la base ; la lecture ouverte ensuite par `lecteur`, une seconde connexion à la même base,
+/// empêche tout point de contrôle d'y écrire jusqu'à la fin de la copie. Les saisies faites pendant
+/// la copie vont au journal WAL : elles seront dans la sauvegarde suivante.
+///
+/// À appeler en retenant la base : rien ne doit s'écrire entre le point de contrôle et la lecture.
+pub fn figer(
+    base: &Base,
+    lecteur: Base,
+    chemin_base: &Path,
+    secours: &Enveloppe,
+    logiciel: &str,
+    maintenant: i64,
+) -> Result<Instantane, ErreurSauvegarde> {
+    point_de_controle(base)?;
+    lecteur.connexion().execute_batch("BEGIN")?;
+    let entete = entete(&lecteur, secours, logiciel, maintenant)?;
+    Ok(Instantane { lecteur, chemin_base: chemin_base.to_owned(), entete })
+}
+
+impl Instantane {
+    /// Dernière modification comprise dans la sauvegarde.
+    pub fn journal(&self) -> i64 {
+        self.entete.journal
+    }
+
+    /// Copie la base figée dans le dossier, puis la relâche.
+    pub fn ecrire(self, dossier: &Path) -> Result<FichierSauvegarde, ErreurSauvegarde> {
+        let fichier = copier(&self.chemin_base, &self.entete, dossier);
+        drop(self.lecteur);
+        fichier
+    }
+}
+
+/// Note la sauvegarde écrite : la sauvegarde automatique suivante attend une nouvelle modification.
+pub fn noter(base: &Base, fichier: &FichierSauvegarde, journal: i64) -> Result<(), ErreurSauvegarde> {
+    base.ecrire_parametre(PARAMETRE_DERNIERE, &DerniereSauvegarde { le: fichier.cree_le, journal, fichier: fichier.chemin.clone() })?;
+    Ok(())
+}
+
+fn point_de_controle(base: &Base) -> Result<(), ErreurSauvegarde> {
+    let bloque: i64 = base.connexion().query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |l| l.get(0))?;
+    if bloque != 0 {
+        return Err(ErreurSauvegarde::Fichier(io::Error::other("la base est occupée par une autre sauvegarde : réessayez dans un instant")));
+    }
+    Ok(())
+}
+
+fn entete(base: &Base, secours: &Enveloppe, logiciel: &str, maintenant: i64) -> Result<Entete, ErreurSauvegarde> {
+    Ok(Entete {
         format: FORMAT,
         cree_le: maintenant,
         logiciel: logiciel.to_owned(),
         schema: base.version_schema()?,
-        journal,
+        journal: dernier_journal(base)?,
         secours: secours.clone(),
-    };
-    let entete_json = serde_json::to_vec(&entete)?;
-    let mut contenu = Vec::with_capacity(MAGIE.len() + 4 + entete_json.len() + donnees.len());
-    contenu.extend_from_slice(MAGIE);
-    contenu.extend_from_slice(&(entete_json.len() as u32).to_le_bytes());
-    contenu.extend_from_slice(&entete_json);
-    contenu.extend_from_slice(&donnees);
-    let chemin = nom_libre(dossier, maintenant);
-    fichier::ecrire_atomiquement(&chemin, &contenu)?;
+    })
+}
+
+/// En-tête puis fichier de la base, copié par morceaux.
+fn copier(chemin_base: &Path, entete: &Entete, dossier: &Path) -> Result<FichierSauvegarde, ErreurSauvegarde> {
+    fs::create_dir_all(dossier)?;
+    let entete_json = serde_json::to_vec(entete)?;
+    let mut donnees = fs::File::open(chemin_base)?;
+    let chemin = nom_libre(dossier, entete.cree_le);
+    let mut taille = 0;
+    fichier::ecrire_atomiquement_par(&chemin, |sortie| {
+        sortie.write_all(MAGIE)?;
+        sortie.write_all(&(entete_json.len() as u32).to_le_bytes())?;
+        sortie.write_all(&entete_json)?;
+        let copies = io::copy(&mut donnees, sortie)?;
+        taille = (MAGIE.len() + 4 + entete_json.len()) as u64 + copies;
+        Ok(())
+    })?;
     let nom = chemin.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    base.ecrire_parametre(PARAMETRE_DERNIERE, &DerniereSauvegarde { le: maintenant, journal, fichier: chemin.display().to_string() })?;
-    Ok(FichierSauvegarde { chemin: chemin.display().to_string(), nom, cree_le: maintenant, taille: contenu.len() as u64, logiciel: logiciel.to_owned() })
+    Ok(FichierSauvegarde { chemin: chemin.display().to_string(), nom, cree_le: entete.cree_le, taille, logiciel: entete.logiciel.clone() })
 }
 
 /// L'en-tête et le début des données de la base.
@@ -374,6 +444,32 @@ mod tests {
         assert!(matches!(ouvrir(&sauvegardes.join("faux.osteosauve"), &secours, &travail), Err(ErreurSauvegarde::PasUneSauvegarde)));
         assert_eq!(purger(&sauvegardes, 1).unwrap(), 1);
         assert_eq!(lister(&sauvegardes).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn une_base_figee_se_copie_pendant_que_le_praticien_ecrit() {
+        let dossier = tempfile::tempdir().unwrap();
+        let (cabinet, secours) = cabinet(&dossier.path().join("cabinet"));
+        let Ouverture::Ouvert(ouvert) = cabinet.ouvrir_automatiquement(&SessionFactice(1)).unwrap() else { panic!() };
+        let lecteur = cabinet.second_acces(&ouvert).unwrap();
+        let instantane = figer(&ouvert.base, lecteur, &cabinet.chemin_base(), &enveloppe(cabinet.dossier()), "0.8.0", 1_791_397_800).unwrap();
+        // Pendant la copie, le praticien continue : assez d'écritures pour qu'un point de contrôle
+        // automatique (1 000 pages, 4 Mo) essaie de les reporter dans le fichier de la base.
+        let journal = instantane.journal();
+        for rang in 0..600 {
+            let remarques = format!("{rang} {}", "x".repeat(8_000));
+            patients::creer(&ouvert.base, &FichePatient { nom: "Petit".into(), prenom: "Louis".into(), remarques, ..Default::default() }).unwrap();
+        }
+        let f = instantane.ecrire(&dossier.path().join("s")).unwrap();
+        noter(&ouvert.base, &f, journal).unwrap();
+
+        // La sauvegarde est la base telle qu'elle était figée, saine ; la base, elle, a tout gardé.
+        let (_, _, copie, apercu) = ouvrir(Path::new(&f.chemin), &secours, &dossier.path().join("travail")).unwrap();
+        assert_eq!(apercu.patients, 1);
+        effacer_copie(&copie).unwrap();
+        assert_eq!(patients::lister(&ouvert.base).unwrap().len(), 601);
+        assert_eq!(derniere(&ouvert.base).unwrap().unwrap().journal, journal);
+        assert_eq!(fs::metadata(&f.chemin).unwrap().len(), f.taille);
     }
 
     #[test]
