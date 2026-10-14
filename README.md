@@ -100,9 +100,9 @@ Les installateurs sont signés pour la mise à jour en un clic. La clé privée 
 5. Statistiques, sauvegardes chiffrées et restauration, sécurité, export complet, journal, import depuis MonCabinetLibéral, accueil personnalisable, **terminée le 7 octobre 2026**. Compléments du cahier des charges en neuf lots, jusqu'à la version 0.8 du 12 octobre 2026 : imports LibreOsteo et tableur, apparence, verrouillage automatique, exigences mesurées sur 10 000 patients, contrastes, mises à jour signées. **En attente de l'essai.**
 6. Essai réel au cabinet sur une copie des données, puis V1.
 
-## Version 0.4
+## Ancienne application (version 0.4)
 
-L'ancienne application Python (version 0.4.0, nommée « Mon Cabinet d'Ostéo ») reste dans l'historique du dépôt, au commit `9e26078`. Ses règles de numérotation et d'import servent de référence à la nouvelle base.
+L'ancienne application Python (version 0.4.0, nommée « Mon Cabinet d'Ostéo ») est archivée : elle n'est plus maintenue et Osteosphere la remplace. Son code reste dans l'historique du dépôt, au commit `9e26078`. Ses règles de numérotation et d'import servent de référence à la nouvelle base.
 
 ## Licence
 
