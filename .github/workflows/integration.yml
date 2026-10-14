@@ -1,0 +1,90 @@
+name: Intégration continue
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  interface:
+    name: Interface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  coeur:
+    name: Cœur Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Sous Linux, la protection par la session passe par un trousseau : un trousseau GNOME
+      # neuf, déverrouillé, dans une session D-Bus propre aux tests.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gnome-keyring dbus
+      - run: |
+          dbus-run-session -- sh -c '
+            printf essai | gnome-keyring-daemon --unlock --components=secrets --daemonize >/dev/null &&
+            cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session -p osteosphere-courriel'
+
+  linux:
+    name: Paquet Linux
+    # Compilé sur la plus ancienne Ubuntu LTS suivie : le paquet s'installe aussi sur les suivantes.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run tauri build -- --bundles deb
+      - name: Taille du paquet (moins de 30 Mo)
+        run: sh outils/taille-installateurs.sh target/release/bundle/deb/*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: osteosphere-linux
+          path: target/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+  windows:
+    name: Installateur Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # OpenSSL, compilé avec SQLCipher, a besoin de NASM sous Windows.
+      - uses: ilammy/setup-nasm@v1
+      - run: npm ci
+      - run: cargo test -p osteosphere-core -p osteosphere-documents -p osteosphere-session -p osteosphere-courriel
+      - run: npm run tauri build
+      - name: Taille des installateurs (moins de 30 Mo)
+        shell: bash
+        run: sh outils/taille-installateurs.sh target/release/bundle/nsis/*.exe target/release/bundle/msi/*.msi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: osteosphere-windows
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi
+          if-no-files-found: error

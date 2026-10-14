@@ -1,0 +1,69 @@
+//! Cœur d'Osteosphere, sans interface.
+//!
+//! - [`cabinet`] : ouverture du cabinet au démarrage, premier démarrage, mot de passe facultatif.
+//! - [`base`] : base SQLite chiffrée par SQLCipher, migrations du schéma, paramètres.
+//! - [`chiffrement`] : clé de la base et enveloppes qui la protègent.
+//! - [`cle_de_secours`] : clé imprimable remise au premier démarrage.
+//! - [`trousseau`] : enveloppes rangées à côté de la base (clé de secours, session, mot de passe).
+//! - [`numerotation`] : numéros de facture continus et chronologiques.
+//! - [`trames`] : textes réutilisables appelés par un code court pendant la saisie.
+//! - [`patients`] : dossiers patients, identité, profil, remarques, statuts, archives.
+//! - [`groupes`] : groupes de patients colorés, utilisables comme filtres.
+//! - [`familles`] : liens familiaux entre dossiers, factures adressées à un parent.
+//! - [`dossiers`] : fusion de deux dossiers, effacement définitif, historique des modifications.
+//! - [`antecedents`] : antécédents par catégorie et rubrique, datés ou non.
+//! - [`modeles`] : modèles de consultation versionnés, modèles fournis.
+//! - [`seances`] : séances enregistrées au fil de la saisie, corbeille de 30 jours.
+//! - [`prestations`] : actes proposés à la facturation, avec leur tarif.
+//! - [`facturation`] : factures et avoirs numérotés, règlements, recettes.
+//! - [`sauvegardes`] : sauvegardes chiffrées, automatiques si quelque chose a changé, restauration.
+//! - [`export`] : export complet en CSV et JSON, journal consultable.
+//! - [`statistiques`] : chiffre d'affaires, activité et patientèle, comparés à l'année précédente.
+//! - [`import_mcl`] : reprise des données de MonCabinetLibéral.
+//! - [`import_libreosteo`] : reprise des patients, séances et documents de LibreOsteo.
+//! - [`import_tableur`] : liste de patients depuis un tableur CSV, Excel ou LibreOffice.
+//! - [`accueil`] : blocs de l'accueil et pense-bêtes.
+//! - [`documents`] : pièces jointes du dossier, chiffrées dans la base, corbeille de 30 jours.
+//! - [`mise_en_page`] : logo, signature et couleur des factures et des comptes rendus.
+//! - [`preferences`] : préférences de saisie et apparence.
+//! - [`verrouillage`] : verrouillage après inactivité et code court, avec le mot de passe.
+//!
+//! Ce code ne manipule que des données fictives dans ses tests.
+
+pub mod accueil;
+pub mod antecedents;
+pub mod base;
+pub mod cabinet;
+pub mod chiffrement;
+pub mod cle_de_secours;
+pub mod documents;
+pub mod dossiers;
+pub mod emails;
+pub mod export;
+pub mod facturation;
+pub mod familles;
+mod fichier;
+pub mod groupes;
+mod hexa;
+pub mod horloge;
+pub mod identifiant;
+pub mod import_commun;
+pub mod import_libreosteo;
+pub mod import_mcl;
+pub mod import_tableur;
+pub mod mise_en_page;
+pub mod modeles;
+pub mod numerotation;
+pub mod patients;
+pub mod preferences;
+pub mod prestations;
+pub mod sauvegardes;
+pub mod seances;
+pub mod statistiques;
+pub mod trames;
+pub mod trousseau;
+pub mod verrouillage;
+pub mod vocabulaire;
+
+/// Version du cœur, affichée dans « À propos ».
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");

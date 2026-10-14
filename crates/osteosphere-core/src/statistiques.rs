@@ -1,0 +1,649 @@
+//! Statistiques du cabinet sur une période, comparées à la même période de l'année précédente.
+//!
+//! Le chiffre d'affaires se compte à la date d'encaissement des règlements (ce qui est entré en
+//! caisse) ou à la date des factures et avoirs émis, au choix. L'historique importé compte comme
+//! le reste.
+
+use std::collections::{HashMap, HashSet};
+
+use rusqlite::OptionalExtension;
+use serde::{Deserialize, Serialize};
+
+use crate::base::{Base, ErreurBase};
+use crate::facturation::Moyen;
+use crate::modeles::{self, TypeChamp};
+use crate::numerotation::Date;
+use crate::seances::{Facturation, TypeSeance};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BaseChiffre {
+    #[default]
+    Encaissement,
+    Facture,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+pub struct Comparaison {
+    pub valeur: i64,
+    pub precedent: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Mois {
+    /// `AAAA-MM`.
+    pub mois: String,
+    pub chiffre: i64,
+    pub chiffre_precedent: i64,
+    pub seances: i64,
+    pub seances_precedent: i64,
+    /// Premières séances du mois, les autres étant des suivis.
+    pub premieres: i64,
+    /// Patients dont la toute première séance tombe dans le mois.
+    pub nouveaux: i64,
+    pub nouveaux_precedent: i64,
+}
+
+/// Une semaine de la période, du lundi au dimanche.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Semaine {
+    /// Le lundi, `AAAA-MM-JJ`, parfois avant le début de la période.
+    pub lundi: String,
+    pub seances: i64,
+    pub premieres: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Compte {
+    pub libelle: String,
+    pub nombre: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ParMoyen {
+    pub moyen: Moyen,
+    pub montant: i64,
+    pub nombre: i64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct Sexes {
+    pub femmes: i64,
+    pub hommes: i64,
+    pub non_renseigne: i64,
+}
+
+/// Patients suivis (ni archivés ni décédés) selon leur dernière séance, comptée depuis la fin de la
+/// période : actifs s'ils sont venus dans l'année, dormants entre un et deux ans, inactifs au-delà.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct Recence {
+    pub actifs: i64,
+    pub dormants: i64,
+    pub inactifs: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct PatientSuivi {
+    pub id: String,
+    pub nom: String,
+    pub prenom: String,
+    pub seances: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Douleur {
+    /// Séances où la douleur est notée avant et après.
+    pub seances: i64,
+    pub avant: f64,
+    pub apres: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Statistiques {
+    pub du: String,
+    pub au: String,
+    pub du_precedent: String,
+    pub au_precedent: String,
+    pub base: BaseChiffre,
+    /// Centimes.
+    pub chiffre: Comparaison,
+    pub seances: Comparaison,
+    /// Chiffre d'affaires par séance facturée, en centimes.
+    pub panier_moyen: Comparaison,
+    /// Patients dont la toute première séance tombe dans la période.
+    pub nouveaux_patients: Comparaison,
+    pub par_mois: Vec<Mois>,
+    /// Encaissements de la période, par moyen de paiement.
+    pub moyens: Vec<ParMoyen>,
+    /// Patients venus au moins une fois dans la période.
+    pub patients_actifs: i64,
+    pub age_moyen: Option<f64>,
+    pub ages: Vec<Compte>,
+    pub sexes: Sexes,
+    pub recence: Recence,
+    pub seances_par_patient: f64,
+    pub premieres_seances: i64,
+    pub actes_gratuits: i64,
+    pub villes: Vec<Compte>,
+    pub antecedents: Vec<Compte>,
+    pub patients_suivis: Vec<PatientSuivi>,
+    pub douleur: Option<Douleur>,
+    /// Séances par jour de la semaine, du lundi au dimanche.
+    pub jours: Vec<Compte>,
+    /// Séances par jour (du lundi au dimanche) et par heure de début (de 0 à 23 h).
+    pub creneaux: Vec<[i64; 24]>,
+    /// Chaque semaine qui touche la période, dans l'ordre.
+    pub par_semaine: Vec<Semaine>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ErreurStatistiques {
+    #[error("période invalide : {0}")]
+    Periode(String),
+    #[error(transparent)]
+    Base(#[from] ErreurBase),
+}
+
+impl From<rusqlite::Error> for ErreurStatistiques {
+    fn from(erreur: rusqlite::Error) -> Self {
+        Self::Base(erreur.into())
+    }
+}
+
+const TRANCHES: [(i32, &str); 8] = [
+    (3, "Moins de 3 ans"),
+    (12, "3 à 11 ans"),
+    (18, "12 à 17 ans"),
+    (30, "18 à 29 ans"),
+    (45, "30 à 44 ans"),
+    (60, "45 à 59 ans"),
+    (75, "60 à 74 ans"),
+    (i32::MAX, "75 ans et plus"),
+];
+const JOURS: [&str; 7] = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+/// La même date un an plus tôt ; le 29 février devient le 28.
+fn un_an_avant(date: Date) -> Date {
+    let jour = if date.mois() == 2 && date.jour() == 29 { 28 } else { date.jour() };
+    Date::lire(&format!("{:04}-{:02}-{:02}", date.annee() - 1, date.mois(), jour)).unwrap_or(date)
+}
+
+/// Âge en années révolues à une date.
+fn age_le(naissance: Date, date: Date) -> i32 {
+    let mut age = date.annee() - naissance.annee();
+    if (date.mois(), date.jour()) < (naissance.mois(), naissance.jour()) {
+        age -= 1;
+    }
+    age
+}
+
+fn chiffre_par_mois(base: &Base, chiffre: BaseChiffre, du: &str, au: &str) -> Result<HashMap<String, i64>, ErreurStatistiques> {
+    let requete = match chiffre {
+        BaseChiffre::Encaissement => {
+            "SELECT substr(encaisse_le, 1, 7), sum(montant_centimes) FROM reglements WHERE encaisse_le >= ?1 AND encaisse_le <= ?2 GROUP BY 1"
+        }
+        BaseChiffre::Facture => {
+            "SELECT substr(date_emission, 1, 7), sum(total_centimes) FROM factures
+             WHERE numero IS NOT NULL AND date_emission >= ?1 AND date_emission <= ?2 GROUP BY 1"
+        }
+    };
+    Ok(base.connexion().prepare(requete)?.query_map([du, au], |l| Ok((l.get(0)?, l.get(1)?)))?.collect::<Result<_, _>>()?)
+}
+
+fn seances_par_mois(base: &Base, du: &str, au: &str) -> Result<HashMap<String, i64>, ErreurStatistiques> {
+    let fin = format!("{au}T99");
+    Ok(base
+        .connexion()
+        .prepare("SELECT substr(debut, 1, 7), count(*) FROM seances WHERE supprimee_le IS NULL AND debut >= ?1 AND debut < ?2 GROUP BY 1")?
+        .query_map([du, fin.as_str()], |l| Ok((l.get(0)?, l.get(1)?)))?
+        .collect::<Result<_, _>>()?)
+}
+
+/// Ce que les statistiques lisent d'une séance, sans le reste de son contenu.
+struct SeanceComptee {
+    patient_id: String,
+    debut: String,
+    type_seance: TypeSeance,
+    facturation: Facturation,
+    douleur_avant: Option<f64>,
+    douleur_apres: Option<f64>,
+}
+
+/// Séances commencées entre deux dates comprises, corbeille exclue. La douleur est lue par SQLite dans
+/// le champ qui porte ce rôle dans la version du modèle : avec 50 000 séances, décoder chacune en
+/// entier prendrait plusieurs secondes.
+fn seances_comptees(base: &Base, du: &str, au: &str) -> Result<Vec<SeanceComptee>, ErreurStatistiques> {
+    let versions: Vec<(String, i64)> =
+        base.connexion().prepare("SELECT modele_id, version FROM versions_modeles")?.query_map([], |l| Ok((l.get(0)?, l.get(1)?)))?.collect::<Result<_, _>>()?;
+    let mut roles: Vec<(String, i64, Option<String>, Option<String>)> = Vec::new();
+    for (modele, version) in versions {
+        let Ok(definition) = modeles::lire_version(base, &modele, version) else { continue };
+        let chemin = |role: &str| {
+            definition
+                .champs
+                .iter()
+                .find(|c| c.role == role && c.type_champ == TypeChamp::Curseur)
+                .map(|c| format!("$.\"{}\"", c.id.replace('"', "")))
+        };
+        let (avant, apres) = (chemin("douleur_avant"), chemin("douleur_apres"));
+        if avant.is_some() || apres.is_some() {
+            roles.push((modele, version, avant, apres));
+        }
+    }
+    // Une ligne vide quand aucun modèle ne note la douleur : VALUES en demande au moins une.
+    let lignes = if roles.is_empty() {
+        "(NULL, NULL, NULL, NULL)".to_owned()
+    } else {
+        (0..roles.len()).map(|i| format!("(?{}, ?{}, ?{}, ?{})", 3 + 4 * i, 4 + 4 * i, 5 + 4 * i, 6 + 4 * i)).collect::<Vec<_>>().join(", ")
+    };
+    let fin = format!("{au}T99");
+    let mut parametres: Vec<&dyn rusqlite::ToSql> = vec![&du, &fin];
+    for (modele, version, avant, apres) in &roles {
+        parametres.extend([modele as &dyn rusqlite::ToSql, version, avant, apres]);
+    }
+    let mut requete = base.connexion().prepare(&format!(
+        "WITH roles (modele_id, version, avant, apres) AS (VALUES {lignes})
+         SELECT s.patient_id, s.debut, s.type, s.facturation, json_extract(s.valeurs, r.avant), json_extract(s.valeurs, r.apres)
+         FROM seances s LEFT JOIN roles r ON r.modele_id = s.modele_id AND r.version = s.modele_version
+         WHERE s.supprimee_le IS NULL AND s.debut >= ?1 AND s.debut < ?2"
+    ))?;
+    let nombre = |valeur: rusqlite::types::Value| match valeur {
+        rusqlite::types::Value::Integer(n) => Some(n as f64),
+        rusqlite::types::Value::Real(n) => Some(n),
+        _ => None,
+    };
+    let seances = requete
+        .query_map(parametres.as_slice(), |l| {
+            Ok(SeanceComptee {
+                patient_id: l.get(0)?,
+                debut: l.get(1)?,
+                type_seance: TypeSeance::depuis_texte(&l.get::<_, String>(2)?),
+                facturation: if l.get::<_, String>(3)? == "gratuit" { Facturation::Gratuit } else { Facturation::AFacturer },
+                douleur_avant: nombre(l.get(4)?),
+                douleur_apres: nombre(l.get(5)?),
+            })
+        })?
+        .collect::<Result<_, _>>()?;
+    Ok(seances)
+}
+
+/// Patients dont la première séance (corbeille exclue) tombe entre deux dates comprises.
+fn nouveaux(premieres: &HashMap<String, String>, du: &str, au: &str) -> i64 {
+    premieres.values().filter(|d| d.as_str() >= du && d.as_str() <= au).count() as i64
+}
+
+fn haut_du_classement(mut comptes: HashMap<String, i64>, nombre: usize) -> Vec<Compte> {
+    let mut liste: Vec<Compte> = comptes.drain().filter(|(l, _)| !l.trim().is_empty()).map(|(libelle, nombre)| Compte { libelle, nombre }).collect();
+    liste.sort_by(|a, b| b.nombre.cmp(&a.nombre).then(a.libelle.cmp(&b.libelle)));
+    liste.truncate(nombre);
+    liste
+}
+
+/// Les statistiques entre deux dates comprises (`AAAA-MM-JJ`).
+pub fn calculer(base: &Base, du: &str, au: &str, chiffre: BaseChiffre) -> Result<Statistiques, ErreurStatistiques> {
+    let debut = Date::lire(du).map_err(|e| ErreurStatistiques::Periode(e.to_string()))?;
+    let fin = Date::lire(au).map_err(|e| ErreurStatistiques::Periode(e.to_string()))?;
+    if fin < debut {
+        return Err(ErreurStatistiques::Periode("la fin précède le début".into()));
+    }
+    let (du_p, au_p) = (un_an_avant(debut).to_string(), un_an_avant(fin).to_string());
+
+    let ca = chiffre_par_mois(base, chiffre, du, au)?;
+    let ca_p = chiffre_par_mois(base, chiffre, &du_p, &au_p)?;
+    let sm = seances_par_mois(base, du, au)?;
+    let sm_p = seances_par_mois(base, &du_p, &au_p)?;
+    let decaler = |mois: &str| -> String {
+        let annee: i32 = mois[..4].parse().unwrap_or(0);
+        format!("{}{}", annee + 1, &mois[4..])
+    };
+    let ca_p_decale: HashMap<String, i64> = ca_p.iter().map(|(m, v)| (decaler(m), *v)).collect();
+    let sm_p_decale: HashMap<String, i64> = sm_p.iter().map(|(m, v)| (decaler(m), *v)).collect();
+
+    let liste = seances_comptees(base, du, au)?;
+    let premieres: HashMap<String, String> = base
+        .connexion()
+        .prepare("SELECT patient_id, min(substr(debut, 1, 10)) FROM seances WHERE supprimee_le IS NULL GROUP BY patient_id")?
+        .query_map([], |l| Ok((l.get(0)?, l.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    let mut nouveaux_mois: HashMap<String, i64> = HashMap::new();
+    let mut nouveaux_mois_p: HashMap<String, i64> = HashMap::new();
+    for date in premieres.values() {
+        if date.as_str() >= du && date.as_str() <= au {
+            *nouveaux_mois.entry(date[..7].to_owned()).or_default() += 1;
+        } else if date.as_str() >= du_p.as_str() && date.as_str() <= au_p.as_str() {
+            *nouveaux_mois_p.entry(decaler(&date[..7])).or_default() += 1;
+        }
+    }
+    let mut premieres_mois: HashMap<String, i64> = HashMap::new();
+    for s in liste.iter().filter(|s| s.type_seance == TypeSeance::Premiere) {
+        *premieres_mois.entry(s.debut[..7].to_owned()).or_default() += 1;
+    }
+
+    let mut par_mois = Vec::new();
+    let (mut annee, mut mois) = (debut.annee(), debut.mois());
+    while (annee, mois) <= (fin.annee(), fin.mois()) {
+        let cle = format!("{annee:04}-{mois:02}");
+        par_mois.push(Mois {
+            chiffre: ca.get(&cle).copied().unwrap_or(0),
+            chiffre_precedent: ca_p_decale.get(&cle).copied().unwrap_or(0),
+            seances: sm.get(&cle).copied().unwrap_or(0),
+            seances_precedent: sm_p_decale.get(&cle).copied().unwrap_or(0),
+            premieres: premieres_mois.get(&cle).copied().unwrap_or(0),
+            nouveaux: nouveaux_mois.get(&cle).copied().unwrap_or(0),
+            nouveaux_precedent: nouveaux_mois_p.get(&cle).copied().unwrap_or(0),
+            mois: cle,
+        });
+        if mois == 12 {
+            annee += 1;
+            mois = 1;
+        } else {
+            mois += 1;
+        }
+    }
+    let somme = |m: &HashMap<String, i64>| m.values().sum::<i64>();
+
+    let fin_p = format!("{au_p}T99");
+    let seances_p: i64 =
+        base.connexion().query_row("SELECT count(*) FROM seances WHERE supprimee_le IS NULL AND debut >= ?1 AND debut < ?2", [du_p.as_str(), fin_p.as_str()], |l| l.get(0))?;
+    let facturees = liste.iter().filter(|s| s.facturation == Facturation::AFacturer).count() as i64;
+    let facturees_p: i64 = base.connexion().query_row(
+        // « +facturation » : la période choisit l'index, pas la nature de la séance, partagée par presque toutes.
+        "SELECT count(*) FROM seances WHERE supprimee_le IS NULL AND +facturation = 'a_facturer' AND debut >= ?1 AND debut < ?2",
+        [du_p.as_str(), fin_p.as_str()],
+        |l| l.get(0),
+    )?;
+    let panier = |ca: i64, n: i64| if n > 0 { ca / n } else { 0 };
+
+    let mut moyens: Vec<ParMoyen> = Vec::new();
+    {
+        let mut requete =
+            base.connexion().prepare("SELECT moyen, sum(montant_centimes), count(*) FROM reglements WHERE encaisse_le >= ?1 AND encaisse_le <= ?2 GROUP BY moyen")?;
+        let lignes = requete.query_map([du, au], |l| Ok((l.get::<_, String>(0)?, l.get::<_, i64>(1)?, l.get::<_, i64>(2)?)))?;
+        for ligne in lignes {
+            let (moyen, montant, nombre) = ligne?;
+            let moyen: Moyen = serde_json::from_value(serde_json::Value::String(moyen)).unwrap_or(Moyen::Autre);
+            moyens.push(ParMoyen { moyen, montant, nombre });
+        }
+        moyens.sort_by_key(|m| Moyen::TOUS.iter().position(|x| *x == m.moyen));
+    }
+
+    // Patients venus dans la période.
+    let mut seances_par_patient: HashMap<String, i64> = HashMap::new();
+    for s in &liste {
+        *seances_par_patient.entry(s.patient_id.clone()).or_default() += 1;
+    }
+    let actifs: HashSet<&String> = seances_par_patient.keys().collect();
+    let mut ages: HashMap<String, i64> = HashMap::new();
+    let mut somme_ages = 0i64;
+    let mut nombre_ages = 0i64;
+    let mut sexes = Sexes::default();
+    let mut villes: HashMap<String, i64> = HashMap::new();
+    let mut recence = Recence::default();
+    let un_an = un_an_avant(fin);
+    let deux_ans = un_an_avant(un_an);
+    let mut suivis = Vec::new();
+    {
+        let mut requete = base.connexion().prepare(
+            "SELECT p.id, p.nom, p.prenom, p.sexe, p.naissance, p.ville, p.archive_le, p.decede,
+                    (SELECT max(substr(debut, 1, 10)) FROM seances s WHERE s.patient_id = p.id AND s.supprimee_le IS NULL AND substr(s.debut, 1, 10) <= ?1)
+             FROM patients p",
+        )?;
+        let lignes = requete.query_map([au], |l| {
+            Ok((
+                l.get::<_, String>(0)?,
+                l.get::<_, String>(1)?,
+                l.get::<_, String>(2)?,
+                l.get::<_, String>(3)?,
+                l.get::<_, Option<String>>(4)?,
+                l.get::<_, String>(5)?,
+                l.get::<_, Option<i64>>(6)?,
+                l.get::<_, bool>(7)?,
+                l.get::<_, Option<String>>(8)?,
+            ))
+        })?;
+        for ligne in lignes {
+            let (id, nom, prenom, sexe, naissance, ville, archive, decede, derniere) = ligne?;
+            if let Some(derniere) = derniere.as_deref().and_then(|d| Date::lire(d).ok())
+                && archive.is_none()
+                && !decede
+            {
+                if derniere >= un_an {
+                    recence.actifs += 1;
+                } else if derniere >= deux_ans {
+                    recence.dormants += 1;
+                } else {
+                    recence.inactifs += 1;
+                }
+            }
+            if !actifs.contains(&id) {
+                continue;
+            }
+            match sexe.as_str() {
+                "F" => sexes.femmes += 1,
+                "M" => sexes.hommes += 1,
+                _ => sexes.non_renseigne += 1,
+            }
+            *villes.entry(ville.trim().to_owned()).or_default() += 1;
+            let tranche = match naissance.as_deref().and_then(|n| Date::lire(n).ok()) {
+                Some(n) => {
+                    let age = age_le(n, fin);
+                    somme_ages += i64::from(age);
+                    nombre_ages += 1;
+                    TRANCHES.iter().find(|(limite, _)| age < *limite).map(|(_, l)| *l).unwrap_or("75 ans et plus")
+                }
+                None => "Âge non renseigné",
+            };
+            *ages.entry(tranche.to_owned()).or_default() += 1;
+            suivis.push(PatientSuivi { seances: seances_par_patient.get(&id).copied().unwrap_or(0), id, nom, prenom });
+        }
+    }
+    suivis.sort_by(|a, b| b.seances.cmp(&a.seances).then(a.nom.cmp(&b.nom)));
+    suivis.truncate(5);
+    let ages: Vec<Compte> = TRANCHES
+        .iter()
+        .map(|(_, l)| *l)
+        .chain(["Âge non renseigné"])
+        .filter_map(|l| ages.get(l).map(|n| Compte { libelle: l.to_owned(), nombre: *n }))
+        .collect();
+
+    let mut antecedents: HashMap<String, i64> = HashMap::new();
+    {
+        let mut requete = base.connexion().prepare("SELECT patient_id, rubrique FROM antecedents")?;
+        let mut vus: HashSet<(String, String)> = HashSet::new();
+        for ligne in requete.query_map([], |l| Ok((l.get::<_, String>(0)?, l.get::<_, String>(1)?)))? {
+            let (patient, rubrique) = ligne?;
+            if actifs.contains(&patient) && vus.insert((patient, rubrique.clone())) {
+                *antecedents.entry(rubrique).or_default() += 1;
+            }
+        }
+    }
+
+    let notees: Vec<(f64, f64)> = liste.iter().filter_map(|s| Some((s.douleur_avant?, s.douleur_apres?))).collect();
+    let douleur = (!notees.is_empty()).then(|| Douleur {
+        seances: notees.len() as i64,
+        avant: notees.iter().map(|d| d.0).sum::<f64>() / notees.len() as f64,
+        apres: notees.iter().map(|d| d.1).sum::<f64>() / notees.len() as f64,
+    });
+    let mut jours = [0i64; 7];
+    let mut creneaux = vec![[0i64; 24]; 7];
+    let lundi = |d: Date| d.jours_unix() - (d.jours_unix() + 3).rem_euclid(7);
+    let mut semaines: HashMap<i64, (i64, i64)> = HashMap::new();
+    for s in &liste {
+        if let Ok(d) = Date::lire(&s.debut[..10.min(s.debut.len())]) {
+            let jour = (d.jours_unix() + 3).rem_euclid(7) as usize;
+            jours[jour] += 1;
+            if let Some(heure) = s.debut.get(11..13).and_then(|h| h.parse::<usize>().ok()).filter(|h| *h < 24) {
+                creneaux[jour][heure] += 1;
+            }
+            let semaine = semaines.entry(lundi(d)).or_default();
+            semaine.0 += 1;
+            if s.type_seance == TypeSeance::Premiere {
+                semaine.1 += 1;
+            }
+        }
+    }
+    let par_semaine: Vec<Semaine> = (lundi(debut)..=lundi(fin))
+        .step_by(7)
+        .map(|l| {
+            let (seances, premieres) = semaines.get(&l).copied().unwrap_or_default();
+            Semaine { lundi: Date::depuis_jours_unix(l).to_string(), seances, premieres }
+        })
+        .collect();
+
+    let chiffre_total = somme(&ca);
+    let chiffre_precedent = somme(&ca_p);
+    Ok(Statistiques {
+        du: du.to_owned(),
+        au: au.to_owned(),
+        du_precedent: du_p.clone(),
+        au_precedent: au_p.clone(),
+        base: chiffre,
+        chiffre: Comparaison { valeur: chiffre_total, precedent: chiffre_precedent },
+        seances: Comparaison { valeur: liste.len() as i64, precedent: seances_p },
+        panier_moyen: Comparaison { valeur: panier(chiffre_total, facturees), precedent: panier(chiffre_precedent, facturees_p) },
+        nouveaux_patients: Comparaison { valeur: nouveaux(&premieres, du, au), precedent: nouveaux(&premieres, &du_p, &au_p) },
+        par_mois,
+        moyens,
+        patients_actifs: actifs.len() as i64,
+        age_moyen: (nombre_ages > 0).then(|| somme_ages as f64 / nombre_ages as f64),
+        ages,
+        sexes,
+        recence,
+        seances_par_patient: if actifs.is_empty() { 0.0 } else { liste.len() as f64 / actifs.len() as f64 },
+        premieres_seances: liste.iter().filter(|s| s.type_seance == TypeSeance::Premiere).count() as i64,
+        actes_gratuits: liste.iter().filter(|s| s.facturation == Facturation::Gratuit).count() as i64,
+        villes: haut_du_classement(villes, 6),
+        antecedents: haut_du_classement(antecedents, 6),
+        patients_suivis: suivis,
+        douleur,
+        jours: JOURS.iter().zip(jours).map(|(l, n)| Compte { libelle: (*l).to_owned(), nombre: n }).collect(),
+        creneaux,
+        par_semaine,
+    })
+}
+
+/// Première date d'activité du cabinet (séance ou règlement), pour proposer des périodes utiles.
+pub fn premiere_activite(base: &Base) -> Result<Option<String>, ErreurStatistiques> {
+    Ok(base
+        .connexion()
+        .query_row(
+            "SELECT min(d) FROM (SELECT min(substr(debut, 1, 10)) AS d FROM seances UNION ALL SELECT min(encaisse_le) FROM reglements)",
+            [],
+            |l| l.get(0),
+        )
+        .optional()?
+        .flatten())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::cabinet::{IdentiteCabinet, PARAMETRE_IDENTITE};
+    use crate::chiffrement::CleDonnees;
+    use crate::facturation::{self, LigneFacture, SaisieReglement};
+    use crate::patients::{self, FichePatient};
+    use crate::seances::{self, SaisieSeance};
+
+    #[test]
+    fn compare_a_l_annee_precedente_et_decrit_la_patientele() {
+        let dossier = tempfile::tempdir().unwrap();
+        let base = Base::ouvrir(&dossier.path().join("essai.osteosphere"), &CleDonnees::generer().unwrap()).unwrap();
+        base.ecrire_parametre(
+            PARAMETRE_IDENTITE,
+            &IdentiteCabinet {
+                prenom: "Alexandre".into(),
+                nom: "Roux".into(),
+                adresse: "12 place de la Halle".into(),
+                code_postal: "47150".into(),
+                ville: "Lacapelle-Biron".into(),
+                siret: "12345678900012".into(),
+                rpps: "10000000000".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        modeles::installer_modeles_fournis(&base).unwrap();
+        let modele = modeles::lister(&base).unwrap().remove(0);
+        let patient = |nom: &str, sexe: &str, naissance: &str, ville: &str| {
+            patients::creer(
+                &base,
+                &FichePatient { nom: nom.into(), prenom: "P".into(), sexe: sexe.into(), naissance: Some(naissance.into()), ville: ville.into(), ..Default::default() },
+            )
+            .unwrap()
+            .id
+        };
+        let camille = patient("Martin", "F", "1988-03-14", "Fumel");
+        let louis = patient("Petit", "M", "2014-09-20", "Fumel");
+        let ancienne = patient("Aubert", "F", "1954-11-08", "Villeréal");
+        let dormant = patient("Girard", "M", "1979-06-02", "Monflanquin");
+        let seance = |p: &str, debut: &str, avant: i64, apres: i64, facturer: bool| {
+            let mut s = SaisieSeance { debut: debut.into(), modele_id: modele.id.clone(), modele_version: modele.version, ..Default::default() };
+            s.valeurs.insert("douleur_avant".into(), json!(avant));
+            s.valeurs.insert("douleur_apres".into(), json!(apres));
+            if !facturer {
+                s.facturation = Facturation::Gratuit;
+            }
+            let id = seances::creer(&base, p, &s).unwrap().id;
+            if facturer {
+                let date = &debut[..10];
+                facturation::facturer_seance(
+                    &base,
+                    &id,
+                    &[LigneFacture { designation: "Consultation".into(), quantite: 1, prix_unitaire_centimes: 5500, ..Default::default() }],
+                    Some(&SaisieReglement { montant_centimes: 5500, encaisse_le: date.into(), ..Default::default() }),
+                    date,
+                )
+                .unwrap();
+            }
+        };
+        seance(&ancienne, "2024-02-10T10:00", 5, 3, true);
+        seance(&camille, "2025-03-05T10:00", 6, 2, true);
+        seance(&camille, "2026-03-04T10:00", 7, 3, true);
+        seance(&camille, "2026-03-18T10:00", 4, 1, true);
+        seance(&louis, "2026-05-06T17:00", 2, 1, false);
+        seance(&dormant, "2025-06-02T08:30", 3, 1, false);
+
+        let stats = calculer(&base, "2026-01-01", "2026-09-30", BaseChiffre::Encaissement).unwrap();
+        assert_eq!((stats.du_precedent.as_str(), stats.au_precedent.as_str()), ("2025-01-01", "2025-09-30"));
+        assert_eq!(stats.chiffre, Comparaison { valeur: 11_000, precedent: 5_500 });
+        assert_eq!(stats.seances, Comparaison { valeur: 3, precedent: 2 });
+        assert_eq!(stats.panier_moyen, Comparaison { valeur: 5_500, precedent: 5_500 });
+        assert_eq!(stats.nouveaux_patients, Comparaison { valeur: 1, precedent: 2 });
+        assert_eq!(stats.par_mois.len(), 9);
+        assert_eq!((stats.par_mois[2].chiffre, stats.par_mois[2].chiffre_precedent, stats.par_mois[2].seances), (11_000, 5_500, 2));
+        // Louis vient pour la première fois en mai 2026 ; Camille et M. Girard étaient nouveaux en mars et juin 2025.
+        let nouveaux: Vec<(i64, i64)> = stats.par_mois.iter().map(|m| (m.nouveaux, m.nouveaux_precedent)).collect();
+        assert_eq!(nouveaux, [(0, 0), (0, 0), (0, 1), (0, 0), (1, 0), (0, 1), (0, 0), (0, 0), (0, 0)]);
+        assert_eq!(stats.moyens, vec![ParMoyen { moyen: Moyen::Carte, montant: 11_000, nombre: 2 }]);
+        assert_eq!(stats.patients_actifs, 2);
+        assert_eq!(stats.sexes, Sexes { femmes: 1, hommes: 1, non_renseigne: 0 });
+        assert_eq!(stats.ages.iter().map(|a| a.libelle.as_str()).collect::<Vec<_>>(), ["12 à 17 ans", "30 à 44 ans"]);
+        assert_eq!(stats.villes, vec![Compte { libelle: "Fumel".into(), nombre: 2 }]);
+        assert_eq!(stats.recence, Recence { actifs: 2, dormants: 1, inactifs: 1 });
+        assert_eq!(stats.actes_gratuits, 1);
+        assert_eq!(stats.patients_suivis[0].nom, "Martin");
+        let douleur = stats.douleur.unwrap();
+        assert_eq!((douleur.seances, douleur.avant, douleur.apres), (3, 13.0 / 3.0, 5.0 / 3.0));
+        assert_eq!(stats.jours[2].nombre, 3);
+        assert_eq!((stats.creneaux[2][10], stats.creneaux[2][17], stats.creneaux[0][10]), (2, 1, 0));
+        // Du lundi 29 décembre 2025 au lundi 28 septembre 2026.
+        assert_eq!(stats.par_semaine.len(), 40);
+        assert_eq!((stats.par_semaine[0].lundi.as_str(), stats.par_semaine[39].lundi.as_str()), ("2025-12-29", "2026-09-28"));
+        let chargees: Vec<(&str, i64)> = stats.par_semaine.iter().filter(|s| s.seances > 0).map(|s| (s.lundi.as_str(), s.seances)).collect();
+        assert_eq!(chargees, [("2026-03-02", 1), ("2026-03-16", 1), ("2026-05-04", 1)]);
+
+        let par_facture = calculer(&base, "2026-01-01", "2026-09-30", BaseChiffre::Facture).unwrap();
+        assert_eq!(par_facture.chiffre.valeur, 11_000);
+        assert_eq!(premiere_activite(&base).unwrap().as_deref(), Some("2024-02-10"));
+        assert!(calculer(&base, "2026-09-30", "2026-01-01", BaseChiffre::Facture).is_err());
+    }
+
+    #[test]
+    fn un_an_avant_le_29_fevrier() {
+        assert_eq!(un_an_avant(Date::lire("2028-02-29").unwrap()).to_string(), "2027-02-28");
+        assert_eq!(age_le(Date::lire("1988-03-14").unwrap(), Date::lire("2026-03-13").unwrap()), 37);
+        assert_eq!(age_le(Date::lire("1988-03-14").unwrap(), Date::lire("2026-03-14").unwrap()), 38);
+    }
+}

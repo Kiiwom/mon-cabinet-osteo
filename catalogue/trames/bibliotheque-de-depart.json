@@ -1,0 +1,174 @@
+{
+  "format": "osteosphere.trames",
+  "version": 1,
+  "trames": [
+    {
+      "code": "lomb",
+      "titre": "Douleur lombaire",
+      "categorie": "Anamnèse",
+      "modele": "Douleur lombaire {droite | gauche | bilatérale}, {aiguë | subaiguë | chronique}, depuis [durée], EVA [0 à 10]/10.",
+      "contenu": null
+    },
+    {
+      "code": "dors",
+      "titre": "Dorsalgie",
+      "categorie": "Anamnèse",
+      "modele": "Dorsalgie {haute | moyenne | basse}, {droite | gauche | médiane}, depuis [durée], d’horaire {mécanique | inflammatoire}, EVA [0 à 10]/10.",
+      "contenu": null
+    },
+    {
+      "code": "cerv",
+      "titre": "Cervicalgie",
+      "categorie": "Anamnèse",
+      "modele": "Cervicalgie {droite | gauche | bilatérale} depuis [durée], irradiation {absente | vers l’épaule | vers le bras | vers la main}.",
+      "contenu": null
+    },
+    {
+      "code": "ceph",
+      "titre": "Céphalées",
+      "categorie": "Anamnèse",
+      "modele": "Céphalées {frontales | temporales | occipitales | en casque}, {+ le matin | en fin de journée | à l’effort | au stress}, [fréquence], {+ sans signe associé | avec nausées | avec gêne à la lumière}.",
+      "contenu": null
+    },
+    {
+      "code": "epaule",
+      "titre": "Épaule douloureuse",
+      "categorie": "Anamnèse",
+      "modele": "Douleur de l’épaule {droite | gauche} depuis [durée], {+ à l’élévation du bras | en rotation | la nuit | au repos}, EVA [0 à 10]/10.",
+      "contenu": null
+    },
+    {
+      "code": "genou",
+      "titre": "Douleur du genou",
+      "categorie": "Anamnèse",
+      "modele": "Douleur du genou {droit | gauche}, face {antérieure | interne | externe | postérieure}, depuis [durée], {+ gonflement | blocage | dérobement | sans signe associé}.",
+      "contenu": null
+    },
+    {
+      "code": "chev",
+      "titre": "Entorse de cheville",
+      "categorie": "Anamnèse",
+      "modele": "Entorse de la cheville {droite | gauche} le [date], {en varus | en valgus}, {+ œdème | hématome | appui possible | appui impossible}.",
+      "contenu": null
+    },
+    {
+      "code": "trauma",
+      "titre": "Traumatisme récent",
+      "categorie": "Anamnèse",
+      "modele": "Chute ou choc le [date] : [circonstances]. {+ consultation aux urgences | radiographie | aucun examen}.",
+      "contenu": null
+    },
+    {
+      "code": "eg",
+      "titre": "État général",
+      "categorie": "Anamnèse",
+      "modele": "Sommeil {bon | moyen | perturbé}, appétit {conservé | diminué}, fatigue {absente | modérée | importante}.",
+      "contenu": null
+    },
+    {
+      "code": "sport",
+      "titre": "Activités sportives",
+      "categorie": "Anamnèse",
+      "modele": "Pratique {+ la course à pied | le vélo | la natation | la randonnée | le football | le rugby | le tennis | la danse}, [fréquence] par semaine.",
+      "contenu": null
+    },
+    {
+      "code": "gross",
+      "titre": "Grossesse",
+      "categorie": "Anamnèse",
+      "modele": "Grossesse de [terme] SA, {primipare | multipare}, suivie par [praticien], {+ lombalgies | douleurs pelviennes | sciatalgie | reflux | troubles du sommeil}.",
+      "contenu": null
+    },
+    {
+      "code": "nour",
+      "titre": "Nourrisson : naissance et alimentation",
+      "categorie": "Anamnèse",
+      "modele": "Naissance à [terme] SA, accouchement {par voie basse | par césarienne | instrumental}, allaitement {maternel | artificiel | mixte}.",
+      "contenu": null
+    },
+    {
+      "code": "bebe",
+      "titre": "Nourrisson : motif",
+      "categorie": "Anamnèse",
+      "modele": "Consulte pour {+ tête plate | torticolis | pleurs prolongés | reflux | troubles du sommeil | difficultés de succion} depuis [durée].",
+      "contenu": null
+    },
+    {
+      "code": "alerte",
+      "titre": "Signes d’alerte",
+      "categorie": "Examen",
+      "modele": "Signes d’alerte recherchés : {+ aucun | fièvre | amaigrissement inexpliqué | douleur nocturne non mécanique | troubles urinaires ou digestifs récents | perte de force | fourmillements étendus}.",
+      "contenu": null
+    },
+    {
+      "code": "posture",
+      "titre": "Observation posturale",
+      "categorie": "Examen",
+      "modele": "Posture : {+ sans particularité | hyperlordose lombaire | cyphose dorsale | tête en avant | bassin basculé | attitude scoliotique}.",
+      "contenu": null
+    },
+    {
+      "code": "mob",
+      "titre": "Mobilité",
+      "categorie": "Examen",
+      "modele": "Mobilité {conservée | limitée | douloureuse} en [mouvements], {sans | avec} reproduction de la douleur.",
+      "contenu": null
+    },
+    {
+      "code": "neuro",
+      "titre": "Examen neurologique",
+      "categorie": "Tests",
+      "modele": "Lasègue {négatif | positif}, réflexes {présents et symétriques | diminués | abolis}, sensibilité {normale | diminuée}, force {conservée | diminuée}.",
+      "contenu": null
+    },
+    {
+      "code": "ttt",
+      "titre": "Techniques utilisées",
+      "categorie": "Traitement",
+      "modele": "Techniques {+ structurelles | fonctionnelles | myofasciales | viscérales | crâniennes | tissulaires}, sur [zones].",
+      "contenu": null
+    },
+    {
+      "code": "evol",
+      "titre": "Évolution",
+      "categorie": "Traitement",
+      "modele": "Depuis la dernière séance : {nette amélioration | légère amélioration | pas de changement | aggravation}, [précisions].",
+      "contenu": null
+    },
+    {
+      "code": "cr",
+      "titre": "Résumé de séance",
+      "categorie": "Traitement",
+      "modele": "Séance du {{date}} : {{prénom}}, {{âge}}, consulte pour [motif].",
+      "contenu": null
+    },
+    {
+      "code": "post",
+      "titre": "Conseils au poste assis",
+      "categorie": "Conseils",
+      "modele": "Conseils donnés : {+ pauses régulières | écran à hauteur des yeux | auto-étirements quotidiens | hydratation}.",
+      "contenu": null
+    },
+    {
+      "code": "apres",
+      "titre": "Conseils après la séance",
+      "categorie": "Conseils",
+      "modele": "Après la séance : {+ bien s’hydrater | éviter l’effort intense pendant 48 heures | courbatures possibles pendant 24 à 48 heures | chaleur sur la zone | froid sur la zone}.",
+      "contenu": null
+    },
+    {
+      "code": "orient",
+      "titre": "Orientation",
+      "categorie": "Conseils",
+      "modele": "Orienté(e) vers {le médecin traitant | un kinésithérapeute | un podologue | un dentiste | un orthoptiste | les urgences} pour [motif].",
+      "contenu": null
+    },
+    {
+      "code": "revoir",
+      "titre": "Revoir",
+      "categorie": "Conseils",
+      "modele": "À revoir dans [délai] {si les douleurs persistent | en suivi | si besoin}.",
+      "contenu": null
+    }
+  ]
+}

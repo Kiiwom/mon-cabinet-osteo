@@ -1,0 +1,27 @@
+[
+  {
+    "cle": "medicaux",
+    "libelle": "Médicaux",
+    "rubriques": ["Traitement longue durée", "Traitement ponctuel", "Allergies", "Vaccins", "Autres"]
+  },
+  {
+    "cle": "traumatiques",
+    "libelle": "Traumatiques",
+    "rubriques": ["Entorse", "Fracture", "Luxation", "Accident de la route", "Chutes", "Autres"]
+  },
+  {
+    "cle": "chirurgicaux",
+    "libelle": "Chirurgicaux",
+    "rubriques": ["Orthopédique", "Tête", "Thorax", "Abdomen", "Gynéco / Uro", "ORL"]
+  },
+  {
+    "cle": "familiaux",
+    "libelle": "Familiaux",
+    "rubriques": ["Décès", "Accouchements", "Maladies", "Autres"]
+  },
+  {
+    "cle": "psychologiques",
+    "libelle": "Psychologiques",
+    "rubriques": ["Troubles de l'humeur", "Insomnie", "Phobies", "Anxiété", "Autres"]
+  }
+]
